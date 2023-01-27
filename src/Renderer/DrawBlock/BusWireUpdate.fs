@@ -90,8 +90,6 @@ let init () =
         Type = Constants.initialWireType
         ArrowDisplay = Constants.initialArrowDisplay
     } , Cmd.none
-
-
             
 /// Handles messages
 let update (msg : Msg) (model : Model) : Model*Cmd<Msg> =
@@ -437,7 +435,12 @@ let update (msg : Msg) (model : Model) : Model*Cmd<Msg> =
         let newWires =
             (model.Wires, wiresToReroute)
             ||> List.fold (fun wires (wid, wire) ->
-                let wire' = updateWire model wire (rerouteInputEnd wire)
+                let routeInputEndOfWire = rerouteInputEnd wire
+                let wire' = 
+                    match Hlp23Tick3.updateWire model wire routeInputEndOfWire with
+                    | Some updatedWire -> updatedWire
+                    | None -> 
+                        updateWire model wire routeInputEndOfWire
                 Map.add wid wire' wires)
 
         {model with Wires = newWires}, Cmd.none

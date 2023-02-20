@@ -575,7 +575,7 @@ let backgroundSVG (wsModel: WaveSimModel) count : ReactElement list =
     [ wsModel.StartCycle + 1 .. endCycle wsModel + 1 ] 
     |> List.map (fun x -> clkLine (float x * singleWaveWidth wsModel))
 
-let highlightColSVG (m: WaveSimModel) (color: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) (id: string) : ReactElement =
+let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) : ReactElement =
     let onClickFun = 
         match onClick with
         | None -> (fun ev -> ())
@@ -624,11 +624,11 @@ let clkCycleHighlightSVG m dispatch =
             
             let cycle = (int <| (ev.clientX - bcr.left) / singleWaveWidth m) + m.StartCycle
             dispatch <| UpdateWSModel (fun m -> {m with CurrClkCycle = cycle})
-    highlightColSVG m Constants.cursorColor  None (Some updateCurrCycleToClickedCycle) "ClkCycleHighlight"
+    highlightColSVG m Constants.cursorColor "ClkCycleHighlight" None (Some updateCurrCycleToClickedCycle) 
 
 /// Controls the background highlighting of which clock cycle is selected
 let failedAssertionsHighlight m cycle=
-    highlightColSVG m Constants.failedAssertionColor (Some cycle) None "AssertionHighlight"
+    highlightColSVG m Constants.failedAssertionColor "AssertionHighlight" (Some cycle) None 
 
 /// Props for radix tabs
 let radixTabProps : IHTMLProp list = [

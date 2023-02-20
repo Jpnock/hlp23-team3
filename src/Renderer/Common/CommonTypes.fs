@@ -579,6 +579,12 @@ module CommonTypes
         Description: string option
     }
 
+    /// Assertion type for the wave sim
+    type FailedAssertion = {
+        Cycle: int
+        FailureMessage: string
+    }
+
     (*--------------------------------------------------------------------------------------------------*)
 
     /// Static data describing a schematic sheet loaded as a custom component.

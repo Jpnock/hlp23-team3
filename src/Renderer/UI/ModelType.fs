@@ -246,6 +246,8 @@ type WaveSimModel = {
     /// The value of SelectedWaves when the user started dragging a label.
     /// Used to restore SelectedWaves if the user drops a label in an illegal location.
     PrevSelectedWaves: WaveIndexT list option
+    /// List of failed assetions with meta data
+    FailedAssertions: FailedAssertion list option
 }
 
 

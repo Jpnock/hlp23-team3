@@ -53,6 +53,8 @@ module Constants =
     let labelPadding = 3
     /// Color for cursor and values column
     let cursorColor = "Lavender"
+    /// Color for falied assertions
+    let failedAssertionColor = "red"
 
 
 
@@ -573,8 +575,17 @@ let backgroundSVG (wsModel: WaveSimModel) count : ReactElement list =
     [ wsModel.StartCycle + 1 .. endCycle wsModel + 1 ] 
     |> List.map (fun x -> clkLine (float x * singleWaveWidth wsModel))
 
-/// Controls the background highlighting of which clock cycle is selected
-let clkCycleHighlightSVG m dispatch =
+let highlightColSVG (m: WaveSimModel) (color: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) (id: string) : ReactElement =
+    let onClickFun = 
+        match onClick with
+        | None -> (fun ev -> ())
+        | Some x -> x
+    
+    let highlightedCol =
+        match specificCol with
+        | None -> m.CurrClkCycle
+        | Some x -> x
+    
     let count = List.length m.SelectedWaves
     svg [
         Style [
@@ -583,32 +594,41 @@ let clkCycleHighlightSVG m dispatch =
         ]
         SVGAttr.Height (string ((count + 1) * Constants.rowHeight) + "px")
         SVGAttr.Width (viewBoxWidth m)
-        SVGAttr.Fill Constants.cursorColor
+        SVGAttr.Fill color
         SVGAttr.Opacity 0.4
         ViewBox (viewBoxMinX m + " 0 " + viewBoxWidth m  + " " + string (Constants.viewBoxHeight * float (count + 1)))
-        Id "ClkCycleHighlight"
-        OnClick (fun ev ->
-            let svgEl = Browser.Dom.document.getElementById "ClkCycleHighlight"
-            let bcr = svgEl.getBoundingClientRect ()
-            /// Should be the same as singleWaveWidth
-            let cycleWidth = bcr.width / float m.ShownCycles
-            /// ev.clientX is X-coord of mouse click. bcr.left is x-coord of start of SVG.
-            /// getBoundingClientRect only works if ViewBox is 0 0 width height, so
-            /// add m.StartCycle to account for when viewBoxMinX is not 0
-            let cycle = (int <| (ev.clientX - bcr.left) / singleWaveWidth m) + m.StartCycle
-            dispatch <| UpdateWSModel (fun m -> {m with CurrClkCycle = cycle})
-        )
+        Id id
+        OnClick onClickFun
         ]
         (List.append 
             [
                 rect [
                     SVGAttr.Width (singleWaveWidth m)
                     SVGAttr.Height "100%"
-                    X (float m.CurrClkCycle * (singleWaveWidth m))
+                    X (float highlightedCol * (singleWaveWidth m))
                 ] []
             ]
             (backgroundSVG m count)
         )
+
+/// Controls the background highlighting of which clock cycle is selected
+let clkCycleHighlightSVG m dispatch =
+    let updateCurrCycleToClickedCycle  (ev: Browser.Types.MouseEvent)  =
+            let svgEl = Browser.Dom.document.getElementById "ClkCycleHighlight"
+            let bcr = svgEl.getBoundingClientRect()
+            /// Should be the same as singleWaveWidth
+            let cycleWidth = bcr.width / float m.ShownCycles
+            /// ev.clientX is X-coord of mouse click. bcr.left is x-coord of start of SVG.
+            /// getBoundingClientRect only works if ViewBox is 0 0 width height, so
+            /// add m.StartCycle to account for when viewBoxMinX is not 0
+            
+            let cycle = (int <| (ev.clientX - bcr.left) / singleWaveWidth m) + m.StartCycle
+            dispatch <| UpdateWSModel (fun m -> {m with CurrClkCycle = cycle})
+    highlightColSVG m Constants.cursorColor  None (Some updateCurrCycleToClickedCycle) "ClkCycleHighlight"
+
+/// Controls the background highlighting of which clock cycle is selected
+let failedAssertionsHighlight m cycle=
+    highlightColSVG m Constants.failedAssertionColor (Some cycle) None "AssertionHighlight"
 
 /// Props for radix tabs
 let radixTabProps : IHTMLProp list = [

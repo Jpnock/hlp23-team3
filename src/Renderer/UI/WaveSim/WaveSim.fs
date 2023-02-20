@@ -500,14 +500,20 @@ let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
                 div [] [] // the GenerateCurrentWaveforms message will soon update this
         )
 
-    div [ waveformColumnStyle ]
-        [
-            clkCycleHighlightSVG wsModel dispatch
+    let colChildren =
+        //List.map getCycles wsModel.FailedAssertions |>
+        let assertionHighlights = [1;4;7] |> List.map (failedAssertionsHighlight wsModel) 
+        let clkCycleNumberRowDiv = 
             div [ waveRowsStyle wsModel.WaveformColumnWidth]
                 ([ clkCycleNumberRow wsModel ] @
                     waveRows
                 )
-        ]
+
+        List.append assertionHighlights [clkCycleHighlightSVG wsModel dispatch]
+        |> List.append [clkCycleNumberRowDiv]
+
+    div [ waveformColumnStyle ]
+        colChildren
     |> TimeHelpers.instrumentInterval "waveformColumn" start
 
 /// Display the names, waveforms, and values of selected waveforms

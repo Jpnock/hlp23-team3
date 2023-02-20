@@ -509,8 +509,7 @@ let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
                     waveRows
                 )
 
-        List.append assertionHighlights [clkCycleHighlightSVG wsModel dispatch]
-        |> List.append [clkCycleNumberRowDiv]
+        assertionHighlights @ [clkCycleHighlightSVG wsModel dispatch] @ [clkCycleNumberRowDiv]
 
     div [ waveformColumnStyle ]
         colChildren

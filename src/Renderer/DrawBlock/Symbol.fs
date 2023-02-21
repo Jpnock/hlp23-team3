@@ -624,6 +624,7 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | NbitsAdderNoCinCout (n) -> (  2 , 1, 3.*gS  , 4.*gS)
     | Shift _ -> (  2 , 1, 3.*gS  , 4.*gS)
     | Custom cct -> cct.InputLabels.Length, cct.OutputLabels.Length, 0., 0.
+    | Verification a -> (2, 1, 3.*gS, 2.*gS) // TODO(jpnock): check these params
 
 /// make a completely new component
 let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:string) : Component =

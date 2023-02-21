@@ -306,6 +306,8 @@ let private checkPortsAreConnectedProperly
                 "A component output port must have at least one connection. If the component output \
                 is meant to be disconnected you can add a wire label to stop this error", "%d")
 
+        // TODO(jpnock): Add check that verification components are only connected to other
+        // verification components, or verification component outputs.
 
         checkConns conns m 
                 

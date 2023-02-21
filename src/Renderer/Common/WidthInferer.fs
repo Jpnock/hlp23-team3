@@ -163,6 +163,11 @@ let private calculateOutputPortsWidth
     let getConnectionIdForPort =
         InputPortNumber >> (getConnectionIdForPort inputConnectionsWidth)
     match comp.Type with
+    | Verification vComp ->
+        // TODO(jpnock): Support width inference.
+        let todo = "TODO(jpnock): Support width inference"
+        printf $"{todo}"
+        Ok <| Map.empty
     | ROM _ | RAM _ | AsyncROM _ ->
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->

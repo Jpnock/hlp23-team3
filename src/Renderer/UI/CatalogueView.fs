@@ -865,6 +865,12 @@ let viewCatalogue model dispatch =
                                                    data in the clock cycle after the address is presented" 
                           catTip1 "RAM (async read)" (fun _ -> createMemoryPopup AsyncRAM1 model dispatch)  "A RAM whose output contains the addressed \
                                                    data in the same clock cycle as address is presented" ]
+                    makeMenuGroup
+                        "Verification"
+                        [
+                            // TODO(jpnock): Add more verification components.
+                            catTip1 "Multiply (Signed)" (fun _ -> createComponent (Verification Add) "" model dispatch) "ABCDEFGHI" 
+                        ]
 
                     makeMenuGroupWithTip styles
                         "This project"

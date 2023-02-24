@@ -172,10 +172,41 @@ let saveStateInSimulation (canvasState:CanvasState) (openFileName: string) (load
 let rec startCircuitSimulation
         (simulationArraySize: int)
         (diagramName : string)
-        (canvasState : CanvasState)
+        (fullCanvasState : CanvasState)
         (loadedDependencies : LoadedComponent list)
         : Result<SimulationData, SimulationError> =
 
+    // Remove all verification components from the simulation
+    // as this logic is performed outside of the simulator.
+    let canvasComps, canvasConnections = fullCanvasState
+    
+    let isTypeVerificationComp =
+        function
+        | Verification _ -> true
+        | _ -> false
+    
+    let verificationCompMap =
+        canvasComps
+        |> List.map (fun comp -> comp.Id, isTypeVerificationComp comp.Type)
+        |> Map.ofList
+    
+    // TODO(jpnock): we might also want to remove constants that are solely 
+    // connected to verification components, otherwise these will error.
+    let canvasNonVerificationComps =
+        canvasComps
+        |> List.filter (fun comp -> not (isTypeVerificationComp comp.Type))
+    
+    let isVerificationComp compId = verificationCompMap[compId]
+    
+    // Remove all connections that are connected to verification components
+    // at either end.
+    let canvasNonVerificationConns =
+        canvasConnections
+        |> List.filter (fun conn ->
+            (not (isVerificationComp conn.Source.HostId)) && (not (isVerificationComp conn.Target.HostId)))
+    
+    let canvasState = canvasNonVerificationComps, canvasNonVerificationConns
+    
     /// Tune for performance of initial zero-length simulation versus longer run.
     /// Probably this is not critical.
     match runCanvasStateChecksAndBuildGraph canvasState loadedDependencies with

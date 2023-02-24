@@ -163,6 +163,35 @@ let private calculateOutputPortsWidth
     let getConnectionIdForPort =
         InputPortNumber >> (getConnectionIdForPort inputConnectionsWidth)
     match comp.Type with
+    | Verification vComp ->
+        let inputWidths =
+            inputConnectionsWidth
+            |> Map.map ( fun _ v ->
+                Option.map fst v
+                |> Option.defaultValue None)
+        
+        let notAllWidthsValid =
+            inputWidths
+            |> Map.exists (fun _ -> Option.isNone)
+        
+        // TODO(jpnock): Tidy
+        if notAllWidthsValid then
+            Ok <| Map.empty
+        else
+            let emptyInputWidths: Map<int, int> = Map.empty
+      
+            let convertedInputWidths =
+                (emptyInputWidths, inputWidths) ||> Map.fold (
+                    fun state k v -> (
+                        match k with InputPortNumber inputNum -> Map.add inputNum (Option.get v) state
+                    )
+                )
+
+            Verification.Components.outputPortWidths vComp convertedInputWidths
+            |> List.mapi (fun idx outputWidth ->
+                (getOutputPortId comp idx, outputWidth))
+            |> Map.ofList
+            |> Ok
     | ROM _ | RAM _ | AsyncROM _ ->
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->

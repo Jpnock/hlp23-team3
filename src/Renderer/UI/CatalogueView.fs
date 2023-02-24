@@ -792,6 +792,14 @@ let viewCatalogue model dispatch =
                       Style styles
                     ]
                     [ react ]
+            
+            let verificationComponents =
+                Verification.Components.components
+                |> List.map (fun el ->
+                    catTip1 el.Name (fun _ ->
+                        createComponent (Verification el.Type) "" model dispatch)
+                        el.Description)
+
             Menu.menu [Props [Class "py-1"; Style styles]]  [
                 // TODO
                     makeMenuGroup
@@ -865,6 +873,8 @@ let viewCatalogue model dispatch =
                                                    data in the clock cycle after the address is presented" 
                           catTip1 "RAM (async read)" (fun _ -> createMemoryPopup AsyncRAM1 model dispatch)  "A RAM whose output contains the addressed \
                                                    data in the same clock cycle as address is presented" ]
+                    makeMenuGroup
+                        "Verification" verificationComponents
 
                     makeMenuGroupWithTip styles
                         "This project"

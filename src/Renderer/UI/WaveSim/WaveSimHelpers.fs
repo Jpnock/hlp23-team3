@@ -354,6 +354,7 @@ let getCompDetails fs wave =
             failwithf "Legacy component types should not appear"
         | Shift _ ->
             "Error: Shift is an internal component that should not appear", false
+        | Verification _ -> "Verification components are not displayed", false
     match oneLine with
     | true -> $"{label}{portBits wave.Width} {descr}"
     | false -> $"{label} {descr}"
@@ -382,6 +383,7 @@ let getCompGroup fs wave =
         failwithf "Legacy component types should not appear"
     | Shift _ ->
         failwithf "Shift is an internal-only component which should never appear on the canvas"
+    | Verification _ -> failwithf "Verification components are not displayed"
 
 
 /// Name for summary field in details element.

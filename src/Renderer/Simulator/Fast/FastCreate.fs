@@ -126,6 +126,7 @@ let getPortNumbers (sc: SimulationComponent) =
         | Custom ct -> ct.InputLabels.Length, ct.OutputLabels.Length
         | AsyncROM _ | RAM _ | ROM _ -> failwithf "legacy component type is not supported"
         | Input _ -> failwithf "Legacy Input component types should never occur"
+        | Verification _ -> failwithf "Verification components are not simulated"
 
     ins, outs
 
@@ -137,6 +138,8 @@ let getOutputWidths (sc: SimulationComponent) (wa: int option array) =
     let putW3 w = wa[3] <- Some w
 
     match sc.Type with
+    | Verification _ ->
+        failwithf "Verification components are not simulated"
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->
@@ -328,8 +331,14 @@ let extendFastSimulation (numSteps: int) (fs: FastSimulation) =
 /// Custom components are scanned and links added, one for each input and output
 let rec private createFlattenedSimulation (ap: ComponentId list) (graph: SimulationGraph) =
     let graphL = Map.toList graph
+    /// Get all components, excluding verification components which are not
+    /// part of simulation.
     let allComps = 
         graphL
+        |> List.filter (fun (_, comp) -> 
+            match comp.Type with
+            | Verification _ -> false 
+            | _ -> true)
         |> List.map (fun (cid,comp) ->  (cid, ap),(comp, ap))
     let labels = List.map (fun (cid,comp) -> cid, ((fun (ComponentLabel s) -> s) comp.Label)) graphL
     let topGather =

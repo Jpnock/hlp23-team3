@@ -56,7 +56,8 @@ open CommonTypes
                  SimpleJson.stringify (time) |> ignore
                  printfn "\n\nTrying to stringify all" *)
              
-                 Json.serialize<SavedInfo> (CanvasWithFileWaveInfo (cState, waveInfo, time))
+                 //Json.serialize<SavedInfo> (CanvasWithFileWaveInfo (cState, waveInfo, time))
+                 SimpleJson.stringify (time) 
             with
             | e -> 
                 printfn "HELP: exception in SimpleJson.stringify %A" e

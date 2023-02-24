@@ -1,4 +1,5 @@
 ﻿module AssertionTypes
+open CommonTypes
 
 type Pos = {
     Start: uint ;
@@ -15,6 +16,11 @@ type Value =
     | Int of int 
     | Bool of bool 
     | Uint of uint 
+
+// after having added an ad-hoc assertion component Id can be changed as follows to also hold the size
+//type Lit = 
+//    | Value of Value 
+//    | Viewer of Id: string * Width: int
 
 type Lit = 
     | Value of Value
@@ -37,7 +43,7 @@ and Expr =
     | BitAnd of Op * Pos//eval
     | Lit of Lit * Pos//eval check
     | Cast of Cast * Pos//eval check 
-    | BusCast of uint * Expr * Pos // check
+    | BusCast of int * Expr * Pos // check
 
 and BoolExpr = 
     | Eq of Op//eval 
@@ -59,7 +65,6 @@ and ExprInfo = {
     Pos: Pos; 
 }
 
-type Size = Size of uint
 
 type Type = 
     | IntType
@@ -68,10 +73,11 @@ type Type =
 
 type ValInfo = {
     Type: Type;
-    Size: Size
+    Width: int
 }
 
 type CheckRes = 
     | ErrLst of Error list 
     | ValInfo of ValInfo
+
 

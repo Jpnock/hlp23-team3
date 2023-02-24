@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <OutputType>Exe</OutputType>
+	  <TargetFramework> netcoreapp3.1</TargetFramework>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
 
   </PropertyGroup>
@@ -15,7 +16,8 @@
     <Compile Include="DependencyMerger.fs" />
     <Compile Include="Simulator.fs" />
     <Compile Include="AssertionTypes.fs" />
-    <Compile Include="AssertionsEvaluations.fs" />
+    <Compile Include="AssertionEvaluation.fs" />
+    <Compile Include="AssertionCheck.fs" />
   </ItemGroup>
   <!-- Dependencies -->
   <ItemGroup>

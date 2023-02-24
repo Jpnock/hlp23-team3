@@ -283,3 +283,15 @@ module CommonTypes
         | UnselectComponent of unit
         | InferWidths of unit
         | SetHasUnsavedChanges of bool
+
+    type CCForm =
+        |User
+        |Library
+        |ProtectedTopLevel
+        |ProtectedSubSheet
+        |Verilog of string
+
+    type SheetInfo = {
+        Form: CCForm option 
+        Description: string option
+    }

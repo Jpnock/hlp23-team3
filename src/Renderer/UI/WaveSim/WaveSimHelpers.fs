@@ -730,4 +730,7 @@ let getFailedAssertionCycles (failedAssertions: FailedAssertion List)=
     failedAssertions
     |> List.map (fun x -> x.Cycle)
         
+let getCurrAssertionFailures (wsModel: WaveSimModel) : FailedAssertion List=
+    let failedAssertions = wsModel.FastSim.evaluateAssertions
+    List.filter (fun assertion -> assertion.Cycle = wsModel.CurrClkCycle) failedAssertions
     

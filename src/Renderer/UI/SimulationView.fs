@@ -405,6 +405,15 @@ let viewSimulationError (simError : SimulationError) =
         error
     ]
 
+/// turning failed assertions into react elements
+/// TODO: add button
+let viewFailedAssertions (failedAssertions : FailedAssertion List) =
+    let failedAssertionStrs = List.collect (fun x -> [str x.FailureMessage; br []]) failedAssertions
+    div [] [
+        Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
+        div [] failedAssertionStrs
+    ]
+
 let private simulationClockChangePopup (simData: SimulationData) (dispatch: Msg -> Unit) (dialog:PopupDialogData) =
     let step = simData.ClockTickNumber
     div [] 

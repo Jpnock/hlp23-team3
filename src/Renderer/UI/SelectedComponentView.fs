@@ -661,11 +661,13 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
 let private makeDescription (comp:Component) model dispatch =
     match comp.Type with
-    | Verification _ ->
-        // TODO(jpnock): Add descriptions for components.
-        let todo = "TODO: add verification component name"
-        printf $"{todo}"
-        str todo
+    | Verification v ->
+        let description = 
+            Verification.Components.components
+            |> List.tryFind (fun el -> el.Type = v)
+            |> Option.map (fun el -> el.Description)
+            |> Option.defaultValue "ERROR: Unknown verification component"
+        str description
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ -> failwithf "Legacy Input component types should never occur"

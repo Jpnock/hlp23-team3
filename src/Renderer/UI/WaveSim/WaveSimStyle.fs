@@ -576,17 +576,15 @@ let backgroundSVG (wsModel: WaveSimModel) count : ReactElement list =
     |> List.map (fun x -> clkLine (float x * singleWaveWidth wsModel))
 
 let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) : ReactElement =
-    let onClickFun = 
-        match onClick with
-        | None -> (fun _ -> ())
-        | Some x -> x
-    
-    let highlightedCol =
-        match specificCol with
-        | None -> m.CurrClkCycle
-        | Some x -> x
-    
+    let onClickFun = Option.defaultValue (fun _ -> ()) onClick
+    let highlightedCol = Option.defaultValue m.CurrClkCycle specificCol
     let count = List.length m.SelectedWaves
+    let reactElement = 
+                rect [
+                    SVGAttr.Width (singleWaveWidth m)
+                    SVGAttr.Height "100%"
+                    X (float highlightedCol * (singleWaveWidth m))
+                ] []
     svg [
         Style [
             GridColumnStart 1
@@ -600,16 +598,8 @@ let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol:
         Id id
         OnClick onClickFun
         ]
-        (List.append 
-            [
-                rect [
-                    SVGAttr.Width (singleWaveWidth m)
-                    SVGAttr.Height "100%"
-                    X (float highlightedCol * (singleWaveWidth m))
-                ] []
-            ]
-            (backgroundSVG m count)
-        )
+        
+        (reactElement :: backgroundSVG m count)
 
 /// Controls the background highlighting of which clock cycle is selected
 let clkCycleHighlightSVG m dispatch =
@@ -621,7 +611,6 @@ let clkCycleHighlightSVG m dispatch =
             /// ev.clientX is X-coord of mouse click. bcr.left is x-coord of start of SVG.
             /// getBoundingClientRect only works if ViewBox is 0 0 width height, so
             /// add m.StartCycle to account for when viewBoxMinX is not 0
-            
             let cycle = (int <| (ev.clientX - bcr.left) / singleWaveWidth m) + m.StartCycle
             dispatch <| UpdateWSModel (fun m -> {m with CurrClkCycle = cycle})
     highlightColSVG m Constants.cursorColor "ClkCycleHighlight" None (Some updateCurrCycleToClickedCycle) 

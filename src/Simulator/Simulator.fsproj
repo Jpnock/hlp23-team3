@@ -11,7 +11,8 @@
     <Compile Include="DependencyMerger.fs" />
     <Compile Include="Simulator.fs" />
     <Compile Include="AssertionTypes.fs" />
-    <Compile Include="AssertionsEvaluations.fs" />
+    <Compile Include="AssertionEvaluation.fs" />
+    <Compile Include="AssertionCheck.fs" />
   </ItemGroup>
   <!-- Dependencies -->
   <ItemGroup>

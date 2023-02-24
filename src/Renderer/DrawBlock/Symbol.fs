@@ -315,6 +315,7 @@ let getPrefix (compType:ComponentType) =
     | CounterNoLoad _ |CounterNoEnableLoad _ -> "CNT"
     | MergeWires -> "MW"
     | SplitWire _ -> "SW"
+    | Verification v -> Verification.Components.getPrefix v 
     |_  -> ""
 
 
@@ -347,6 +348,7 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
     | NbitsNot (x)->  nBitsGateTitle "NOT" x
     | Shift (n,_,_) -> busTitleAndBits "Shift" n
     | Custom x -> x.Name.ToUpper()
+    | Verification x -> Verification.Components.symbolName x
     | _ -> ""
 
 // Input and Output names of the ports depending on their ComponentType

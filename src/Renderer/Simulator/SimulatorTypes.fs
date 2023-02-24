@@ -951,6 +951,17 @@ type Driver = {
     DriverData: StepArray<FData>
 }
 
+/// Represents a failed assertion
+/// Cycle: int - represents an integer value that indicates the cycle number in which the assertion failed
+/// FailureMessage: string - represents a string value that describes the reason for the assertion failure
+/// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
+/// TODO: Not final place or form
+type FailedAssertion = {
+    Cycle: int
+    FailureMessage: string
+    Sheet: string
+}
+
 type SheetPort = {
     Sheet: string
     PortOnComp: Port // muts include port number (which ports on connections do not)
@@ -1032,7 +1043,13 @@ type FastSimulation = {
                 match Map.tryFind ((cid,ap), opn) this.FCustomOutputCompLookup with
                 | Some fid -> this.FComps[fid].Outputs[0].Step[step]
                 | None -> failwithf "What? can't find %A in the fast simulation data" (cid,ap)
-
+        
+        //function created by Lu for now will have place holder of fake data
+        member this.evaluateAssertions : FailedAssertion List =
+            let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah..."; Sheet = "Sheet1" }
+            let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah..."; Sheet = "Sheet2" }
+            let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah..."; Sheet = "Sheet1" }
+            [failedAssertion0; failedAssertion1; failedAssertion2]
 /// GatherTemp is the output type used to accumulate lists of data links when recursively exploring SimulationGraph
 /// as first step in flattening it.
 /// Each list of pairs is converted into a map at the end in the final GatherData structure

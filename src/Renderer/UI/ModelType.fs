@@ -279,8 +279,6 @@ type PopupProgress =
         Speed: float
     }
 
-
-
 type Msg =
     | ShowExitDialog
     | Sheet of DrawModelType.SheetT.Msg

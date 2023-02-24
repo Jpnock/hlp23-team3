@@ -546,7 +546,7 @@ module CommonTypes
         PortNumber: int
     }
 
-    
+
     
 
 
@@ -688,7 +688,3 @@ module CommonTypes
         | UnselectComponent of unit
         | InferWidths of unit
         | SetHasUnsavedChanges of bool
-
-    
-
-

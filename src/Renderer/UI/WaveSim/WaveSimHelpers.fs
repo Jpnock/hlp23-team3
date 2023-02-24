@@ -727,6 +727,9 @@ let checkIfMemoryCompsOutOfDate (p: Project) (fs:FastSimulation) =
                 | Error _ -> false
             | _ -> true))
 
-
+/// return the integers of the cycles with failed assertions given a list of failed assertions
+let getFailedAssertionCycles (failedAssertions: FailedAssertion List)= 
+    failedAssertions
+    |> List.map (fun x -> x.Cycle)
         
     

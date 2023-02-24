@@ -501,15 +501,16 @@ let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
         )
 
     let colChildren =
+        let failedAssertionCycles = getFailedAssertionCycles(wsModel.FastSim.evaluateAssertions)
         //List.map getCycles wsModel.FailedAssertions |>
-        let assertionHighlights = [1;4;7] |> List.map (failedAssertionsHighlight wsModel) 
+        let failedAssertionHighlights = failedAssertionCycles |> List.map (failedAssertionsHighlight wsModel) 
         let clkCycleNumberRowDiv = 
             div [ waveRowsStyle wsModel.WaveformColumnWidth]
                 ([ clkCycleNumberRow wsModel ] @
                     waveRows
                 )
 
-        assertionHighlights @ [clkCycleHighlightSVG wsModel dispatch] @ [clkCycleNumberRowDiv]
+        failedAssertionHighlights @ [clkCycleHighlightSVG wsModel dispatch] @ [clkCycleNumberRowDiv]
 
     div [ waveformColumnStyle ]
         colChildren

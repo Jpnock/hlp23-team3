@@ -333,10 +333,10 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
         match rotation with
         |Degree90 |Degree270 -> busTitleAndBits "Reg" n
         |_ -> busTitleAndBits "Register" n
-    | AsyncROM1 _ -> "Async.ROM"
-    | ROM1 _ -> "Sync.ROM"
-    | RAM1 _ -> "Sync.RAM"
-    | AsyncRAM1 _ -> "Async.RAM"
+    | AsyncROM1 _ -> "Async\nROM"
+    | ROM1 _ -> "Sync\nROM"
+    | RAM1 _ -> "Sync\nRAM"
+    | AsyncRAM1 _ -> "Async\nRAM"
     | DFF -> "DFF"
     | DFFE -> "DFFE"
     | Counter n |CounterNoEnable n

@@ -40,11 +40,11 @@ let addText (pos: XYPos) name alignment weight size =
             {defaultText with TextAnchor = alignment; FontWeight = weight; FontSize = size}
     [makeText pos.X pos.Y name text]
 
-/// Add one or two lines of text, two lines are marked by a . delimiter
+/// Add one or two lines of text, two lines are marked by a \n delimiter
 let addLegendText (pos: XYPos) (name:string) alignment weight size =
     let text =
             {defaultText with TextAnchor = alignment; FontWeight = weight; FontSize = size}
-    match name.Split([|'.'|]) with
+    match name.Split([|'\n'|]) with
     | [|oneLine|] -> 
         [makeText pos.X pos.Y name text]
     | [|topLine;bottomLine|] ->

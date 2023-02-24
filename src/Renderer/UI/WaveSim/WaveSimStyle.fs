@@ -578,7 +578,7 @@ let backgroundSVG (wsModel: WaveSimModel) count : ReactElement list =
 let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) : ReactElement =
     let onClickFun = 
         match onClick with
-        | None -> (fun ev -> ())
+        | None -> (fun _ -> ())
         | Some x -> x
     
     let highlightedCol =

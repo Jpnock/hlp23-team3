@@ -488,6 +488,10 @@ let private makeNumberOfBitsField model (comp:Component) text dispatch =
         | BusCompare( w, _) -> "Bus width", w
         | BusCompare1( w,_, _) -> "Bus width", w
         | Constant1(w, _,_) -> "Number of bits in the wire", w
+        | Verification v ->
+            match Verification.Components.hasNumberOfBitsField v with
+            | Some w -> "Number of bits", w
+            | None -> failwithf "makeNumberOfBitsField called with invalid component: %A" comp.Type
         | c -> failwithf "makeNumberOfBitsField called with invalid component: %A" c
     intFormField title "60px" width 1 (
         fun newWidth ->
@@ -871,7 +875,11 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
     |BusCompare1 _ ->
         makeBusCompareDialog model comp text dispatch
     | Constant1 _ ->         
-             makeConstantDialog model comp text dispatch
+        makeConstantDialog model comp text dispatch
+    | Verification v ->
+        match Verification.Components.hasNumberOfBitsField v with
+        | Some _ -> makeNumberOfBitsField model comp text dispatch
+        | None -> div [] []
     | _ -> div [] []
 
 

@@ -10,6 +10,8 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Verification\Components.fs" />
+    
     <!-- Common definitions -->
     <Compile Include="Common\EEExtensions.fs" />
     <Compile Include="Common\Optics.fs" />
@@ -64,8 +66,16 @@
     <Compile Include="DrawBlock\SymbolUpdate.fs" />
     <Compile Include="DrawBlock\BusWire.fs" />
 	<Compile Include="DrawBlock\BusWireUpdateHelpers.fs" />
+	<Compile Include="DrawBlock\SmartHelpers.fs" />
+	<Compile Include="DrawBlock\SmartWire.fs" />
+	<Compile Include="DrawBlock\SmartChannel.fs" />
+	<Compile Include="DrawBlock\SmartPortOrder.fs" />
+	<Compile Include="DrawBlock\SmartSizeSymbol.fs" />
+	<Compile Include="DrawBlock\SmartRotate.fs" />
     <Compile Include="DrawBlock\BusWireUpdate.fs" />
     <Compile Include="DrawBlock\Sheet.fs" />
+    <Compile Include="DrawBlock\SheetSnap.fs" />
+    <Compile Include="DrawBlock\SheetDisplay.fs" />
 	<Compile Include="DrawBlock\SheetUpdateHelpers.fs" />
     <Compile Include="DrawBlock\SheetUpdate.fs" />
     <!-- UI -->

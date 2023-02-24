@@ -543,6 +543,8 @@ let getVerilogComponent (fs: FastSimulation) (fc: FastComponent) =
         |LSL -> $"assign %s{output} = %s{input} << %s{shifter};\n"
         |LSR -> $"assign %s{output} = %s{input} >> %s{shifter};\n"
         |ASR -> $"assign %s{output} = %s{input} >>> %s{shifter};\n"
+    | Verification typ ->
+        Verification.Components.generateVerilog typ
 /// return the header of the main verilog module with hardware inputs and outputs in header.
 let getMainHeader (vType:VMode) (profile: CompilationProfile) (fs: FastSimulation) =
     Array.append

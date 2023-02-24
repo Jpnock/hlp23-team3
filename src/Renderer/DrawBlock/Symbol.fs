@@ -315,6 +315,7 @@ let getPrefix (compType:ComponentType) =
     | CounterNoLoad _ |CounterNoEnableLoad _ -> "CNT"
     | MergeWires -> "MW"
     | SplitWire _ -> "SW"
+    | Verification v -> Verification.Components.getPrefix v 
     |_  -> ""
 
 
@@ -333,10 +334,10 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
         match rotation with
         |Degree90 |Degree270 -> busTitleAndBits "Reg" n
         |_ -> busTitleAndBits "Register" n
-    | AsyncROM1 _ -> "Async.ROM"
-    | ROM1 _ -> "Sync.ROM"
-    | RAM1 _ -> "Sync.RAM"
-    | AsyncRAM1 _ -> "Async.RAM"
+    | AsyncROM1 _ -> "Async\nROM"
+    | ROM1 _ -> "Sync\nROM"
+    | RAM1 _ -> "Sync\nRAM"
+    | AsyncRAM1 _ -> "Async\nRAM"
     | DFF -> "DFF"
     | DFFE -> "DFFE"
     | Counter n |CounterNoEnable n
@@ -347,6 +348,7 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
     | NbitsNot (x)->  nBitsGateTitle "NOT" x
     | Shift (n,_,_) -> busTitleAndBits "Shift" n
     | Custom x -> x.Name.ToUpper()
+    | Verification x -> Verification.Components.symbolName x
     | _ -> ""
 
 // Input and Output names of the ports depending on their ComponentType
@@ -619,11 +621,14 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | NbitsNot (n)  -> (  1 , 1, 3.*gS  , 4.*gS) 
     | NbitSpreader (n) -> (1, 1, 2.*gS, 2.*gS)
     | NbitsAdder (n) -> (  3 , 2, 3.*gS  , 4.*gS)
-    |NbitsAdderNoCin (n) -> (  2 , 2, 3.*gS  , 4.*gS)
+    | NbitsAdderNoCin (n) -> (  2 , 2, 3.*gS  , 4.*gS)
     | NbitsAdderNoCout (n)-> (  3 , 1, 3.*gS  , 4.*gS)
     | NbitsAdderNoCinCout (n) -> (  2 , 1, 3.*gS  , 4.*gS)
     | Shift _ -> (  2 , 1, 3.*gS  , 4.*gS)
     | Custom cct -> cct.InputLabels.Length, cct.OutputLabels.Length, 0., 0.
+    | Verification v -> (
+        // TODO(jpnock): check these params
+        Verification.Components.numInputs v, Verification.Components.numOutputs v, 3.*gS, 2.*gS)
 
 /// make a completely new component
 let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:string) : Component =

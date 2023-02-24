@@ -113,6 +113,8 @@ let private getDefaultState compType =
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->
         failwithf "Legacy Input component types should never occur"
+    | Verification _ ->
+        failwithf "Verification components are not simulated, so should not be built"
     | Input1 _ | Output _ | IOLabel | BusSelection _ | BusCompare _ | BusCompare1 _ | Not | And | Or | Xor | Nand | Nor | Xnor | Mux2 | Mux4 | Mux8 | Decode4 | NbitSpreader _
     | Demux2 | Demux4 | Demux8 | NbitsAdder _ | NbitsOr _ |NbitsXor _ |NbitsAnd _ |NbitsNot _ | Custom _ | MergeWires | SplitWire _ | ROM1 _  | Viewer _ 
     | NbitsAdderNoCin _ | NbitsAdderNoCout _ | NbitsAdderNoCinCout _ |Shift _ -> NoState
@@ -230,6 +232,7 @@ let private buildSimulationGraph (canvasState : CanvasState) : (SimulationGraph)
     let portIdToPortNumber = mapInputPortIdToPortNumber components
     let mapper = buildSimulationComponent sourceToTargetPort portIdToPortNumber
     components
+    |> List.filter (fun comp -> match comp.Type with Verification _ -> false | _ -> true )
     |> List.map (fun comp -> ComponentId comp.Id, mapper comp)
     |> Map.ofList
     |> (fun m -> m)

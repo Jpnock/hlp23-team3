@@ -1,5 +1,4 @@
 module AssertionEvaluation
-
 open AssertionTypes
 
 // these types are here because they concern evaluation, not assertions in general

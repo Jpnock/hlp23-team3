@@ -579,12 +579,6 @@ module CommonTypes
         Description: string option
     }
 
-    /// Assertion type for the wave sim
-    type FailedAssertion = {
-        Cycle: int
-        FailureMessage: string
-    }
-
     (*--------------------------------------------------------------------------------------------------*)
 
     /// Static data describing a schematic sheet loaded as a custom component.
@@ -694,3 +688,16 @@ module CommonTypes
         | UnselectComponent of unit
         | InferWidths of unit
         | SetHasUnsavedChanges of bool
+
+    /// Represents a failed assertion
+    /// Cycle: int - represents an integer value that indicates the cycle number in which the assertion failed
+    /// FailureMessage: string - represents a string value that describes the reason for the assertion failure
+    /// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
+    /// TODO: Not final place or form
+    type FailedAssertion = {
+        Cycle: int
+        FailureMessage: string
+        Sheet: string
+    }
+
+

@@ -185,25 +185,6 @@ module CommonTypes
         |LSR
         |ASR
 
-    type Signedness =
-        | Signed
-        | Unsigned
-        
-    type VerificationComparison =
-        | LessThan of Signedness
-        | LessThanOrEqual of Signedness
-        | GreaterThan of Signedness
-        | GreaterThanOrEqual of Signedness
-        | Equal
-    
-    // TODO(jpnock): add more verification components.
-    type VerificationComponentType =
-        | Add | Subtract
-        | Multiply of Signedness
-        | Divide of Signedness
-        | Power of Signedness
-        | Comparison of VerificationComparison
-    
     // Types instantiating objects in the Digital extension.
     type ComponentType =
         // Legacy component: to be deleted
@@ -232,7 +213,7 @@ module CommonTypes
         // legacy components - to be deleted
         | AsyncROM of Memory | ROM of Memory | RAM of Memory
         | Shift of BusWidth: int * ShifterWidth: int * ShiftType: ShiftComponentType
-        | Verification of VerificationComponentType
+        | Verification of Verification.Components.Type
 
 
     /// Active pattern which matches 2-input gate component types.

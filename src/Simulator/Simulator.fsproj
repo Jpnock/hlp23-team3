@@ -3,7 +3,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-	  <TargetFramework> netcoreapp3.1</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
 >>>>>>> b382169a (done separation of type/width checking and evaluation)
 

@@ -43,6 +43,14 @@ let changeNumberOfBitsf (symModel:Model) (compId:ComponentId) (newBits : int) =
         | BusCompare (_,b) -> BusCompare (newBits,b)
         | BusCompare1 (_,v,t) -> BusCompare1 (newBits,v,t) 
         | Constant1 (_,b,txt) -> Constant1 (newBits,b,txt)
+        | Verification v ->
+            // TODO(jpnock): move this
+            match v with
+            | Verification.Components.Type.SignExtend _ ->
+                Verification (Verification.Components.Type.SignExtend newBits)
+            | Verification.Components.Type.ZeroExtend _ ->
+                Verification (Verification.Components.Type.ZeroExtend newBits)
+            | _ -> failwithf "what? tried to set bit-width on a verification component without this"
         | c -> c
         
     set (component_ >-> type_) newcompotype symbol

@@ -729,6 +729,7 @@ let checkIfMemoryCompsOutOfDate (p: Project) (fs:FastSimulation) =
 let getFailedAssertionCycles (failedAssertions: FailedAssertion List)= 
     failedAssertions
     |> List.map (fun x -> x.Cycle)
+    |> List.distinct
         
 let getCurrAssertionFailures (wsModel: WaveSimModel) : FailedAssertion List=
     let failedAssertions = wsModel.FastSim.evaluateAssertions

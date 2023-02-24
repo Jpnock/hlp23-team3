@@ -1046,10 +1046,11 @@ type FastSimulation = {
         
         //function created by Lu for now will have place holder of fake data
         member this.evaluateAssertions : FailedAssertion List =
-            let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah..."; Sheet = "Sheet1" }
-            let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah..."; Sheet = "Sheet2" }
-            let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah..."; Sheet = "Sheet1" }
-            [failedAssertion0; failedAssertion1; failedAssertion2]
+            let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "Sheet1" }
+            let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "Sheet2" }
+            let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "Sheet1" }
+            let failedAssertion3 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...2"; Sheet = "Sheet1" }
+            [failedAssertion0; failedAssertion1; failedAssertion2; failedAssertion3]
 /// GatherTemp is the output type used to accumulate lists of data links when recursively exploring SimulationGraph
 /// as first step in flattening it.
 /// Each list of pairs is converted into a map at the end in the final GatherData structure

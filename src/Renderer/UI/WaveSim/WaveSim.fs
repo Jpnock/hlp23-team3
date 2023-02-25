@@ -1044,6 +1044,7 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                     div [ errorMessageStyle ]
                         [ str "Please open a project to use the waveform viewer." ]
                 | _,Loading | _,Success ->
+                    //printfn $"Showing waveforms: fs= {wsModel.FastSim}"
                     let reactChildren = 
                         [
                             showWaveforms model wsModel dispatch

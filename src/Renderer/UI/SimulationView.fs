@@ -407,11 +407,42 @@ let viewSimulationError (simError : SimulationError) =
 
 /// turning failed assertions into react elements
 /// TODO: add button
-let viewFailedAssertions (failedAssertions : FailedAssertion List) =
-    let failedAssertionStrs = List.collect (fun x -> [str x.FailureMessage; br []]) failedAssertions
+let viewFailedAssertions (failedAssertions : FailedAssertion List) (model : Model) dispatch =
+    //TODO: check if empty projects are vaild here
+    let project =
+        match model.CurrentProj with
+        | Some p -> p
+        | None -> failwith "Empty project"
+    
+    let viewFailedAssertion (fa : FailedAssertion) = 
+        let buttonString = 
+         if fa.Sheet = project.OpenFileName then 
+            "Failure in current sheet" 
+         else 
+            "Goto sheet with failure"
+
+        [
+            str fa.FailureMessage
+            br []
+            Button.button [
+                    Button.Color IsInfo
+                    Button.Disabled(fa.Sheet = project.OpenFileName)
+                    Button.OnClick(fun _ ->
+                        dispatch (StartUICmd ChangeSheet)
+                        printfn "Starting UI Cmd"
+                        dispatch <| ExecFuncInMessage(
+                            (fun model dispatch -> 
+                                let p = Option.get model.CurrentProj
+                                FileMenuView.openFileInProject fa.Sheet p model dispatch), dispatch)) ] 
+                        [ str buttonString ]
+            br []
+        ] 
+
+    let failedAssertionElements = List.collect viewFailedAssertion failedAssertions
+    
     div [] [
         Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
-        div [] failedAssertionStrs
+        div [] failedAssertionElements
     ]
 
 let private simulationClockChangePopup (simData: SimulationData) (dispatch: Msg -> Unit) (dialog:PopupDialogData) =

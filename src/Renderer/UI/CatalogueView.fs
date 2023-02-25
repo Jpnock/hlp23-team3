@@ -557,9 +557,9 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
     let title = sprintf "Create Combinational Logic Components using Verilog" 
     let beforeText =
         fun _ -> str <| sprintf "ISSIE Component Name"
-    let noErrors = List.isEmpty model.PopupDialogData.VerilogErrors
-    let errorDiv = if noErrors then null else getErrorDiv model.PopupDialogData.VerilogErrors
-    let errorList = if showExtraErrors then model.PopupDialogData.VerilogErrors else [] 
+    let noErrors = List.isEmpty model.PopupDialogData.Code.Errors
+    let errorDiv = if noErrors then null else getErrorDiv model.PopupDialogData.Code.Errors
+    let errorList = if showExtraErrors then model.PopupDialogData.Code.Errors else [] 
 
     let saveButtonAction =
         fun (dialogData : PopupDialogData) ->
@@ -641,7 +641,9 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                         let parsedAST = fixedAST |> Json.parseAs<VerilogInput>                        
                         let moduleName = parsedAST.Module.ModuleName.Name
                         let errorList = ErrorCheck.getSemanticErrors parsedAST linesIndex origin project
-                        let dataUpdated = {dialogData with VerilogErrors = errorList; VerilogCode=Some code}
+
+                        let codeData = { Errors = errorList; Contents = Some code; Type = VerilogCode }
+                        let dataUpdated = {dialogData with Code = codeData}
                         let showErrors' = 
                             match List.isEmpty errorList with
                             | true -> false
@@ -650,7 +652,9 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                 else
                     let error = Option.get output.Error
                     let error'= CodeEditorHelpers.getSyntaxErrorInfo error
-                    let dataUpdated = {dialogData with VerilogErrors = [error'] }
+
+                    let codeData = { dialogData.Code with Errors = [error']; Type = VerilogCode }
+                    let dataUpdated = {dialogData with Code = codeData }
                     createVerilogPopup {model with PopupDialogData = dataUpdated } showExtraErrors None moduleName origin dispatch
  
 
@@ -711,10 +715,10 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
 
                 let lineToPut =
                     match replaceType with
-                    |IODeclaration -> fst <| findLastIOAndAssignment (Option.defaultValue "" dialogData.VerilogCode)
-                    |Assignment -> snd <| findLastIOAndAssignment (Option.defaultValue "" dialogData.VerilogCode)
+                    |IODeclaration -> fst <| findLastIOAndAssignment (Option.defaultValue "" dialogData.Code.Contents)
+                    |Assignment -> snd <| findLastIOAndAssignment (Option.defaultValue "" dialogData.Code.Contents)
                     |_ -> line
-                let replacedCode = putToCorrectPlace (Option.defaultValue "" dialogData.VerilogCode) suggestion replaceType lineToPut
+                let replacedCode = putToCorrectPlace (Option.defaultValue "" dialogData.Code.Contents) suggestion replaceType lineToPut
                 createVerilogPopup model showExtraErrors (Some replacedCode) moduleName origin dispatch
     
     let moreInfoButton = 
@@ -722,7 +726,7 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
             match model.CurrentProj with
             | None -> failwithf "What? current project cannot be None at this point in compiling Verilog Component"
             | Some project ->
-                let errors = dialogData.VerilogErrors
+                let errors = dialogData.Code.Errors
                 createVerilogPopup model (not showExtraErrors) None moduleName origin dispatch
     
     let body= dialogVerilogCompBody beforeText moduleName errorDiv errorList showExtraErrors correctedCode compile addButton dispatch

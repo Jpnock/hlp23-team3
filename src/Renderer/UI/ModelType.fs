@@ -70,6 +70,16 @@ type MemoryEditorData = {
     NumberBase : NumberBase
 }
 
+type CodeType = 
+    | VerilogCode
+    | AssertionCode
+
+type CodeData = {
+    Type : CodeType
+    Contents : string option
+    Errors : ErrorInfo list
+}
+
 /// Possible fields that may (or may not) be used in a dialog popup.
 type PopupDialogData = {
     Text : string option;
@@ -85,8 +95,7 @@ type PopupDialogData = {
     NewConstraint: Constraint option
     AlgebraInputs: SimulationIO list option
     AlgebraError: SimulationError option
-    VerilogCode: string option
-    VerilogErrors: ErrorInfo list
+    Code : CodeData
     BadLabel: bool
 }
 
@@ -103,8 +112,12 @@ let constraintErrorMsg_ = Lens.create (fun a -> a.ConstraintErrorMsg) (fun s a -
 let newConstraint_ = Lens.create (fun a -> a.NewConstraint) (fun s a -> {a with NewConstraint = s})
 let algebraInputs_ = Lens.create (fun a -> a.AlgebraInputs) (fun s a -> {a with AlgebraInputs = s})
 let algebraError_ = Lens.create (fun a -> a.AlgebraError) (fun s a -> {a with AlgebraError = s})
-let verilogCode_ = Lens.create (fun a -> a.VerilogCode) (fun s a -> {a with VerilogCode = s})
-let verilogErrors_ = Lens.create (fun a -> a.VerilogErrors) (fun s a -> {a with VerilogErrors = s})
+//let verilogCode_ = Lens.create (fun a -> a.VerilogCode) (fun s a -> {a with VerilogCode = s})
+//let verilogErrors_ = Lens.create (fun a -> a.VerilogErrors) (fun s a -> {a with VerilogErrors = s})
+// TODO: Should maybe be two seperate layers of lenses
+let errors_ = Lens.create (fun a -> a.Code.Errors) (fun s a -> {a with Code = {a.Code with Errors = s}})
+let contents_ = Lens.create (fun a -> a.Code.Contents) (fun s a -> {a with Code = {a.Code with Contents = s}})
+
 let badLabel_ = Lens.create (fun a -> a.BadLabel) (fun s a -> {a with BadLabel = s})
 
 

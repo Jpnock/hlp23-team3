@@ -582,6 +582,11 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
         match simData.IsSynchronous with
         | false -> div [] []
         | true ->
+            let clkTickColour = 
+                let failedAssertionCycles = ModelHelpers.getFailedAssertionCycles(simData.FastSim.evaluateAssertions)
+                match List.exists ( fun x -> x = simData.ClockTickNumber) failedAssertionCycles with
+                | false -> IsSuccess
+                | true -> IsDanger
             div [] [
                 Button.button [
                     Button.Color IsSuccess
@@ -602,7 +607,7 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
                 str " "
                 str " "
                 Button.button [
-                    Button.Color IsSuccess
+                    Button.Color clkTickColour
                     Button.OnClick (fun _ ->
                         if SimulationRunner.simTrace <> None then
                             printfn "*********************Incrementing clock from simulator button******************************"
@@ -745,14 +750,26 @@ let viewSimulation canvasState model dispatch =
             dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
             dispatch EndSimulation // End simulation.
             dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
+            
+        let assertionFaliersElement = 
+            match sim with
+            | Error _ -> div [] []
+            | Ok simData ->
+                match ModelHelpers.getCurrAssertionFailuresStepSim(simData) with
+                | [] -> div [] []
+                | assertionList -> viewFailedAssertions assertionList model dispatch
+
         div [Style [Height "100%"]] [
-            Button.button
-                [ Button.Color IsDanger; Button.OnClick endSimulation ; Button.Props [Style [Display DisplayOptions.Inline; Float FloatOptions.Left ]]]
-                [ str "End simulation" ]
-            setDefaultButton
-            br []; br []
-            str "The simulation uses the diagram as it was at the moment of
-                 pressing the \"Start simulation\" button."
-            hr []
-            body
-        ]
+                Button.button
+                    [ Button.Color IsDanger; Button.OnClick endSimulation ; Button.Props [Style [Display DisplayOptions.Inline; Float FloatOptions.Left ]]]
+                    [ str "End simulation" ]
+                setDefaultButton
+                br []; br []
+                str "The simulation uses the diagram as it was at the moment of
+                    pressing the \"Start simulation\" button."
+                hr []
+                body
+                hr []
+                assertionFaliersElement
+                hr []
+            ]

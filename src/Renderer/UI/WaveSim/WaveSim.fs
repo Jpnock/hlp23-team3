@@ -1020,7 +1020,7 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
             [ SimulationView.viewSimulationError e ]
     
     let assertionFaliersElement =
-        SimulationView.viewFailedAssertions (getCurrAssertionFailures(wsModel)) model dispatch
+        SimulationView.viewFailedAssertions (getCurrAssertionFailuresWaveSim(wsModel)) model dispatch
 
     div [] [
         div [ viewWaveSimStyle ]
@@ -1050,13 +1050,12 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                             hr []
                             ramTables wsModel
                         ]
-                    match getCurrAssertionFailures(wsModel) with
+
+                    match getCurrAssertionFailuresWaveSim(wsModel) with
                     | [] -> reactChildren
-                    | _ -> reactChildren @ [assertionFaliersElement]
-                    //printfn $"Showing waveforms: fs= {wsModel.FastSim}"
+                    | _ -> reactChildren @ [hr []] @ [assertionFaliersElement]
                     |> div [showWaveformsAndRamStyle] 
                         
-
                 hr []
             ]
         

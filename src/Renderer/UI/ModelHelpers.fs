@@ -3,6 +3,7 @@ open CommonTypes
 open Sheet.SheetInterface
 open ModelType
 open Elmish
+open SimulatorTypes
 
 
 let initWSModel  : WaveSimModel = {
@@ -297,3 +298,13 @@ let execOneAsyncJobIfPossible (model: Model,cmd: Cmd<Msg>)=
             job.JobWork model
             |> (fun (model', cmd') -> model', Cmd.batch [cmd; cmd'])
 
+/// return the integers of the cycles with failed assertions given a list of failed assertions
+/// TODO: decide if this stays here
+let getFailedAssertionCycles (failedAssertions: FailedAssertion List)= 
+    failedAssertions
+    |> List.map (fun assertion -> assertion.Cycle)
+    |> List.distinct
+        
+let getCurrAssertionFailuresStepSim (simData : SimulationData) =
+    let failedAssertions = simData.FastSim.evaluateAssertions
+    List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions

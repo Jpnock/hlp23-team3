@@ -13,7 +13,7 @@ let sortQBy (byFun: 'a -> 'b) (ids: 'a list) =
     let mutable isSorted = true
     for i = 0 to ids.Length - 2 do
         if byFun(ids[i]) > byFun(ids[i+1]) then isSorted <- false
-    if isSorted then ids else List.sort ids
+    if isSorted then ids else List.sortBy byFun ids
 
 
 /// Transform the CanvasState into an f# data structure, with layout data removed (for checking electrically significant changes).

@@ -488,11 +488,9 @@ let private makeNumberOfBitsField model (comp:Component) text dispatch =
         | BusCompare( w, _) -> "Bus width", w
         | BusCompare1( w,_, _) -> "Bus width", w
         | Constant1(w, _,_) -> "Number of bits in the wire", w
-        | Verification v ->
-            match Verification.Components.hasNumberOfBitsField v with
-            | Some w -> "Number of bits", w
-            | None -> failwithf "makeNumberOfBitsField called with invalid component: %A" comp.Type
-        | c -> failwithf "makeNumberOfBitsField called with invalid component: %A" c
+        | Plugin p when Verification.Components.implementsVariableWidth p ->
+            "Number of bits", (downcast p : Verification.Components.IVariableWidthComponent).GetWidth
+        | c -> failwithf $"makeNumberOfBitsField called with invalid component: {c}"
     intFormField title "60px" width 1 (
         fun newWidth ->
             if newWidth < 1
@@ -665,13 +663,7 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
 let private makeDescription (comp:Component) model dispatch =
     match comp.Type with
-    | Verification v ->
-        let description = 
-            Verification.Components.components
-            |> List.tryFind (fun el -> el.Type = v)
-            |> Option.map (fun el -> el.Description)
-            |> Option.defaultValue "ERROR: Unknown verification component"
-        str description
+    | Plugin p -> str p.GetDescription
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ -> failwithf "Legacy Input component types should never occur"
@@ -876,10 +868,8 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
         makeBusCompareDialog model comp text dispatch
     | Constant1 _ ->         
         makeConstantDialog model comp text dispatch
-    | Verification v ->
-        match Verification.Components.hasNumberOfBitsField v with
-        | Some _ -> makeNumberOfBitsField model comp text dispatch
-        | None -> div [] []
+    | Plugin p when Verification.Components.implementsVariableWidth p ->
+        makeNumberOfBitsField model comp text dispatch
     | _ -> div [] []
 
 

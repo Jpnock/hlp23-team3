@@ -108,7 +108,7 @@ let getInputPortName (compType: ComponentType) (port: InputPortNumber) : string 
     | MergeWires -> failwithf "MergeWires should not occur in getInputPortName"
     | SplitWire _ -> failwithf "SplitWire should not occur in getInputPortName"
     | BusSelection _ -> failwithf "BusSelection should not occur in getInputPortName"
-    | Verification _ -> failwithf "Verification components are not displayed"
+    | Plugin _ -> failwithf "Verification components are not displayed"
 
 /// Get names for waves that are from Input ports
 let getInputName (withComp: bool) (comp: FastComponent) (port: InputPortNumber) : string =
@@ -139,7 +139,7 @@ let getInputName (withComp: bool) (comp: FastComponent) (port: InputPortNumber) 
         | MergeWires -> failwithf "MergeWires should not occur in getInputName"
         | SplitWire _ -> failwithf "SplitWire should not occur in getInputName"
         | BusSelection _ -> failwithf "BusSeleciton should not occur in getInputName"
-        | Verification _ -> failwithf "Verification components are not displayed"
+        | Plugin _ -> failwithf "Verification components are not displayed"
 
     if withComp then 
         comp.FLabel + portName + bitLims
@@ -177,7 +177,7 @@ let getOutputPortName (compType: ComponentType) (port: OutputPortNumber) : strin
     | MergeWires -> failwithf "MergeWires should not occur in getOutputName"
     | SplitWire _ -> failwithf "SplitWire should not occur in getOutputName"
     | BusSelection _ -> failwithf "BusSeleciton should not occur in getOutputName"
-    | Verification _ -> failwithf "Verification components are not displayed"
+    | Plugin _ -> failwithf "Verification components are not displayed"
 
 /// Get names for waves that are from Output ports
 let getOutputName (withComp: bool) (comp: FastComponent) (port: OutputPortNumber) (fastSim: FastSimulation): string =
@@ -218,7 +218,7 @@ let getOutputName (withComp: bool) (comp: FastComponent) (port: OutputPortNumber
         | MergeWires -> failwithf "MergeWires should not occur in getOutputName"
         | SplitWire _ -> failwithf "SplitWire should not occur in getOutputName"
         | BusSelection _ -> failwithf "BusSelection should not occur in getOutputName"
-        | Verification _ -> failwithf "Verification components are not displayed"
+        | Plugin _ -> failwithf "Verification components are not displayed"
 
     if withComp then 
         comp.FLabel + portName + bitLims

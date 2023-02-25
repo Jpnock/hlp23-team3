@@ -182,7 +182,7 @@ let rec startCircuitSimulation
     
     let isTypeVerificationComp =
         function
-        | Verification _ -> true
+        | Plugin _ -> true
         | _ -> false
     
     let verificationCompMap =

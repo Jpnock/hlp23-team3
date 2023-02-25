@@ -315,7 +315,7 @@ let getPrefix (compType:ComponentType) =
     | CounterNoLoad _ |CounterNoEnableLoad _ -> "CNT"
     | MergeWires -> "MW"
     | SplitWire _ -> "SW"
-    | Verification v -> Verification.Components.getPrefix v 
+    | Plugin p -> p.GetBase.SymbolPrefix
     |_  -> ""
 
 
@@ -348,7 +348,7 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
     | NbitsNot (x)->  nBitsGateTitle "NOT" x
     | Shift (n,_,_) -> busTitleAndBits "Shift" n
     | Custom x -> x.Name.ToUpper()
-    | Verification x -> Verification.Components.symbolName x
+    | Plugin p -> p.GetBase.SymbolName
     | _ -> ""
 
 // Input and Output names of the ports depending on their ComponentType
@@ -626,9 +626,9 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | NbitsAdderNoCinCout (n) -> (  2 , 1, 3.*gS  , 4.*gS)
     | Shift _ -> (  2 , 1, 3.*gS  , 4.*gS)
     | Custom cct -> cct.InputLabels.Length, cct.OutputLabels.Length, 0., 0.
-    | Verification v -> (
+    | Plugin p -> (
         // TODO(jpnock): check these params
-        Verification.Components.numInputs v, Verification.Components.numOutputs v, 3.*gS, 2.*gS)
+        p.GetBase.Inputs.Length, p.GetBase.Outputs.Length, 3.*gS, 2.*gS)
 
 /// make a completely new component
 let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:string) : Component =

@@ -213,8 +213,7 @@ module CommonTypes
         // legacy components - to be deleted
         | AsyncROM of Memory | ROM of Memory | RAM of Memory
         | Shift of BusWidth: int * ShifterWidth: int * ShiftType: ShiftComponentType
-        | Verification of Verification.Components.Type
-
+        | Plugin of Verification.Components.IComponent
 
     /// Active pattern which matches 2-input gate component types.
     /// NB - NOT gates are not included here.

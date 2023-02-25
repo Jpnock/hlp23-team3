@@ -796,9 +796,9 @@ let viewCatalogue model dispatch =
             let verificationComponents =
                 Verification.Components.components
                 |> List.map (fun el ->
-                    catTip1 el.Name (fun _ ->
-                        createComponent (Verification el.Type) "" model dispatch)
-                        el.Description)
+                    catTip1 el.GetBase.CatalogueName (fun _ ->
+                        createComponent (Plugin el) "" model dispatch)
+                        el.GetDescription)
 
             Menu.menu [Props [Class "py-1"; Style styles]]  [
                 // TODO

@@ -488,8 +488,8 @@ let private makeNumberOfBitsField model (comp:Component) text dispatch =
         | BusCompare( w, _) -> "Bus width", w
         | BusCompare1( w,_, _) -> "Bus width", w
         | Constant1(w, _,_) -> "Number of bits in the wire", w
-        | Plugin p when Verification.Components.implementsVariableWidth p ->
-            "Number of bits", (downcast p : Verification.Components.IVariableWidthComponent).GetWidth
+        | Plugin p when (Verification.Components.implementsVariableWidth p).IsSome ->
+            "Number of bits", (Verification.Components.implementsVariableWidth p).Value
         | c -> failwithf $"makeNumberOfBitsField called with invalid component: {c}"
     intFormField title "60px" width 1 (
         fun newWidth ->
@@ -663,7 +663,7 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
 let private makeDescription (comp:Component) model dispatch =
     match comp.Type with
-    | Plugin p -> str p.GetDescription
+    | Plugin p -> str (Verification.Components.library.Components[p.LibraryID].GetDescription p)
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ -> failwithf "Legacy Input component types should never occur"
@@ -868,7 +868,7 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
         makeBusCompareDialog model comp text dispatch
     | Constant1 _ ->         
         makeConstantDialog model comp text dispatch
-    | Plugin p when Verification.Components.implementsVariableWidth p ->
+    | Plugin p when (Verification.Components.implementsVariableWidth p).IsSome ->
         makeNumberOfBitsField model comp text dispatch
     | _ -> div [] []
 

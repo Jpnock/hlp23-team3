@@ -53,10 +53,9 @@ open CommonTypes
                 | CanvasWithFileWaveInfoAndNewConns (_,waveInfo,_) -> None
                 | NewCanvasWithFileWaveInfoAndNewConns (_,_,ts) -> None
                 | NewCanvasWithFileWaveSheetInfoAndNewConns (_,_,sheetInfo,_) -> sheetInfo
+        
         let extraCoders =
-            Extra.empty
-            |> Extra.withCustom
-                   Verification.Components.IComponentCoder.encoder Verification.Components.IComponentCoder.decoder 
+            Extra.empty 
         
         let stateToJsonString (cState: CanvasState, waveInfo: SavedWaveInfo option, sheetInfo: SheetInfo option) : string =
             let time = System.DateTime.Now

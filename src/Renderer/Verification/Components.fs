@@ -2,237 +2,219 @@ module Verification.Components
 
 open Thoth.Json
 
-type Signedness =
-    | Signed
-    | Unsigned
-
-type Comparison =
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equal
-    
-type AssertionOutput =
-    | AssertHIGH
-    | AssertLOW
-
-type Width = int
+// type Comparison =
+//     | LessThan
+//     | LessThanOrEqual
+//     | GreaterThan
+//     | GreaterThanOrEqual
+//     | Equal
+//
+// type AssertionOutput =
+//     | AssertHIGH
+//     | AssertLOW
 
 // TODO(jpnock): add more verification components.
-type Type =
-    | SignExtend
-    | ZeroExtend
-    | Add
-    | Subtract
-    | Multiply
-    | Divide
-    | Modulo
-    | Power
-    | Comparison of Comparison
-    | AssertionOutput of AssertionOutput
+// type Type =
+//     | SignExtend
+//     | ZeroExtend
+//     | Add
+//     | Subtract
+//     | Multiply
+//     | Divide
+//     | Modulo
+//     | Power
+//     | Comparison of Comparison
+//     | AssertionOutput of AssertionOutput
 
-type ComponentInput = { Name: string }
+type LibraryID = string
 
-let oneInputDefaults = [{Name = "A"}]
-let twoInputDefaults = [{Name = "A"}; {Name = "B"}]
+type ComponentInput =
+    { Name: string
+      FixedWidth: int option
+      Signed: bool option }
 
-type ComponentOutput = { Name: string; }
+type ComponentOutput =
+    { Name: string
+      FixedWidth: int option
+      Signed: bool option }
 
-type BaseComponent =
-    { CatalogueName : string
-      Type: Type
-      SymbolName: string
-      SymbolPrefix: string
-      Inputs : ComponentInput list
-      Outputs : ComponentOutput list }
+type InputPortNumber = int
+type OutputPortNumber = int
+
+type ComponentState =
+    { LibraryID: LibraryID
+      Inputs: Map<InputPortNumber, ComponentInput>
+      Outputs: Map<OutputPortNumber, ComponentOutput> }
+    static member Default : ComponentState = {
+        LibraryID = ""
+        Inputs = Map.empty
+        Outputs = Map.empty
+    }
+
+// type Getter<'t> = ComponentState -> 't
+
+type SymbolDetails =
+    { Name: string
+      Prefix: string 
+      Height: float
+      Width: float }
 
 type IComponent =
-    abstract member GetBase: BaseComponent
-    abstract member GetDescription: string
-    abstract member GenerateVerilog: string
-    abstract member GetOutputWidths: int list
-    abstract member JSONTypeName: string
-    abstract member MakeJSONEncoder: (IComponent -> JsonValue)
+    abstract member GetLibraryID: LibraryID
+    abstract member GetName: string
+    abstract member GetTooltipText: string
+    abstract member GetDefaultState : ComponentState
+    abstract member GetSymbolDetails : ComponentState -> SymbolDetails
+    abstract member GetDescription : ComponentState -> string
+    abstract member GetOutputWidths : ComponentState -> Map<OutputPortNumber, uint>
+    
 
-let makeJSONEncoder (typName: string) (toEncode: IComponent) =
-    Encode.object [
-        "typ", typName
-        "impl", toEncode
+module IODefaults =
+    let InputA: ComponentInput = { Name = "A"; FixedWidth = None; Signed = None; }
+    let InputB: ComponentInput = { InputA with Name = "B" }
+    let OneInput: Map<InputPortNumber, ComponentInput> = Map [
+        (0, InputA)
+    ]
+    let TwoInputs = OneInput.Add (1, InputB)
+    
+    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; Signed = None; }
+    let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
+        (0, OutputX)
     ]
 
-type ISignedComponent =
-    abstract member GetSignedness : Signedness
-    abstract member ImplementsISignedComponent : bool
+module SymbolDefaults =
+    let GridSize = 30.0
+    let Width = 3.0 * GridSize
+    let Height = 2.0 * GridSize
+    let Prefix = "VERI"
 
-type IVariableWidthComponent =
-    abstract member GetWidth : int
-    abstract member SetWidth : int -> IComponent
-    abstract member GetWidthDescription : string
-    abstract member ImplementsIVariableWidthComponent : bool
-
-type GenericComponent =
-    { Base: BaseComponent
-      Description: string }
-    static member JSONTypeName = "__GenericComponent"
-    static member MakeEncoder = makeJSONEncoder GenericComponent.JSONTypeName
+type SimpleComponent =
+    { 
+      Name: string
+      SymbolName: string
+      DescriptionFunc: SimpleComponent -> ComponentState -> string
+      TooltipText: string
+      DefaultState: ComponentState }
     interface IComponent with
-        member this.GetBase = this.Base
-        member this.GetDescription = this.Description
-        member this.GenerateVerilog = ""
-        member this.GetOutputWidths = []
-        member this.JSONTypeName = GenericComponent.JSONTypeName
-        member this.MakeJSONEncoder = GenericComponent.MakeEncoder
-        
+        member this.GetLibraryID = this.DefaultState.LibraryID
+        member this.GetName = this.Name
+        member this.GetTooltipText = this.TooltipText
+        member this.GetDefaultState = this.DefaultState
+        member this.GetSymbolDetails _ =
+            { Name = this.SymbolName
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width }
+        member this.GetDescription state = this.DescriptionFunc this state
+        member this.GetOutputWidths _ =
+            Map.empty
 
-let makeGenericOneOutputBase name typ symbolName inputs: BaseComponent =
-      {
-        CatalogueName = name
-        Type = typ
+let signedDescription _ state =
+    let signedOperation =
+        state.Inputs.Values
+        |> Seq.exists (fun el -> Option.defaultValue false el.Signed)
+    match signedOperation with
+    | true -> "treating them as signed values"
+    | false -> "treating them as unsigned values"
+
+let comparatorDescription comparison comp state =
+    $"Outputs HIGH when Input A is {comparison} Output B, {signedDescription comp state}"
+
+let actionDescription action comp state =
+    $"{action} the two inputs, {signedDescription comp state}"
+
+let makeIOSigned signed state  =
+    {
+     state with
+        Inputs = state.Inputs |> Map.map (fun _ v -> {v with Signed = Some signed})
+        Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
+    }
+
+let make2In1OutOperators name baseLibraryID symbolName action : IComponent * IComponent =
+    let signedName = $"{name} (Signed)"
+    let unsignedName = $"{name} (Unsigned)"
+    
+    let extendLibraryID id signed =
+        match signed with
+        | true -> $"{id}_SIGNED"
+        | false -> $"{id}_UNSIGNED"
+
+    let defaultState = {
+        ComponentState.Default with
+            Inputs = IODefaults.TwoInputs
+            Outputs = IODefaults.OneOutput
+            LibraryID = baseLibraryID
+    }
+    
+    let unsignedState =
+        { defaultState with LibraryID = extendLibraryID defaultState.LibraryID false }
+        |> makeIOSigned false
+    
+    let signedState =
+        { defaultState with LibraryID = extendLibraryID defaultState.LibraryID true }
+        |> makeIOSigned true
+    
+    let unsignedComp = {
+        Name = unsignedName
         SymbolName = symbolName
-        SymbolPrefix = "VERIFICATION"
-        Inputs = inputs
-        Outputs = [ {Name = "X"} ]
-      }
-
-type TwoInputSignedOperatorComponent =
-    { Base: BaseComponent
-      OperatorAction: string
-      Signedness: Signedness
-      IsComparator: bool }
-      static member JSONTypeName = "__TwoInputSignedOperatorComponent"
-      static member MakeEncoder = makeJSONEncoder TwoInputSignedOperatorComponent.JSONTypeName
-      interface ISignedComponent with
-        member this.GetSignedness = this.Signedness
-        member this.ImplementsISignedComponent = true
-      interface IComponent with
-        member this.GetBase = this.Base
-        member this.GetDescription =
-            let signWording =
-                match this.Signedness with
-                | Signed -> $"treating them as signed values"
-                | Unsigned -> $"treating them as unsigned values"
-            
-            match this.IsComparator with
-            | true -> $"Outputs HIGH when Input A is {this.OperatorAction} Output B, {signWording}"
-            | false -> $"{this.OperatorAction} the two inputs, {signWording}"
-        member this.GenerateVerilog = ""
-        member this.GetOutputWidths = []
-        member this.JSONTypeName = TwoInputSignedOperatorComponent.JSONTypeName
-        member this.MakeJSONEncoder = TwoInputSignedOperatorComponent.MakeEncoder
-
-let make1In1OutComponent name symbolName typ description : IComponent =
-    {
-        Base = makeGenericOneOutputBase name typ symbolName [ {Name = "A"} ]
-        Description = description
+        DescriptionFunc = actionDescription action
+        TooltipText = ""
+        DefaultState = unsignedState
     }
-
-let make2In1OutComponent name symbolName typ description : IComponent =
-    {
-        Base = makeGenericOneOutputBase name typ symbolName twoInputDefaults
-        Description = description
+    
+    let signedComp = {
+        unsignedComp with
+            Name = signedName
+            DefaultState = signedState
     }
-
-let make2In1OutOperators action isComparator compBase : IComponent * IComponent =
-    let signedName = $"{compBase.CatalogueName} (Signed)"
-    let unsignedName = $"{compBase.CatalogueName} (Unsigned)"
-    let unsignedComp = { Base = compBase; OperatorAction = action; Signedness = Unsigned; IsComparator = isComparator }
-    ({unsignedComp with Base = {compBase with CatalogueName = unsignedName}},
-     {unsignedComp with Base = {compBase with CatalogueName = signedName}; Signedness = Signed})
-
-type VariableWidthComponent =
-    { Base: BaseComponent
-      Width: int }
-    static member JSONTypeName = "__VariableWidthComponent"
-    static member MakeEncoder = makeJSONEncoder VariableWidthComponent.JSONTypeName
-    interface IComponent with
-        member this.GetBase = this.Base
-        member this.GetDescription = ""
-        member this.GenerateVerilog = ""
-        member this.GetOutputWidths = []
-        member this.JSONTypeName = VariableWidthComponent.JSONTypeName
-        member this.MakeJSONEncoder = VariableWidthComponent.MakeEncoder
-    interface IVariableWidthComponent with
-        member this.GetWidthDescription = ""
-        member this.GetWidth = this.Width
-        member this.SetWidth newWidth = {this with Width = newWidth}
-        member this.ImplementsIVariableWidthComponent = true        
+    
+    unsignedComp, signedComp
 
 let components: IComponent list =
-    let signExtend = {
-            Base = makeGenericOneOutputBase "Sign Extend" SignExtend "Sign\nExtend" oneInputDefaults
-            Width = 0}
+    // let signExtend = {
+    //         Base = makeGenericOneOutputBase "Sign Extend" SignExtend "Sign\nExtend" IODefaults.OneInput
+    //         Width = 0}
+    //
+    // let zeroExtend = {
+    //         Base = makeGenericOneOutputBase "Zero Extend" ZeroExtend "Zero\nExtend" IODefaults.OneInput
+    //         Width = 0}
+    //
     
-    let zeroExtend = {
-            Base = makeGenericOneOutputBase "Zero Extend" ZeroExtend "Zero\nExtend" oneInputDefaults
-            Width = 0}
     
-    let unsignedMultiply, signedMultiply =
-        makeGenericOneOutputBase "Multiply" Multiply "A*B" twoInputDefaults
-        |> make2In1OutOperators "Multiplies" false
+    let operatorPairs = [
+        make2In1OutOperators "Multiply" "PLUGIN_MULTIPLY" "A*B" "Multiplies"
+        make2In1OutOperators "Divide" "PLUGIN_DIVIDE" "A/B" "Divides" 
+        make2In1OutOperators "Modulo" "PLUGIN_MODULO" "A % B" "Applies A mod B using" 
+        make2In1OutOperators "Power" "PLUGIN_POWER" "pow(A, B)" "Applies pow(A, B) using" 
+        make2In1OutOperators "Less than" "PLUGIN_COMPARISON_LESS_THAN" "A < B" "less than"
+        make2In1OutOperators "Less than or equal" "PLUGIN_COMPARISON_LESS_THAN_OR_EQUAL_TO" "A <= B" "less than or equal to"
+        make2In1OutOperators "Greater than" "PLUGIN_COMPARISON_GREATER_THAN" "A > B" "greater than"
+        make2In1OutOperators "Greater than or equal" "PLUGIN_COMPARISON_GREATER_THAN_OR_EQUAL_TO" "A >= B" "greater than or equal to"
+    ]
     
-    let unsignedDivide, signedDivide =
-        makeGenericOneOutputBase "Divide" Multiply "A/B" twoInputDefaults
-        |> make2In1OutOperators "Divides" false
-        
-    let unsignedMod, signedMod =
-        makeGenericOneOutputBase "Modulo" Multiply "A % B" twoInputDefaults
-        |> make2In1OutOperators "Applies A mod B using" false
+    let operators =
+        operatorPairs
+        |> List.collect (fun (unsigned, signed) -> [unsigned; signed])
     
-    let unsignedPower, signedPower =
-        makeGenericOneOutputBase "Power" Multiply "pow(A, B)" twoInputDefaults
-        |> make2In1OutOperators "Applies pow(A, B) using" false
-        
-    let unsignedLessThan, signedLessThan =
-        makeGenericOneOutputBase "Less than" (Comparison LessThan) "A < B" twoInputDefaults
-        |> make2In1OutOperators "less than" true
-   
-    let unsignedLessThanEq, signedLessThanEq =
-        makeGenericOneOutputBase "Less than or equal" (Comparison LessThanOrEqual) "A <= B" twoInputDefaults
-        |> make2In1OutOperators "less than or equal to" true
+   // { Name = "Assert HIGH"
+   //   Description = "Causes an assertion if the input is not HIGH"
+   //   Type = AssertionOutput AssertHIGH }
+   // { Name = "Assert LOW"
+   //   Description = "Causes an assertion if the input is not LOW"
+   //   Type = AssertionOutput AssertLOW }
 
-    let unsignedGreaterThan, signedGreaterThan =
-        makeGenericOneOutputBase "Greater than" (Comparison GreaterThan) "A > B" twoInputDefaults
-        |> make2In1OutOperators "greater than" true
-   
-    let unsignedGreaterThanEq, signedGreaterThanEq =
-        makeGenericOneOutputBase "Greater than or equal" (Comparison GreaterThanOrEqual) "A >= B" twoInputDefaults
-        |> make2In1OutOperators "greater than or equal to" true
+
+   // { Name = $"Equal"
+   //   Description = "Outputs HIGH if both inputs are equal"
+   //   Type = Comparison(Equal) } ]
     
     [
-       signExtend
-       zeroExtend
-       make2In1OutComponent "Add" "A+B" Add "Adds the two inputs"
-       make2In1OutComponent "Sub" "A-B" Subtract "Subtracts input B from input A"
-       unsignedMultiply
-       signedMultiply
-       unsignedDivide
-       signedDivide
-       unsignedMod
-       signedMod
-       unsignedPower
-       signedPower
-       unsignedLessThan
-       signedLessThan
-       unsignedLessThanEq
-       signedLessThanEq
-       unsignedGreaterThan
-       signedGreaterThan
-       unsignedGreaterThanEq
-       signedGreaterThanEq
-    ]
+       // signExtend
+       // zeroExtend
+       // make2In1OutComponent "Add" "A+B" "PLUGIN_ADD" "Adds the two inputs"
+       // make2In1OutComponent "Sub" "A-B" "PLUGIN_SUB" "Subtracts input B from input A"
+    ] @ operators
 
-       // { Name = "Assert HIGH"
-       //   Description = "Causes an assertion if the input is not HIGH"
-       //   Type = AssertionOutput AssertHIGH }
-       // { Name = "Assert LOW"
-       //   Description = "Causes an assertion if the input is not LOW"
-       //   Type = AssertionOutput AssertLOW }
-
-
-       // { Name = $"Equal"
-       //   Description = "Outputs HIGH if both inputs are equal"
-       //   Type = Comparison(Equal) } ]
 
 
 // let symbolName (typ:Type) =
@@ -267,58 +249,18 @@ let components: IComponent list =
 //         printf $"got input ports of {inputPortWidths}"
 //         [Map.values inputPortWidths |> Seq.max]
 
-let private unsafeCastToIVariableWidthComponent (plugin: IComponent) : IVariableWidthComponent =
-    downcast plugin
-    
-let castToIVariableWidthComponent (plugin: IComponent) : IVariableWidthComponent option =
-    try Some (unsafeCastToIVariableWidthComponent plugin)
-    with _ -> None
+type ComponentLibrary =
+    { Components: Map<LibraryID, IComponent> }
+    member this.register (comp:IComponent) = this.Components.Add (comp.GetLibraryID, comp)
 
-let implementsVariableWidth (plugin:IComponent) : bool =
-    try (unsafeCastToIVariableWidthComponent plugin).ImplementsIVariableWidthComponent
-    with _ -> false
+let mutable library: ComponentLibrary = {
+    Components =
+        components
+        |> List.map (fun comp -> (comp.GetLibraryID, comp))
+        |> Map.ofList
+}
 
-module IComponentCoder =
-    let decoder : Decoder<IComponent> =
-        let decTwoInputSignedOperatorComponent = Decode.Auto.generateDecoder<TwoInputSignedOperatorComponent>()
-        let decGenericComponent = Decode.Auto.generateDecoder<GenericComponent>()
-        let decVariableWidthComponent = Decode.Auto.generateDecoder<VariableWidthComponent>()
-        
-        Decode.object (fun get -> (
-            let typ = get.Required.Field "typ" Decode.string
-            match typ with
-            | s when s = TwoInputSignedOperatorComponent.JSONTypeName ->
-                let impl = get.Required.Field "impl" decTwoInputSignedOperatorComponent
-                (impl : IComponent)
-            | s when s = GenericComponent.JSONTypeName ->
-                let impl = get.Required.Field "impl" decGenericComponent
-                (impl : IComponent)
-            | s when s = VariableWidthComponent.JSONTypeName ->
-                let impl = get.Required.Field "impl" decVariableWidthComponent
-                (impl : IComponent)
-            | _ -> failwithf "Unknown concrete plugin type name"
-        ))
-    
-    let encoder (comp : IComponent) =
-        comp.MakeJSONEncoder comp
-
-// let inline makeDecoder<'t when 't :> IComponent> (typName: string) : string -> obj -> Result<IComponent,DecoderError> =
-//     let res = Decode.Auto.generateDecoder<'t>()
-//     Decode.object (fun get -> (
-//         get.Required.Raw res
-//     ))
-
-// let decoderMap: Map<string, string -> obj -> Result<IComponent,DecoderError>> =
-//     Map.empty
-//     |> Map.add VariableWidthComponent.JSONTypeName (
-//         makeDecoder<VariableWidthComponent> VariableWidthComponent.JSONTypeName)
-//     |> Map.add TwoInputSignedOperatorComponent.JSONTypeName (
-//         makeDecoder<TwoInputSignedOperatorComponent> TwoInputSignedOperatorComponent.JSONTypeName)
-//     |> Map.add GenericComponent.JSONTypeName (
-//         makeDecoder<GenericComponent> GenericComponent.JSONTypeName)
-//
-// let encoderMap: Map<string, (IComponent -> JsonValue)> =
-//     Map.empty
-//     |> Map.add VariableWidthComponent.JSONTypeName VariableWidthComponent.MakeEncoder
-//     |> Map.add TwoInputSignedOperatorComponent.JSONTypeName TwoInputSignedOperatorComponent.MakeEncoder
-//     |> Map.add GenericComponent.JSONTypeName GenericComponent.MakeEncoder
+let implementsVariableWidth (state : ComponentState) =
+    match state.Inputs.TryFind 0 with
+    | Some input when input.FixedWidth.IsSome -> input.FixedWidth
+    | _ -> None

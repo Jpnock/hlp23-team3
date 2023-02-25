@@ -2,6 +2,7 @@ module AssertionEvaluation
 
 open AssertionTypes
 open AssertionCheck
+open CommonTypes 
 
 // these types are here because they concern evaluation, not assertions in general
 type IntToBool = int -> int -> bool

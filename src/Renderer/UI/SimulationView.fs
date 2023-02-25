@@ -773,3 +773,4 @@ let viewSimulation canvasState model dispatch =
                 assertionFaliersElement
                 hr []
             ]
+            

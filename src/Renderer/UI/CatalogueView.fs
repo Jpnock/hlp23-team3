@@ -794,11 +794,11 @@ let viewCatalogue model dispatch =
                     [ react ]
             
             let verificationComponents =
-                Verification.Components.components
-                |> List.map (fun el ->
-                    catTip1 el.GetBase.CatalogueName (fun _ ->
-                        createComponent (Plugin el) "" model dispatch)
-                        el.GetDescription)
+                Verification.Components.library.Components.Values
+                |> Seq.map (fun el ->
+                    let factory = (fun _ -> createComponent (Plugin el.GetDefaultState) "" model dispatch)
+                    catTip1 el.GetName factory el.GetTooltipText)
+                |> List.ofSeq
 
             Menu.menu [Props [Class "py-1"; Style styles]]  [
                 // TODO

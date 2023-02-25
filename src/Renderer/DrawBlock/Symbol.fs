@@ -315,7 +315,9 @@ let getPrefix (compType:ComponentType) =
     | CounterNoLoad _ |CounterNoEnableLoad _ -> "CNT"
     | MergeWires -> "MW"
     | SplitWire _ -> "SW"
-    | Plugin p -> p.GetBase.SymbolPrefix
+    | Plugin p ->
+        let comp = Verification.Components.library.Components[p.LibraryID]
+        (comp.GetSymbolDetails p).Prefix
     |_  -> ""
 
 
@@ -348,7 +350,9 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
     | NbitsNot (x)->  nBitsGateTitle "NOT" x
     | Shift (n,_,_) -> busTitleAndBits "Shift" n
     | Custom x -> x.Name.ToUpper()
-    | Plugin p -> p.GetBase.SymbolName
+    | Plugin p ->
+        let comp = Verification.Components.library.Components[p.LibraryID]
+        (comp.GetSymbolDetails p).Name
     | _ -> ""
 
 // Input and Output names of the ports depending on their ComponentType
@@ -627,8 +631,9 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | Shift _ -> (  2 , 1, 3.*gS  , 4.*gS)
     | Custom cct -> cct.InputLabels.Length, cct.OutputLabels.Length, 0., 0.
     | Plugin p -> (
-        // TODO(jpnock): check these params
-        p.GetBase.Inputs.Length, p.GetBase.Outputs.Length, 3.*gS, 2.*gS)
+        let comp = Verification.Components.library.Components[p.LibraryID]
+        let symbolProps = comp.GetSymbolDetails p
+        p.Inputs.Count, p.Outputs.Count, symbolProps.Height, symbolProps.Width)
 
 /// make a completely new component
 let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:string) : Component =

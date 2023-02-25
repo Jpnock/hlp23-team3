@@ -104,8 +104,11 @@ let init() = {
         NewConstraint = None
         AlgebraInputs = None
         AlgebraError = None
-        VerilogCode = None
-        VerilogErrors = []
+        Code = {
+            Type = VerilogCode
+            Contents = None
+            Errors = []
+        }
         BadLabel = false
     }
     Notifications = {

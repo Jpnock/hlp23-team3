@@ -101,7 +101,7 @@ type CodeEditorReactStatefulComponent (props) =
         |true -> 
             this.setState(fun s _-> {s with code = Option.get props.ReplaceCode} )
             props.Dispatch <| SetPopupDialogCode (props.ReplaceCode)
-            props.Compile {props.DialogData with VerilogCode=props.ReplaceCode}
+            props.Compile {props.DialogData with Code = {props.DialogData.Code with Contents = props.ReplaceCode}}
         |false -> ()
 
     override this.componentDidMount () =
@@ -119,7 +119,7 @@ type CodeEditorReactStatefulComponent (props) =
                         OnValueChange (fun txt -> 
                             (this.setState (fun s p -> {s with code=txt}))
                             props.Dispatch <| SetPopupDialogCode (Some txt)
-                            props.Compile {props.DialogData with VerilogCode=Some txt}
+                            props.Compile {props.DialogData with Code = {props.DialogData.Code with Contents = Some txt} }
                         )             
                         Highlight (fun code -> Prism.highlight(code,language));]
                         []
@@ -182,11 +182,11 @@ let getText (dialogData : PopupDialogData) =
     Option.defaultValue "" dialogData.Text
 
 let getCode (dialogData : PopupDialogData) =
-    Option.defaultValue "" dialogData.VerilogCode
+    Option.defaultValue "" dialogData.Code.Contents
 
 
 let getErrorList (dialogData : PopupDialogData) =
-    dialogData.VerilogErrors
+    dialogData.Code.Errors
 
 let getInt (dialogData : PopupDialogData) =
     Option.defaultValue 1 dialogData.Int

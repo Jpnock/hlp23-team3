@@ -308,3 +308,4 @@ let getFailedAssertionCycles (failedAssertions: FailedAssertion List)=
 let getCurrAssertionFailuresStepSim (simData : SimulationData) =
     let failedAssertions = simData.FastSim.evaluateAssertions
     List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions
+    

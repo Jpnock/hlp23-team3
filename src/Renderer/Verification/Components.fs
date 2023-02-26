@@ -1,33 +1,5 @@
 module Verification.Components
 
-open Thoth.Json
-
-// type Comparison =
-//     | LessThan
-//     | LessThanOrEqual
-//     | GreaterThan
-//     | GreaterThanOrEqual
-//     | Equal
-//
-// type AssertionOutput =
-//     | AssertHIGH
-//     | AssertLOW
-
-// TODO(jpnock): add more verification components.
-// type Type =
-//     | SignExtend
-//     | ZeroExtend
-//     | Add
-//     | Subtract
-//     | Multiply
-//     | Divide
-//     | Modulo
-//     | Power
-//     | Comparison of Comparison
-//     | AssertionOutput of AssertionOutput
-
-type LibraryID = string
-
 type ComponentInput =
     { Name: string
       FixedWidth: int option
@@ -40,6 +12,7 @@ type ComponentOutput =
 
 type InputPortNumber = int
 type OutputPortNumber = int
+type LibraryID = string
 
 type ComponentState =
     { LibraryID: LibraryID
@@ -50,8 +23,6 @@ type ComponentState =
         Inputs = Map.empty
         Outputs = Map.empty
     }
-
-// type Getter<'t> = ComponentState -> 't
 
 type SymbolDetails =
     { Name: string
@@ -66,8 +37,7 @@ type IComponent =
     abstract member GetDefaultState : ComponentState
     abstract member GetSymbolDetails : ComponentState -> SymbolDetails
     abstract member GetDescription : ComponentState -> string
-    abstract member GetOutputWidths : ComponentState -> Map<OutputPortNumber, uint>
-    
+    abstract member GetOutputWidths : ComponentState -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
 
 module IODefaults =
     let InputA: ComponentInput = { Name = "A"; FixedWidth = None; Signed = None; }
@@ -75,12 +45,16 @@ module IODefaults =
     let OneInput: Map<InputPortNumber, ComponentInput> = Map [
         (0, InputA)
     ]
+    let OneFixedWidthInputA width =
+        Map [ (0, {InputA with FixedWidth = Some width}) ]
     let TwoInputs = OneInput.Add (1, InputB)
     
     let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; Signed = None; }
     let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
         (0, OutputX)
     ]
+    let OneFixedWidthOutputX width =
+        Map [ (0, {OutputX with FixedWidth = Some width}) ]
 
 module SymbolDefaults =
     let GridSize = 30.0
@@ -100,14 +74,19 @@ type SimpleComponent =
         member this.GetName = this.Name
         member this.GetTooltipText = this.TooltipText
         member this.GetDefaultState = this.DefaultState
-        member this.GetSymbolDetails _ =
+        member this.GetSymbolDetails state =
             { Name = this.SymbolName
               Prefix = SymbolDefaults.Prefix
               Height = SymbolDefaults.Height
               Width = SymbolDefaults.Width }
         member this.GetDescription state = this.DescriptionFunc this state
-        member this.GetOutputWidths _ =
-            Map.empty
+        member this.GetOutputWidths state inputPortWidths =
+            let maxInputWidth = Map.values inputPortWidths |> Seq.max
+            state.Outputs
+            |> Map.map (fun outputPortNum output ->
+                match output.FixedWidth with
+                | Some w -> w
+                | _ -> maxInputWidth)
 
 let signedDescription _ state =
     let signedOperation =
@@ -130,7 +109,26 @@ let makeIOSigned signed state  =
         Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
     }
 
-let make2In1OutOperators name baseLibraryID symbolName action : IComponent * IComponent =
+let makeState outputs inputs libraryID =
+    { ComponentState.Default with Inputs = inputs; Outputs = outputs; LibraryID = libraryID }   
+   
+let makeOneOutputState = makeState IODefaults.OneOutput
+
+let makeSimpleComponent outputs inputs name baseLibraryID symbolName description : IComponent =
+    {
+        Name = name
+        SymbolName = symbolName
+        DescriptionFunc = (fun _ _ -> description)
+        TooltipText = description
+        DefaultState = makeState outputs inputs baseLibraryID
+    }
+
+let makeOneOutputComponent = makeSimpleComponent IODefaults.OneOutput
+let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IODefaults.OneFixedWidthInputA 1)
+let makeOneInputOneOutputComponent = makeOneOutputComponent IODefaults.OneInput
+let makeTwoInputOneOutputComponent = makeOneOutputComponent IODefaults.TwoInputs
+
+let makeSignedPairOfComponents outputs description name baseLibraryID symbolName : IComponent * IComponent =
     let signedName = $"{name} (Signed)"
     let unsignedName = $"{name} (Unsigned)"
     
@@ -139,12 +137,7 @@ let make2In1OutOperators name baseLibraryID symbolName action : IComponent * ICo
         | true -> $"{id}_SIGNED"
         | false -> $"{id}_UNSIGNED"
 
-    let defaultState = {
-        ComponentState.Default with
-            Inputs = IODefaults.TwoInputs
-            Outputs = IODefaults.OneOutput
-            LibraryID = baseLibraryID
-    }
+    let defaultState = makeState outputs IODefaults.TwoInputs baseLibraryID
     
     let unsignedState =
         { defaultState with LibraryID = extendLibraryID defaultState.LibraryID false }
@@ -157,97 +150,63 @@ let make2In1OutOperators name baseLibraryID symbolName action : IComponent * ICo
     let unsignedComp = {
         Name = unsignedName
         SymbolName = symbolName
-        DescriptionFunc = actionDescription action
+        DescriptionFunc = description
         TooltipText = ""
         DefaultState = unsignedState
     }
     
-    let signedComp = {
-        unsignedComp with
-            Name = signedName
-            DefaultState = signedState
-    }
-    
+    let signedComp = { unsignedComp with Name = signedName; DefaultState = signedState }
     unsignedComp, signedComp
+    
+let makeSignedPairOfOperators actionText =
+    makeSignedPairOfComponents IODefaults.OneOutput (actionDescription actionText)
+let makeSignedPairOfComparators comparisonText =
+    makeSignedPairOfComponents (IODefaults.OneFixedWidthOutputX 1) (comparatorDescription comparisonText)
 
-let components: IComponent list =
-    // let signExtend = {
-    //         Base = makeGenericOneOutputBase "Sign Extend" SignExtend "Sign\nExtend" IODefaults.OneInput
-    //         Width = 0}
-    //
-    // let zeroExtend = {
-    //         Base = makeGenericOneOutputBase "Zero Extend" ZeroExtend "Zero\nExtend" IODefaults.OneInput
-    //         Width = 0}
-    //
+// TODO(jpnock): add more verification components.
+let private components: IComponent list =    
+    let signExtend =
+        makeOneInputOneOutputComponent
+            "Sign Extend" "PLUGIN_SIGN_EXTEND" "Sign\nExtend" "Sign extends the input to the specified width"
+
+    let zeroExtend =
+        makeOneInputOneOutputComponent
+            "Zero Extend" "PLUGIN_ZERO_EXTEND" "Zero\nExtend" "Zero extends the input to the specified width"
     
+    let assertHigh =
+        makeOneInputOneBitComponent
+            "Assert HIGH" "PLUGIN_ASSERT_HIGH" "Assert\nHIGH" "Raises an assertion if the input is not HIGH"
     
+    let assertLow =
+        makeOneInputOneBitComponent
+            "Assert LOW" "PLUGIN_ASSERT_LOW" "Assert\nLOW" "Raises an assertion if the input is not LOW"
+     
     let operatorPairs = [
-        make2In1OutOperators "Multiply" "PLUGIN_MULTIPLY" "A*B" "Multiplies"
-        make2In1OutOperators "Divide" "PLUGIN_DIVIDE" "A/B" "Divides" 
-        make2In1OutOperators "Modulo" "PLUGIN_MODULO" "A % B" "Applies A mod B using" 
-        make2In1OutOperators "Power" "PLUGIN_POWER" "pow(A, B)" "Applies pow(A, B) using" 
-        make2In1OutOperators "Less than" "PLUGIN_COMPARISON_LESS_THAN" "A < B" "less than"
-        make2In1OutOperators "Less than or equal" "PLUGIN_COMPARISON_LESS_THAN_OR_EQUAL_TO" "A <= B" "less than or equal to"
-        make2In1OutOperators "Greater than" "PLUGIN_COMPARISON_GREATER_THAN" "A > B" "greater than"
-        make2In1OutOperators "Greater than or equal" "PLUGIN_COMPARISON_GREATER_THAN_OR_EQUAL_TO" "A >= B" "greater than or equal to"
+        makeSignedPairOfOperators "Multiplies" "Multiply" "PLUGIN_MULTIPLY" "A*B" 
+        makeSignedPairOfOperators "Divides" "Divide" "PLUGIN_DIVIDE" "A/B"
+        makeSignedPairOfOperators "Applies A mod B using" "Modulo" "PLUGIN_MODULO" "A % B"
+        makeSignedPairOfOperators "Applies pow(A, B) using" "Power" "PLUGIN_POWER" "pow(A, B)" 
+        makeSignedPairOfComparators "less than" "Less than" "PLUGIN_COMPARISON_LESS_THAN" "A < B"
+        makeSignedPairOfComparators "less than or equal to" "Less than or equal" "PLUGIN_COMPARISON_LESS_THAN_OR_EQUAL_TO" "A <= B" 
+        makeSignedPairOfComparators "greater than" "Greater than" "PLUGIN_COMPARISON_GREATER_THAN" "A > B"
+        makeSignedPairOfComparators "greater than or equal to" "Greater than or equal" "PLUGIN_COMPARISON_GREATER_THAN_OR_EQUAL_TO" "A >= B"
     ]
     
     let operators =
         operatorPairs
         |> List.collect (fun (unsigned, signed) -> [unsigned; signed])
-    
-   // { Name = "Assert HIGH"
-   //   Description = "Causes an assertion if the input is not HIGH"
-   //   Type = AssertionOutput AssertHIGH }
-   // { Name = "Assert LOW"
-   //   Description = "Causes an assertion if the input is not LOW"
-   //   Type = AssertionOutput AssertLOW }
-
-
-   // { Name = $"Equal"
-   //   Description = "Outputs HIGH if both inputs are equal"
-   //   Type = Comparison(Equal) } ]
-    
+        
     [
-       // signExtend
-       // zeroExtend
-       // make2In1OutComponent "Add" "A+B" "PLUGIN_ADD" "Adds the two inputs"
-       // make2In1OutComponent "Sub" "A-B" "PLUGIN_SUB" "Subtracts input B from input A"
+        assertHigh
+        assertLow
+        signExtend
+        zeroExtend
+        makeSimpleComponent
+            (IODefaults.OneFixedWidthOutputX 1) IODefaults.TwoInputs "Equals" "PLUGIN_EQUALS" "A == B"
+            "Outputs HIGH when the two inputs are equal" 
+        makeTwoInputOneOutputComponent "Add" "PLUGIN_ADD" "A+B" "Adds the two inputs"
+        makeTwoInputOneOutputComponent "Subtract" "PLUGIN_SUBTRACT" "A-B" "Subtracts input B from input A"
     ] @ operators
-
-
-
-// let symbolName (typ:Type) =
-//     match typ with
-//     | SignExtend _ -> "Sign\nExtend"
-//     | ZeroExtend _ -> "Zero\nExtend"
-//     | Comparison comparison ->
-//         match comparison with
-//         | LessThan _ -> "A < B"
-//         | GreaterThan _ -> "A > B" 
-//         | LessThanOrEqual _ -> "A <= B" 
-//         | GreaterThanOrEqual _ -> "A >= B"
-//         | Equal -> "A==B"
-//     | Add -> "+"
-//     | Subtract -> "-"
-//     | Multiply _ -> "*"
-//     | Divide _ -> "/"
-//     | Modulo _ -> "%"
-//     | Power _ -> "pow(A,B)"
-//     | AssertionOutput out ->
-//         match out with
-//         | AssertLOW -> "Assert\nLOW"
-//         | AssertHIGH -> "Assert\nHIGH"
-
-// let outputPortWidths (typ:Type) (inputPortWidths: Map<int, int>) =
-//     match typ with
-//     | AssertionOutput _ -> [1]
-//     | Comparison _ -> [1]
-//     | SignExtend | ZeroExtend -> [width]
-//     // TODO(jpnock): Confirm this is the correct behaviour
-//     | _ ->
-//         printf $"got input ports of {inputPortWidths}"
-//         [Map.values inputPortWidths |> Seq.max]
 
 type ComponentLibrary =
     { Components: Map<LibraryID, IComponent> }

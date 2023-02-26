@@ -43,6 +43,8 @@
     <Compile Include="Simulator\DependencyMerger.fs" />
     <Compile Include="Simulator\Simulator.fs" />
     <Compile Include="Simulator\AssertionTypes.fs" />
+    <Compile Include="Simulator\AssertionCheck.fs" />
+    <Compile Include="Simulator\AssertionEvaluation.fs" />
 
     <!-- Verilog Component -->
     <Compile Include="VerilogComponent\VerilogTypes.fs" />

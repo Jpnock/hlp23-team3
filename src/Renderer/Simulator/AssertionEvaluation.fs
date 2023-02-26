@@ -52,8 +52,8 @@ let getFComponentId label components =
     compId
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
-let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
-
+let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size =
+    
     let resizeRes (size: Size) res = 
         match res, size with 
         | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1))))), size
@@ -154,8 +154,8 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
         | Lte(ops) -> ExprEval (Some(ItB (<=))) (Some(UtB (<=))) (Some(BtB (<=))) ops 
         | LogNot(op) -> ExprEval None None (Some(BtBUn (not) )) op 
 
-    // what is the difference between and and let inside the linked function
-    // i think that it's better probably to do and (for efficiency reasons i wonder)
+// what is the difference between and and let inside the linked function
+// i think that it's better probably to do and (for efficiency reasons i wonder)
 and cast expr castType components fs step=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
     let castExprEvaluated, size= evaluate expr components fs step

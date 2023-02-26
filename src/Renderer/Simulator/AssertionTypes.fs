@@ -16,9 +16,10 @@ type Value =
     | Bool of bool 
     | Uint of uint 
 
+// by Id is meant label
 type Lit = 
     | Value of Value
-    | Id of string // for now, later make it of BusLabel of whatever type there is 
+    | Id of string 
 
 type Cast = 
     | ToSigned of ExprInfo

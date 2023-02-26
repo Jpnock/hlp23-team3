@@ -795,10 +795,11 @@ let viewCatalogue model dispatch =
             
             let verificationComponents =
                 Verification.Components.library.Components.Values
+                |> Seq.sortBy (fun el -> el.GetName)
                 |> Seq.map (fun el ->
                     let factory = (fun _ -> createComponent (Plugin el.GetDefaultState) "" model dispatch)
                     catTip1 el.GetName factory el.GetTooltipText)
-                |> List.ofSeq
+                |> List.ofSeq                
 
             Menu.menu [Props [Class "py-1"; Style styles]]  [
                 // TODO

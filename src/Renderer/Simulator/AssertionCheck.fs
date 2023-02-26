@@ -56,7 +56,10 @@ let getLitProperties (components: Component List) lit =
                 | idComp, Input1 (width,_) when idComp = id -> Some(width)
                 | _ -> None 
             List.choose isRightComponent components 
-            |> List.head
+            |> function 
+                | id::[] -> id 
+                | [] -> failwithf "the component is not in the list" // TODO make an actual error message as this is a user error
+                | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
         UintType, int width
 
 

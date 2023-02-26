@@ -955,7 +955,7 @@ type Driver = {
 /// Cycle: int - represents an integer value that indicates the cycle number in which the assertion failed
 /// FailureMessage: string - represents a string value that describes the reason for the assertion failure
 /// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
-/// TODO: Not final place or form
+/// TODO:(djj120/DomJustice) Not final place or form Lu will probs have her own version of this struct somewhere
 type FailedAssertion = {
     Cycle: int
     FailureMessage: string
@@ -1045,7 +1045,7 @@ type FastSimulation = {
                 | None -> failwithf "What? can't find %A in the fast simulation data" (cid,ap)
         
         //function created by Lu for now will have place holder of fake data
-        member this.evaluateAssertions : FailedAssertion List =
+        member this.evaluateAssertions : FailedAssertion list =
             let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main" }
             let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2" }
             let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2" }

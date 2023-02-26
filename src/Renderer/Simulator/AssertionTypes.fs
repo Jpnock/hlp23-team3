@@ -56,18 +56,19 @@ and Op =
 
 and ExprInfo = Expr * Pos 
 
+and Size = Size of int
 
 type Type = 
     | IntType
     | UintType 
     | BoolType 
 
-type ValInfo = {
+type Properties = {
     Type: Type;
     Size: int 
 }
 
 type CheckRes = 
     | ErrLst of Error list 
-    | ValInfo of ValInfo
+    | Properties of Properties 
 

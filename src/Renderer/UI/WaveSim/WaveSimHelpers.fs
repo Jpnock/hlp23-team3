@@ -725,6 +725,7 @@ let checkIfMemoryCompsOutOfDate (p: Project) (fs:FastSimulation) =
                 | Error _ -> false
             | _ -> true))
 
-let getCurrAssertionFailuresWaveSim (wsModel: WaveSimModel) : FailedAssertion List=
+/// returns the failed assertion occurring on the wsModel's current clk cycle
+let getCurrAssertionFailuresWaveSim (wsModel: WaveSimModel) : FailedAssertion list=
     let failedAssertions = wsModel.FastSim.evaluateAssertions
     List.filter (fun assertion -> assertion.Cycle = wsModel.CurrClkCycle) failedAssertions

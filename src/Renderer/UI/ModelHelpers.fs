@@ -299,12 +299,15 @@ let execOneAsyncJobIfPossible (model: Model,cmd: Cmd<Msg>)=
             |> (fun (model', cmd') -> model', Cmd.batch [cmd; cmd'])
 
 /// return the integers of the cycles with failed assertions given a list of failed assertions
-/// TODO: decide if this stays here
-let getFailedAssertionCycles (failedAssertions: FailedAssertion List)= 
+/// TODO:(djj120/DomJustice) decide if this stays here
+let getFailedAssertionCycles (failedAssertions: FailedAssertion list)= 
     failedAssertions
     |> List.map (fun assertion -> assertion.Cycle)
     |> List.distinct
-        
+
+/// returns a list oc the failed assertions occurring at the current clk cycle specified in a 
+/// SimulationData's FastSim
+/// TODO:(djj120/DomJustice) decide if this stays here       
 let getCurrAssertionFailuresStepSim (simData : SimulationData) =
     let failedAssertions = simData.FastSim.evaluateAssertions
     List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions

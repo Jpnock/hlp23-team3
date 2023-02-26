@@ -70,15 +70,36 @@ type MemoryEditorData = {
     NumberBase : NumberBase
 }
 
+type VerilogCodeData = {
+    ModuleName : string
+}
+let moduleName_ = Lens.create (fun c -> c.ModuleName) (fun n c -> {c with ModuleName = n})  
+
 type CodeType = 
-    | VerilogCode
+    | VerilogCode of VerilogCodeData
     | AssertionCode
 
 type CodeData = {
     Type : CodeType
     Contents : string option
     Errors : ErrorInfo list
+    ShowErrors : bool
 }
+
+// type_ clashes with another lens
+let code_type_ : Lens<CodeData, CodeType> = Lens.create (fun (c:CodeData) -> c.Type) (fun n c -> {c with Type = n})
+let verilogCode_ =
+    Prism.create
+        (fun (a:CodeData) -> match a.Type with | VerilogCode data -> Some data | _ -> None)
+        (fun (data: VerilogCodeData) ->
+            // TODO: This generates a warning, not quite sure I understand why
+            Optic.map code_type_ (fun typ -> 
+                match typ with 
+                | VerilogCode _ -> VerilogCode data
+                | _ -> typ))
+let errors_ = Lens.create (fun a -> a.Errors) (fun s a -> {a with Errors = s})
+let showErrors_ = Lens.create (fun a -> a.ShowErrors) (fun s a -> {a with ShowErrors = s})
+let contents_ = Prism.create (fun a -> a.Contents) (fun s a -> {a with Contents = Some s})
 
 /// Possible fields that may (or may not) be used in a dialog popup.
 type PopupDialogData = {
@@ -95,7 +116,7 @@ type PopupDialogData = {
     NewConstraint: Constraint option
     AlgebraInputs: SimulationIO list option
     AlgebraError: SimulationError option
-    Code : CodeData
+    Code : CodeData option
     BadLabel: bool
 }
 
@@ -112,15 +133,15 @@ let constraintErrorMsg_ = Lens.create (fun a -> a.ConstraintErrorMsg) (fun s a -
 let newConstraint_ = Lens.create (fun a -> a.NewConstraint) (fun s a -> {a with NewConstraint = s})
 let algebraInputs_ = Lens.create (fun a -> a.AlgebraInputs) (fun s a -> {a with AlgebraInputs = s})
 let algebraError_ = Lens.create (fun a -> a.AlgebraError) (fun s a -> {a with AlgebraError = s})
-//let verilogCode_ = Lens.create (fun a -> a.VerilogCode) (fun s a -> {a with VerilogCode = s})
-//let verilogErrors_ = Lens.create (fun a -> a.VerilogErrors) (fun s a -> {a with VerilogErrors = s})
-// TODO: Should maybe be two seperate layers of lenses
-let errors_ = Lens.create (fun a -> a.Code.Errors) (fun s a -> {a with Code = {a.Code with Errors = s}})
-let contents_ = Lens.create (fun a -> a.Code.Contents) (fun s a -> {a with Code = {a.Code with Contents = s}})
-
+let code_ = Lens.create (fun a -> a.Code) (fun s a -> {a with Code = s})
+let code_prism_ = Prism.create (fun a -> a.Code) (fun s a -> {a with Code = Some s})
 let badLabel_ = Lens.create (fun a -> a.BadLabel) (fun s a -> {a with BadLabel = s})
 
-
+let code_contents_ = Optics.Compose.prism code_prism_ contents_
+let code_errors_ = Optics.Compose.prism code_prism_ errors_ 
+let code_showErrors_ = Optics.Compose.prism code_prism_ showErrors_
+let code_verilogCode_ = Optics.Compose.prism code_prism_ verilogCode_
+let code_verilogCode_moduleName_ = Optics.Compose.prism code_verilogCode_ moduleName_
 
 type TopMenu = | Closed | Project | Files
 
@@ -366,8 +387,7 @@ type Msg =
     | ClosePopup
     | SetPopupDialogText of string option
     | SetPopupDialogBadLabel of bool
-    | SetPopupDialogCode of string option
-    | SetPopupDialogVerilogErrors of ErrorInfo list
+    | SetPopupDialogCode of CodeData option
     | SetPopupDialogInt of int option
     | SetPopupDialogInt2 of int64 option
     | SetPopupDialogTwoInts of (int64 option * IntMode * string option)

@@ -246,7 +246,7 @@ let makeVerilogEditButton model (custom:CustomComponentType) dispatch : ReactEle
             |Some proj -> {proj with WorkingFileName = Some (custom.Name)}
             |None -> failwithf "Can't happen!"
         let model'= {model with CurrentProj = Some project'} 
-        createVerilogPopup model false (Some code) (Some name) (UpdateVerilogFile name)
+        createVerilogPopup (ExistingCodeFile {Name = name; Code = code}) model' dispatch
     
     match model.CurrentProj with
     | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
@@ -268,7 +268,7 @@ let makeVerilogEditButton model (custom:CustomComponentType) dispatch : ReactEle
                             dispatch (StartUICmd SaveSheet)
                             saveOpenFileActionWithModelUpdate model dispatch |> ignore
                             dispatch <| Sheet(SheetT.DoNothing)
-                            openCodeEditor code name dispatch)
+                            openCodeEditor code name)
                     ] [str "View/Edit Verilog code"]
                     br []
                 ]

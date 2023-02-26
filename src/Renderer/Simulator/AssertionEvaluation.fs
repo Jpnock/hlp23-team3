@@ -114,6 +114,7 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
             | Id id -> 
                 let fCompId = getFComponentId id components 
                 let data = fs.getSimulationData step fCompId (OutputPortNumber 0)
+
                 match data with 
                 | Data{Dat = fb; Width = _} ->  
                     match fb with 
@@ -156,7 +157,7 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
 
 // what is the difference between and and let inside the linked function
 // i think that it's better probably to do and (for efficiency reasons i wonder)
-and cast expr castType components fs step=
+and cast expr castType components fs step =
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
     let castExprEvaluated, size= evaluate expr components fs step
     let value = 

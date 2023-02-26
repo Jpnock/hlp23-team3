@@ -92,11 +92,14 @@ type CERSCState = { code: string; }
 type CodeEditorReactStatefulComponent (props) =
     inherit Component<CERSCProps, CERSCState> (props)
     
-    do base.setInitState({ code = "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" })
-
+    do base.setInitState(
+        let codeType = Option.get <| Optic.get code_type_ props.DialogData 
+        match codeType with 
+        | VerilogCode _ -> { code = "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" }
+        | AssertionCode -> { code = "a == b" }
+    )
 
     // override this.shouldComponentUpdate (nextProps,nextState) =
-
     override this.componentDidUpdate (prevProps,prevState) =
         match (props.ReplaceCode <> None && prevProps.ReplaceCode = None) with
         |true -> 
@@ -112,7 +115,7 @@ type CodeEditorReactStatefulComponent (props) =
             div [Style [Position PositionOptions.Relative; CSSProp.Left "35px";Height "100%";]]
                 [
                     codeEditor [
-                        CodeEditorProps.Placeholder ("Start Writing your Verilog Code here..."); 
+                        CodeEditorProps.Placeholder "Start writing your code here...";
                         CodeEditorProps.Value ((sprintf "%s" this.state.code)); 
                         CodeEditorProps.Padding 5
                         OnValueChange (fun txt ->
@@ -351,11 +354,10 @@ let dialogCodeEditorCompBody preamble compileButton addButton dispatch =
 
         let errorList = getErrorList dialogData
         let showExtraErrors = Option.defaultValue false <| Optic.get code_showErrors_ dialogData
-        
-        printfn "Creating comp body"
 
         let renderCERSC =
-            ofType<CodeEditorReactStatefulComponent,_,_> {CurrentCode=code; ReplaceCode=None; Dispatch=dispatch; DialogData=dialogData;Compile=compileButton} 
+            ofType<CodeEditorReactStatefulComponent,_,_> 
+                {CurrentCode=code; ReplaceCode=None; Dispatch=dispatch; DialogData=dialogData;Compile=compileButton} 
         
         let codeEditorWidth, errorWidth, hide = if showExtraErrors then "56%","38%",false else "96%","0%",true 
 
@@ -366,11 +368,6 @@ let dialogCodeEditorCompBody preamble compileButton addButton dispatch =
             div [Style [Flex "2%"; Height "100%";]] []
             div [Style [Flex codeEditorWidth; Height "100%";]] [
                 preamble dialogData
-                div [ Style [Position PositionOptions.Relative;]] [
-                    p [] [b [] [str "Verilog Code:"]]
-                    infoHoverableElement
-                ]
-                br []
                 //BrowserWindowConstructorOptions
                 div [ Style [Position PositionOptions.Relative; MinHeight "0px"; MaxHeight editorheigth; FontFamily ("ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace"); FontSize 16; BackgroundColor "#f5f5f5"; OutlineStyle "solid"; OutlineColor "Blue";OverflowY OverflowOptions.Auto;OverflowX OverflowOptions.Hidden]] 
                         [

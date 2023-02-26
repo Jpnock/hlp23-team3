@@ -575,8 +575,104 @@ let createCodeEditorPopup title preamble saveAction updateAction compileAction a
     dialogCodeEditorPopup title body saveUpdateText saveUpdateButton moreInfoButton extra dispatch
 
 let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
-    failwithf "Not implemented"
+    let title = "Create assertions to verify your sheet" 
+    
+    let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
+    let verilogCode = {
+        Type = AssertionCode
+        Contents = initContents
+        Errors = []
+        ShowErrors = false
+    }
+    Some verilogCode |> SetPopupDialogCode |> dispatch
 
+    // Content to be shown before the code editor itself
+    let preamble =
+        fun (dialogData : PopupDialogData) ->
+            div [] []
+
+    let saveAction =
+        fun (dialogData : PopupDialogData) ->
+            match model.CurrentProj with
+            | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
+            | Some project ->
+                let name = getModuleName dialogData
+                let folderPath = project.ProjectPath
+                let path = pathJoin [| folderPath; name + ".assert" |]
+                let path2 = pathJoin [| folderPath; name + ".dgm" |]
+                let code = getCodeContents dialogData
+                
+                match writeFile path code with
+                | Ok _ -> ()
+                | Error _ -> failwithf "Writing verilog file FAILED"
+                
+                (*
+                let parsedCodeNearley = parseFromFile(code)
+                let output = Json.parseAs<ParserOutput> parsedCodeNearley
+                let result = Option.get output.Result
+                let fixedAST = fix result
+                printfn "fixed %A" fixedAST
+                let parsedAST = fixedAST |> Json.parseAs<VerilogInput>
+
+                let cs = SheetCreator.createSheet parsedAST
+                let toSaveCanvasState = Helpers.JsonHelpers.stateToJsonString (cs, None, Some {Form = Some (Verilog name);Description=None})
+
+                match writeFile path2 toSaveCanvasState with
+                | Ok _ -> 
+                    let newComponent = 
+                        match tryLoadComponentFromPath path2 with
+                        |Ok comp -> comp
+                        |Error _ -> failwithf "failed to load the created Verilog file"
+                    let updatedProject =
+                        {project with LoadedComponents = newComponent :: project.LoadedComponents}
+                    openFileInProject project.OpenFileName updatedProject model dispatch
+                | Error _ -> failwithf "Writing .dgm file FAILED"
+                *)
+            dispatch ClosePopup
+
+    let updateAction = 
+        fun (dialogData : PopupDialogData) ->
+            match model.CurrentProj with
+            | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
+            | Some project ->
+                let name = getModuleName dialogData
+                let folderPath = project.ProjectPath
+                let path = pathJoin [| folderPath; name + ".assert" |]
+                let code = getCodeContents dialogData
+                match writeFile path code with
+                | Ok _ -> ()
+                | Error _ -> failwithf "Writing assertion file FAILED"
+                
+                (*
+                let parsedCodeNearley = parseFromFile(code)
+                let output = Json.parseAs<ParserOutput> parsedCodeNearley
+                let result = Option.get output.Result
+                let fixedAST = fix result
+                let parsedAST = fixedAST |> Json.parseAs<VerilogInput>
+                let newCS = SheetCreator.createSheet parsedAST
+
+                dispatch (StartUICmd SaveSheet)               
+                updateVerilogFileActionWithModelUpdate newCS name model dispatch |> ignore
+                dispatch <| Sheet(SheetT.DoNothing)
+                *)
+
+    let compileAction =
+        fun (dialogData : PopupDialogData) ->
+            match model.CurrentProj with
+            | None -> failwithf "What? current project cannot be None at this point in compiling Verilog Component"
+            | Some project ->
+                let code = getCodeContents dialogData
+                printfn "Compiling assertion code..."
+                ()
+
+                // dispatch code
+
+    let addAction =
+        fun (dialogData : PopupDialogData) ->
+            fun (suggestion,replaceType,line) -> 
+                ()
+
+    createCodeEditorPopup title preamble saveAction updateAction compileAction addAction (origin:CodeEditorOpen) model dispatch
 
 let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
     let title = sprintf "Create Combinational Logic Components using Verilog" 
@@ -611,6 +707,11 @@ let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
                 span [Style [FontStyle "Italic"; Color "Red"]; Hidden goodLabel] [str "Name must start with a letter"]
                 br []
                 br []
+                br []
+                div [ Style [Position PositionOptions.Relative;]] [
+                    p [] [b [] [str "Verilog Code:"]]
+                    infoHoverableElement
+                ]
                 br []]
 
     let saveAction =
@@ -933,6 +1034,15 @@ let viewCatalogue model dispatch =
                         (List.append 
                             [menuItem styles "New Verilog Component" (fun _ -> createVerilogPopup NewCodeFile model dispatch) ]
                             (makeVerilogList styles model dispatch))
+
+                    makeMenuGroupWithTip 
+                        styles
+                        "Assertion"
+                        "Write assertion logic and use it as a Custom Component. 
+                         To edit/delete an assertion component add it in a sheet and click on 'properties'"
+                        // TODO: Show created assertion components
+                        [menuItem styles "New Assertion Component" (fun _ -> createAssertionPopup NewCodeFile model dispatch) ]
+
                           
                 ]
         (viewCatOfModel) model 

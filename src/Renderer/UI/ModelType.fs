@@ -87,13 +87,13 @@ type CodeData = {
 }
 
 // type_ clashes with another lens
-let code_type_ : Lens<CodeData, CodeType> = Lens.create (fun (c:CodeData) -> c.Type) (fun n c -> {c with Type = n})
+let ctype_ : Lens<CodeData, CodeType> = Lens.create (fun (c:CodeData) -> c.Type) (fun n c -> {c with Type = n})
 let verilogCode_ =
     Prism.create
         (fun (a:CodeData) -> match a.Type with | VerilogCode data -> Some data | _ -> None)
         (fun (data: VerilogCodeData) ->
             // TODO: This generates a warning, not quite sure I understand why
-            Optic.map code_type_ (fun typ -> 
+            Optic.map ctype_ (fun typ -> 
                 match typ with 
                 | VerilogCode _ -> VerilogCode data
                 | _ -> typ))
@@ -137,6 +137,7 @@ let code_ = Lens.create (fun a -> a.Code) (fun s a -> {a with Code = s})
 let code_prism_ = Prism.create (fun a -> a.Code) (fun s a -> {a with Code = Some s})
 let badLabel_ = Lens.create (fun a -> a.BadLabel) (fun s a -> {a with BadLabel = s})
 
+let code_type_ = Optics.Compose.prism code_prism_ ctype_
 let code_contents_ = Optics.Compose.prism code_prism_ contents_
 let code_errors_ = Optics.Compose.prism code_prism_ errors_ 
 let code_showErrors_ = Optics.Compose.prism code_prism_ showErrors_

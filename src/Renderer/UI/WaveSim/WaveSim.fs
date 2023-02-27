@@ -501,7 +501,8 @@ let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
         )
 
     let colChildren =
-        let failedAssertionCycles = getFailedAssertionCycles(wsModel.FastSim.evaluateAssertions)
+        let visibleFailedAssertions = wsModel.FastSim.evaluateAssertionsInWindow wsModel.StartCycle (endCycle wsModel)
+        let failedAssertionCycles = getFailedAssertionCycles(visibleFailedAssertions)
         let failedAssertionHighlights = failedAssertionCycles |> List.map (failedAssertionsHighlight wsModel) 
         let clkCycleNumberRowDiv = 
             div [ waveRowsStyle wsModel.WaveformColumnWidth]
@@ -1054,7 +1055,7 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
 
                     match getCurrAssertionFailuresWaveSim(wsModel) with
                     | [] -> reactChildren
-                    | _ -> reactChildren @ [hr []] @ [assertionFaliersElement]
+                    | _ -> [assertionFaliersElement] @ [hr []] @ reactChildren
                     |> div [showWaveformsAndRamStyle] 
                         
                 hr []

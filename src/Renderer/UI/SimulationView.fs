@@ -585,10 +585,9 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
         | false -> div [] []
         | true ->
             let clkTickColour = 
-                let failedAssertionCycles = ModelHelpers.getFailedAssertionCycles(simData.FastSim.evaluateAssertions)
-                match List.exists ( fun cycle -> cycle = simData.ClockTickNumber) failedAssertionCycles with
-                | false -> IsSuccess
-                | true -> IsDanger
+                match ModelHelpers.getCurrAssertionFailuresStepSim(simData) with
+                | [] -> IsSuccess
+                | _ -> IsDanger
             div [] [
                 Button.button [
                     Button.Color IsSuccess
@@ -770,8 +769,9 @@ let viewSimulation canvasState model dispatch =
                 str "The simulation uses the diagram as it was at the moment of
                     pressing the \"Start simulation\" button."
                 hr []
-                body
-                hr []
                 assertionFaliersElement
                 hr []
+                body
+                hr []
+                
             ]

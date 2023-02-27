@@ -117,8 +117,6 @@ let getSyntaxErrorInfo error =
 
 let getErrorTable (errorList: ErrorInfo list) addButton =
     
-
-
     let getSuggestionLine suggestions replaceType line = 
         let buttons = 
             suggestions
@@ -141,10 +139,6 @@ let getErrorTable (errorList: ErrorInfo list) addButton =
                 buttons
         
         td [Style [WhiteSpace WhiteSpaceOptions.Pre ]] line
-
-        
-        
-
     
     let getErrorTableLine index (extraMessage:ExtraErrorInfo) line : ReactElement list =
         let copyable = extraMessage.Copy
@@ -179,8 +173,6 @@ let getErrorTable (errorList: ErrorInfo list) addButton =
                 |> List.collect (fun (index,mess) -> getErrorTableLine index mess line)
             
             tbody [] tLine
-    
-    
     
     let tableFormat =
         [

@@ -20,6 +20,7 @@ open Sheet.SheetInterface
 open DrawModelType
 open FilesIO
 open NearleyBindings
+open AssertionParser
 open ErrorCheck
 open CodeEditorHelpers
 open Fable.SimpleJson
@@ -495,10 +496,6 @@ let private createRegisterPopup regType (model:Model) dispatch =
         fun (dialogData : PopupDialogData) -> getInt dialogData < 1
     dialogPopup title body buttonText buttonAction isDisabled [] dispatch
 
-
- 
-    
-
 let private createMemoryPopup memType model (dispatch: Msg -> Unit) =
     let title = "Create memory"
     let intDefault = model.LastUsedDialogWidth
@@ -663,9 +660,17 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
             | Some project ->
                 let code = getCodeContents dialogData
                 printfn "Compiling assertion code..."
-                ()
+                let parserOutput = parseAssertion code
 
-                // dispatch code
+                let errors = 
+                    match parserOutput with
+                    | Ok _ -> []
+                    | Error e -> [{e with ExtraErrors = Some [|{ Text = "test"; Copy = false; Replace = NoReplace }|]}]
+
+                printfn "errors: %A" errors
+                let showErrors = not <| List.isEmpty errors
+                let codeData = { Errors = errors; ShowErrors = showErrors; Contents = Some code; Type = AssertionCode }
+                dispatch <| SetPopupDialogCode (Some codeData)
 
     let addAction =
         fun (dialogData : PopupDialogData) ->
@@ -793,6 +798,8 @@ let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
                         let parsedAST = fixedAST |> Json.parseAs<VerilogInput>                        
                         let moduleName = parsedAST.Module.ModuleName.Name
                         let errorList = ErrorCheck.getSemanticErrors parsedAST linesIndex origin project
+
+                        printfn "Errors: %A" errorList
 
                         let showErrors' = 
                             match List.isEmpty errorList with

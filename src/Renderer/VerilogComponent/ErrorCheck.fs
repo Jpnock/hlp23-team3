@@ -232,19 +232,19 @@ let nameCheck ast linesLocations (origin:CodeEditorOpen) (project:Project)  erro
     // printfn "working %s" (Option.defaultValue "" project.WorkingFileName) 
     let exists = 
         match origin with
-        |NewVerilogFile -> isFileInProject moduleName project 
-        |UpdateVerilogFile initialName -> moduleName <> initialName
+        | NewCodeFile -> isFileInProject moduleName project 
+        | ExistingCodeFile initialData -> moduleName <> initialData.Name
 
     let localError = 
         match (exists,origin) with
-        |true,NewVerilogFile -> 
+        | true,NewCodeFile -> 
             let message = "A sheet/component with that name already exists"
             let extraMessages = 
                 [|
                     {Text="Module Name must be different from existing Sheets/Components";Copy=false;Replace=NoReplace}
                 |]
             createErrorMessage linesLocations ast.Module.ModuleName.Location message extraMessages moduleName
-        |true,UpdateVerilogFile _ ->
+        | true,ExistingCodeFile _ ->
             let message = "Verilog component's name cannot be changed "
             let extraMessages = 
                 [|

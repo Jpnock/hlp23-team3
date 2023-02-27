@@ -235,6 +235,18 @@ module String =
             //Some (List.head mLst, List.tail mLst)
         else None
 
+    /// Match a regular expression
+    /// Return Some m where m is the full match object, 
+    /// not just the matched string.
+    /// return None on no match
+    [<CompiledName("RegexMatchFull")>]
+    let regexMatchFull (regex:string) (str:string) =
+        let m = Text.RegularExpressions.Regex(regex).Match(str)
+        if m.Success
+        then
+            Some m
+        else None
+
     /// convert a System.XXX numeric parse function to idiomatic F# option.
     /// e.g. String.TryParsewith System.Int32 will return Some n on successful Int32 parse or None.
     [<CompiledName("TryParseWith")>]

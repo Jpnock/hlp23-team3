@@ -1,14 +1,16 @@
 module AssertionTypes
 
 type Pos = {
-    Start: uint ;
-    End: uint
+    Line : int
+    Col : int
+    Length : int
 }
 
 type Error = {
     Msg: string; 
     Pos: Pos
 }
+
 // this type was created to wrap the results of the evaluate function, otherwise 
 // it would have tried to return different types causing errors 
 type Value = 
@@ -72,3 +74,35 @@ type CheckRes =
     | ErrLst of Error list 
     | Properties of Properties 
 
+// TODO: Add cast
+type TokenType = 
+    | Lit of Lit
+    | Add       // +
+    | Sub       // -
+    | Mul       // *
+    | Div       // /
+    | Rem       // %
+    | BitAnd    // &
+    | BitNot    // ~
+    | BitOr     // |
+    | Eq        // ==
+    | Neq       // !=
+    | Lt        // <
+    | Gt        // >
+    | Gte       // >=
+    | Lte       // <=
+    | LogAnd    // &&
+    | LogNot    // ! 
+    | LogOr     // ||
+
+type Token = {
+    Type: TokenType
+    Pos: Pos
+}
+
+type ParseData = {
+    Expr: Expr
+    RemainingTokens : Token list
+}
+
+type ParseResult = Result<ParseData, Error>

@@ -22,10 +22,16 @@ type CodeEditorProps =
     | PreClassName of string
     |Style of CSSProp list
 
+// TODO: Since these are also used by other code Types
+// Consider moving these
+type CodeFileData = {
+    Name : string
+    Code : string
+}
 
 type CodeEditorOpen =
-    |NewVerilogFile
-    |UpdateVerilogFile of string
+    | NewCodeFile
+    | ExistingCodeFile of CodeFileData
     
 //////////////////////// Verilog Input Record   ///////////////////////////
 type IdentifierT = {Name: string; Location: int}

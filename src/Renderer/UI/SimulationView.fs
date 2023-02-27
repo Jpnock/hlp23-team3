@@ -435,11 +435,10 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
 
 /// turning failed assertions into react elements
 let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Model) dispatch =
-    //TODO:(djj120/DomJustice) check if empty projects are vaild here
     let project =
         match model.CurrentProj with
         | Some p -> p
-        | None -> failwith "Empty project"
+        | None -> failwith "What - Project shouldn't be empty here"
     
     let failedAssertionElements = List.collect (fun fa -> viewFailedAssertion fa project dispatch) failedAssertions 
 
@@ -587,7 +586,7 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
         | true ->
             let clkTickColour = 
                 let failedAssertionCycles = ModelHelpers.getFailedAssertionCycles(simData.FastSim.evaluateAssertions)
-                match List.exists ( fun x -> x = simData.ClockTickNumber) failedAssertionCycles with
+                match List.exists ( fun cycle -> cycle = simData.ClockTickNumber) failedAssertionCycles with
                 | false -> IsSuccess
                 | true -> IsDanger
             div [] [

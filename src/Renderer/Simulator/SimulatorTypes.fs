@@ -1045,7 +1045,7 @@ type FastSimulation = {
                 | None -> failwithf "What? can't find %A in the fast simulation data" (cid,ap)
         
         //function created by Lu for now will have place holder of fake data
-        member this.evaluateAssertions : FailedAssertion list =
+        member this.evaluateAssertionsInWindow (startCycle : int) (endCycle : int) : FailedAssertion list =
             let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main" }
             let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2" }
             let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2" }

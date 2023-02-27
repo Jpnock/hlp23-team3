@@ -309,5 +309,5 @@ let getFailedAssertionCycles (failedAssertions: FailedAssertion list)=
 /// SimulationData's FastSim
 /// TODO:(djj120/DomJustice) decide if this stays here       
 let getCurrAssertionFailuresStepSim (simData : SimulationData) =
-    let failedAssertions = simData.FastSim.evaluateAssertions
+    let failedAssertions = simData.FastSim.evaluateAssertionsInWindow simData.ClockTickNumber simData.ClockTickNumber
     List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions

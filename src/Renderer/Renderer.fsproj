@@ -10,6 +10,7 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Verification\AssertionTypes.fs" />
     <Compile Include="Verification\Components.fs" />
     
     <!-- Common definitions -->
@@ -42,7 +43,6 @@
     <Compile Include="Simulator\Runner.fs" />
     <Compile Include="Simulator\DependencyMerger.fs" />
     <Compile Include="Simulator\Simulator.fs" />
-    <Compile Include="Simulator\AssertionTypes.fs" />
     <Compile Include="Simulator\AssertionCheck.fs" />
     <Compile Include="Simulator\AssertionEvaluation.fs" />
 

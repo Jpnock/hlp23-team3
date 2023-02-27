@@ -3,6 +3,7 @@ module AssertionCheck
 open AssertionTypes
 open CommonTypes
 open System
+
 let (|RequiresBool|_|) (expr: ExprInfo) = 
     match expr with 
     | (BoolExpr (LogAnd(BinOp(l, r)))), pos| BoolExpr(LogOr (BinOp(l, r))), pos -> Some(l, r, pos)

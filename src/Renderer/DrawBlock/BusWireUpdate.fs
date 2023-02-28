@@ -10,6 +10,7 @@ open BusWireUpdateHelpers
 open SmartWire
 open Optics
 open Operators
+open Hlp23Tick3
 
 //---------------------------------------------------------------------------------//
 //----------------------Helper functions that need SmartRoute etc------------------//
@@ -90,8 +91,6 @@ let init () =
         Type = Constants.initialWireType
         ArrowDisplay = Constants.initialArrowDisplay
     } , Cmd.none
-
-
             
 /// Handles messages
 let update (msg : Msg) (model : Model) : Model*Cmd<Msg> =
@@ -437,8 +436,8 @@ let update (msg : Msg) (model : Model) : Model*Cmd<Msg> =
         let newWires =
             (model.Wires, wiresToReroute)
             ||> List.fold (fun wires (wid, wire) ->
-                let wire' = updateWire model wire (rerouteInputEnd wire)
-                Map.add wid wire' wires)
+                let routeInputEndOfWire = rerouteInputEnd wire
+                Map.add wid wire wires)
 
         {model with Wires = newWires}, Cmd.none
 

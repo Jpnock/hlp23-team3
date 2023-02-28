@@ -1034,6 +1034,8 @@ type FastSimulation = {
     SimulatedCanvasState: LoadedComponent list
     /// The root sheet being simulated
     SimulatedTopSheet: string
+    // Assertion logic that should be evaluated per cycle
+    Assertions: AssertionTypes.Assertion list
     } with
         member this.getSimulationData (step: int) ((cid,ap): FComponentId) (opn: OutputPortNumber) =
             let (OutputPortNumber n) = opn

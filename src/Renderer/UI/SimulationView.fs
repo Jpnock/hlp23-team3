@@ -29,6 +29,7 @@ open DrawModelType
 
 open Optics
 open Optics.Operators
+open AssertionEvaluation
 
 module Constants =
     let maxArraySize = 550

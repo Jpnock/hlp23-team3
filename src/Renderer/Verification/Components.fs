@@ -143,7 +143,7 @@ let mustGetOperands (state:ComponentState) =
         input1, input2
     | _ -> failwithf "Expected this component to have two operands"
 
-let makeSimpleComponent outputs inputs name baseLibraryID symbolName description : IComponent =
+let makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName description : SimpleComponent =
     {
         Name = name
         SymbolName = symbolName
@@ -152,6 +152,9 @@ let makeSimpleComponent outputs inputs name baseLibraryID symbolName description
         DefaultState = makeState outputs inputs baseLibraryID
         AssertionBuilder = noAssertion
     }
+
+let makeSimpleComponent outputs inputs name baseLibraryID symbolName description : IComponent =
+    makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName description
 
 let makeOneOutputComponent = makeSimpleComponent IODefaults.OneOutput
 let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IODefaults.OneFixedWidthInputA 1)
@@ -226,8 +229,17 @@ let private components: IComponent list =
     let operators =
         operatorPairs
         |> List.collect (fun (unsigned, signed) -> [unsigned; signed])
-        
+    
+    let textAssertionBase =
+        makeSimpleComponentConcrete
+            Map.empty Map.empty "Text Assertion" "PLUGIN_TEXT_ASSERTION" "Assertion" "Verifies the logic of your sheet using text based expressions"
+    
+    let textAssertion =
+        {
+            textAssertionBase with DefaultState = {textAssertionBase.DefaultState with AssertionText = Some ""}
+        }
     [
+        textAssertion
         assertHigh
         assertLow
         signExtend

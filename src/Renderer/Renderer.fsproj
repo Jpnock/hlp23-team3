@@ -17,7 +17,6 @@
     <Compile Include="Verification\VerificationComponents.fs" />
     <Compile Include="Verification\VerificationLibrary.fs" />
     <Compile Include="Verification\VerificationASTGen.fs" />
-    
     <!-- Common definitions -->
     <Compile Include="Common\Optics.fs" />
     <Compile Include="Common\ElectronAPI.fs" />

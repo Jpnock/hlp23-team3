@@ -129,3 +129,7 @@ type ReplaceType =
 type ExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
 
 type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: ExtraErrorInfo array option}
+
+type Assertion = {
+    AST: ExprInfo
+}

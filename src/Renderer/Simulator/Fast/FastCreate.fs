@@ -48,6 +48,7 @@ let emptyFastSimulation diagramName =
       ComponentsById = Map.empty
       SimulatedCanvasState = []
       SimulatedTopSheet= diagramName
+      Assertions = []
       }
 
 let simulationPlaceholder = emptyFastSimulation ""

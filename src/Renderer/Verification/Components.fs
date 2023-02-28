@@ -1,5 +1,7 @@
 module Verification.Components
 
+open AssertionTypes
+
 type ComponentInput =
     { Name: string
       FixedWidth: int option
@@ -17,11 +19,15 @@ type LibraryID = string
 type ComponentState =
     { LibraryID: LibraryID
       Inputs: Map<InputPortNumber, ComponentInput>
-      Outputs: Map<OutputPortNumber, ComponentOutput> }
+      Outputs: Map<OutputPortNumber, ComponentOutput>
+      AssertionText: string option
+      IsInput: bool }
     static member Default : ComponentState = {
         LibraryID = ""
         Inputs = Map.empty
         Outputs = Map.empty
+        AssertionText = None
+        IsInput = false
     }
 
 type SymbolDetails =
@@ -29,6 +35,8 @@ type SymbolDetails =
       Prefix: string 
       Height: float
       Width: float }
+
+type ASTBuilder = ComponentState -> AssertionTypes.Expr option
 
 type IComponent =
     abstract member GetLibraryID: LibraryID
@@ -38,7 +46,8 @@ type IComponent =
     abstract member GetSymbolDetails : ComponentState -> SymbolDetails
     abstract member GetDescription : ComponentState -> string
     abstract member GetOutputWidths : ComponentState -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
-
+    abstract member Build : Map<InputPortNumber, Expr> -> Expr
+    
 module IODefaults =
     let InputA: ComponentInput = { Name = "A"; FixedWidth = None; Signed = None; }
     let InputB: ComponentInput = { InputA with Name = "B" }
@@ -62,13 +71,19 @@ module SymbolDefaults =
     let Height = 2.0 * GridSize
     let Prefix = "VERI"
 
+
+let noAssertion _ =
+    None
+    
+
 type SimpleComponent =
     { 
       Name: string
       SymbolName: string
       DescriptionFunc: SimpleComponent -> ComponentState -> string
       TooltipText: string
-      DefaultState: ComponentState }
+      DefaultState: ComponentState
+      AssertionBuilder: ASTBuilder }
     interface IComponent with
         member this.GetLibraryID = this.DefaultState.LibraryID
         member this.GetName = this.Name
@@ -114,6 +129,17 @@ let makeState outputs inputs libraryID =
    
 let makeOneOutputState = makeState IODefaults.OneOutput
 
+type InputType =
+    | InputTypeVerification
+    | InputTypeExternal
+
+let mustGetOperands (state:ComponentState) =
+    let i1, i2 = state.Inputs.TryFind 0, state.Inputs.TryFind 1
+    match i1, i2 with
+    | Some input1, Some input2 ->
+        input1, input2
+    | _ -> failwithf "Expected this component to have two operands"
+
 let makeSimpleComponent outputs inputs name baseLibraryID symbolName description : IComponent =
     {
         Name = name
@@ -121,6 +147,7 @@ let makeSimpleComponent outputs inputs name baseLibraryID symbolName description
         DescriptionFunc = (fun _ _ -> description)
         TooltipText = description
         DefaultState = makeState outputs inputs baseLibraryID
+        AssertionBuilder = noAssertion
     }
 
 let makeOneOutputComponent = makeSimpleComponent IODefaults.OneOutput
@@ -153,6 +180,7 @@ let makeSignedPairOfComponents outputs description name baseLibraryID symbolName
         DescriptionFunc = description
         TooltipText = ""
         DefaultState = unsignedState
+        AssertionBuilder = noAssertion
     }
     
     let signedComp = { unsignedComp with Name = signedName; DefaultState = signedState }
@@ -218,6 +246,36 @@ let mutable library: ComponentLibrary = {
         |> List.map (fun comp -> (comp.GetLibraryID, comp))
         |> Map.ofList
 }
+
+type SheetConnections = Map<string, ComponentState> 
+
+let getStateForInput (cons: SheetConnections) (input: ComponentInput) =
+    // TODO(jpnock): safety first!
+    input.Name
+    |> cons.TryFind
+    |> Option.get
+    
+let getComp (state: ComponentState) : IComponent =
+    library.Components[state.LibraryID]
+  
+type PortExprs = Map<InputPortNumber, Expr>
+
+let getExprInfo (exprs : PortExprs) port : ExprInfo =
+    exprs[port], {Start = uint 0; End = uint 0}
+
+let leftRight (exprs:PortExprs) : ExprInfo * ExprInfo =
+   getExprInfo exprs 0, getExprInfo exprs 1
+   
+let add (exprs: PortExprs) : Expr = Add(BinOp(leftRight exprs))
+    
+let rec generateAST (cons: SheetConnections) (state: ComponentState) : Expr =
+    match state.IsInput with
+    | true -> Lit (Id state.Outputs[0].Name)
+    | false ->
+        state.Inputs
+        |> Map.map (fun _ -> getStateForInput cons)
+        |> Map.map (fun _ -> generateAST cons)
+        |> (getComp state).Build
 
 let implementsVariableWidth (state : ComponentState) =
     match state.Inputs.TryFind 0 with

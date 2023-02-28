@@ -5,6 +5,8 @@
 *)
 
 module CatalogueView
+
+open AssertionTypes
 open EEExtensions
 open VerilogTypes
 open Fulma
@@ -16,19 +18,16 @@ open ModelType
 open ModelHelpers
 open CommonTypes
 open PopupView
-open Sheet.SheetInterface
 open DrawModelType
 open FilesIO
 open NearleyBindings
 open AssertionParser
-open ErrorCheck
 open CodeEditorHelpers
 open Fable.SimpleJson
 open Fable.Core.JsInterop
 open JSHelpers
 open System
 open FileMenuView
-open SheetCreator
 open Optics
 
 NearleyBindings.importGrammar

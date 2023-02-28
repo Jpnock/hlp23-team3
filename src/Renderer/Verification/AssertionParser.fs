@@ -6,7 +6,6 @@
 
 module AssertionParser
 
-open VerilogTypes
 open EEExtensions
 open AssertionTypes
 
@@ -99,25 +98,25 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | WhitespaceRegex m ->  lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
         | IntegerRegex m ->
             // TODO: Kind of confusing syntax
-            let t = System.Int32.Parse m.Value |> Int |> Value |> Lit 
+            let t = System.Int32.Parse m.Value |> Int |> Value |> TLit 
             addToken t m.Length
-        | AddRegex m ->         addToken Add m.Length
-        | SubRegex m ->         addToken Sub m.Length
-        | MulRegex m ->         addToken Mul m.Length
-        | DivRegex m ->         addToken Div m.Length
-        | RemRegex m ->         addToken Rem m.Length
-        | LogAndRegex m ->      addToken LogAnd m.Length
-        | LogNotRegex m ->      addToken LogNot m.Length
-        | LogOrRegex m ->       addToken LogOr m.Length
-        | BitAndRegex m ->      addToken BitAnd m.Length
-        | BitNotRegex m ->      addToken BitNot m.Length
-        | BitOrRegex m ->       addToken BitOr m.Length
-        | EqRegex m ->          addToken Eq m.Length
-        | NeqRegex m ->         addToken Neq m.Length
-        | GteRegex m ->         addToken Gte m.Length
-        | LteRegex m ->         addToken Lte m.Length
-        | LtRegex m ->          addToken Lt m.Length
-        | GtRegex m ->          addToken Gt m.Length
+        | AddRegex m ->         addToken TAdd m.Length
+        | SubRegex m ->         addToken TSub m.Length
+        | MulRegex m ->         addToken TMul m.Length
+        | DivRegex m ->         addToken TDiv m.Length
+        | RemRegex m ->         addToken TRem m.Length
+        | LogAndRegex m ->      addToken TLogAnd m.Length
+        | LogNotRegex m ->      addToken TLogNot m.Length
+        | LogOrRegex m ->       addToken TLogOr m.Length
+        | BitAndRegex m ->      addToken TBitAnd m.Length
+        | BitNotRegex m ->      addToken TBitNot m.Length
+        | BitOrRegex m ->       addToken TBitOr m.Length
+        | EqRegex m ->          addToken TEq m.Length
+        | NeqRegex m ->         addToken TNeq m.Length
+        | GteRegex m ->         addToken TGte m.Length
+        | LteRegex m ->         addToken TLte m.Length
+        | LtRegex m ->          addToken TLt m.Length
+        | GtRegex m ->          addToken TGt m.Length
         | InvalidRegex m ->
             Error {
                 Pos = {Line = curLine; Col = curCol; Length = m.Length}; 
@@ -131,23 +130,23 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
 // See https://class.ece.uw.edu/cadta/verilog/operators.html
 let operatorPrecedence (tokType:TokenType) =
     match tokType with
-    | TokenType.LogNot -> 100
-    | Mul | Div | Rem -> 80
-    | Add | Sub -> 70
-    | Gt | Gte | Lt | Lte -> 60
-    | Eq | Neq -> 50
-    | BitAnd -> 40
-    | BitOr -> 30
-    | LogAnd -> 20
-    | LogOr -> 10
+    | TLogNot -> 100
+    | TMul | TDiv | TRem -> 80
+    | TAdd | TSub -> 70
+    | TGt | TGte | TLt | TLte -> 60
+    | TEq | TNeq -> 50
+    | TBitAnd -> 40
+    | TBitOr -> 30
+    | TLogAnd -> 20
+    | TLogOr -> 10
     | _ -> 0
 
-let rec parseOperand tokens : ParseResult =
+let rec parseOperand (tokens : Token list) : ParseResult =
     let token = List.head tokens
     let remTokens = List.tail tokens
     match token.Type with
-    | Lit l -> 
-        let expr = Expr.Lit (l, token.Pos)
+    | TLit l -> 
+        let expr = Expr.Lit l
         Ok {Expr = expr ; RemainingTokens = remTokens}
     | _ ->
         Error {Msg = sprintf "%A is not a valid operand!" token.Type; Pos = token.Pos }
@@ -178,46 +177,45 @@ let rec parseBinaryOp minPrecedence (lhs:ParseData) :ParseResult =
 
                 rhs
                 |> Result.bind (fun rhsData ->
-                    let binaryOperands = BinOp (lhs.Expr, rhsData.Expr)
-                    let exprData = (binaryOperands, opToken.Pos) 
+                    let binaryOperands = BinOp ((lhs.Expr, opToken.Pos), (rhsData.Expr, opToken.Pos))
 
                     let binaryExpr = 
                         match opToken.Type with
-                        | TokenType.Add ->
-                            Expr.Add exprData
-                        | TokenType.Sub ->
-                            Expr.Sub exprData
-                        | TokenType.Mul ->
-                            Expr.Mul exprData
-                        | TokenType.Div ->
-                            Expr.Div exprData
-                        | TokenType.Rem ->
-                            Expr.Rem exprData
-                        | TokenType.BitAnd ->
-                            Expr.BitAnd exprData
-                        | TokenType.BitNot ->
-                            Expr.BitNot exprData
-                        | TokenType.BitOr ->
-                            Expr.BitOr exprData
-                        | TokenType.Eq ->
-                            Expr.BoolExpr (BoolExpr.Eq binaryOperands, opToken.Pos) 
-                        | TokenType.Neq ->
-                            Expr.BoolExpr (BoolExpr.Neq binaryOperands, opToken.Pos) 
-                        | TokenType.LogAnd ->
-                            Expr.BoolExpr (BoolExpr.LogAnd binaryOperands, opToken.Pos) 
-                        | TokenType.LogNot ->
-                            Expr.BoolExpr (BoolExpr.LogNot binaryOperands, opToken.Pos) 
-                        | TokenType.LogOr ->
-                            Expr.BoolExpr (BoolExpr.LogOr binaryOperands, opToken.Pos) 
-                        | TokenType.Lt ->
-                            Expr.BoolExpr (BoolExpr.Lt binaryOperands, opToken.Pos) 
-                        | TokenType.Gt ->
-                            Expr.BoolExpr (BoolExpr.Gt binaryOperands, opToken.Pos) 
-                        | TokenType.Gte ->
-                            Expr.BoolExpr (BoolExpr.Gte binaryOperands, opToken.Pos) 
-                        | TokenType.Lte ->
-                            Expr.BoolExpr (BoolExpr.Lte binaryOperands, opToken.Pos) 
-                        | TokenType.Lit _ -> 
+                        | TAdd ->
+                            Expr.Add binaryOperands
+                        | TSub ->
+                            Expr.Sub binaryOperands
+                        | TMul ->
+                            Expr.Mul binaryOperands
+                        | TDiv ->
+                            Expr.Div binaryOperands
+                        | TRem ->
+                            Expr.Rem binaryOperands
+                        | TBitAnd ->
+                            Expr.BitAnd binaryOperands
+                        | TBitNot ->
+                            Expr.BitNot binaryOperands
+                        | TBitOr ->
+                            Expr.BitOr binaryOperands
+                        | TEq ->
+                            Expr.BoolExpr (BoolExpr.Eq binaryOperands) 
+                        | TNeq ->
+                            Expr.BoolExpr (BoolExpr.Neq binaryOperands) 
+                        | TLogAnd ->
+                            Expr.BoolExpr (BoolExpr.LogAnd binaryOperands) 
+                        | TLogNot ->
+                            Expr.BoolExpr (BoolExpr.LogNot binaryOperands) 
+                        | TLogOr ->
+                            Expr.BoolExpr (BoolExpr.LogOr binaryOperands) 
+                        | TLt ->
+                            Expr.BoolExpr (BoolExpr.Lt binaryOperands) 
+                        | TGt ->
+                            Expr.BoolExpr (BoolExpr.Gt binaryOperands) 
+                        | TGte ->
+                            Expr.BoolExpr (BoolExpr.Gte binaryOperands) 
+                        | TLte ->
+                            Expr.BoolExpr (BoolExpr.Lte binaryOperands) 
+                        | TLit _ -> 
                             failwithf "What? Should not be possible for a literal to be treated as a binary operand."
                     
                     parseBinaryOp minPrecedence <| {Expr = binaryExpr; RemainingTokens = rhsData.RemainingTokens}
@@ -237,12 +235,6 @@ let parseAssertion code: Result<Expr, ErrorInfo>=
     )
     |> Result.map (fun parseData -> parseData.Expr)
     |> Result.mapError (fun e -> {Message = e.Msg; Line = e.Pos.Line; Col = e.Pos.Col; Length = e.Pos.Length; ExtraErrors = None})
-
-    
-
-
-
-
 
 
 (*
@@ -276,9 +268,5 @@ Lte <=
 LogAnd &&
 LogNot ! 
 LogOr ||
-
-
-
-
 
 *)

@@ -21,13 +21,13 @@ type ComponentState =
       Inputs: Map<InputPortNumber, ComponentInput>
       Outputs: Map<OutputPortNumber, ComponentOutput>
       AssertionText: string option
-      IsInput: bool }
+      IsInput: bool option }
     static member Default : ComponentState = {
         LibraryID = ""
         Inputs = Map.empty
         Outputs = Map.empty
         AssertionText = None
-        IsInput = false
+        IsInput = None
     }
 
 type SymbolDetails =
@@ -273,8 +273,8 @@ let add (exprs: PortExprs) : Expr = Add(BinOp(leftRight exprs))
     
 let rec generateAST (cons: SheetConnections) (state: ComponentState) : Expr =
     match state.IsInput with
-    | true -> Lit (Id state.Outputs[0].Name)
-    | false ->
+    | Some true -> Lit (Id state.Outputs[0].Name)
+    | _ ->
         state.Inputs
         |> Map.map (fun _ -> getStateForInput cons)
         |> Map.map (fun _ -> generateAST cons)

@@ -40,19 +40,19 @@ let uintToBool n = if n = uint 0 then false else true
 
 //get FComponentId for component that is in the sheet where it's currently being simulated 
 let getFComponentId label components = 
-    let isRightComponent (comp: Component) = 
-        match comp.Label, comp.Type with 
-        | labelComp, Viewer _ when labelComp = label-> Some(comp.Id)
+    let isRightComponent (comp: FastComponent) = 
+        match comp.FLabel, comp.FType with 
+        | labelComp, Viewer _ when labelComp = label-> Some(comp.fId)
         | _ -> None 
     let compId = 
         List.choose isRightComponent components 
         |> function 
             | a::[] -> a
             | _ -> failwithf "should not happen"
-    FComponentId (ComponentId compId, [])
+    compId
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
-let rec evaluate (tree: ExprInfo) components (sd: SimulationData) step: Value * Size= 
+let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
 
     let resizeRes (size: Size) res = 
         match res, size with 
@@ -65,8 +65,8 @@ let rec evaluate (tree: ExprInfo) components (sd: SimulationData) step: Value * 
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
-            let leftRes, sizeL = evaluate l components sd step
-            let rightRes, sizeR = evaluate r components sd step
+            let leftRes, sizeL = evaluate l components fs step
+            let rightRes, sizeR = evaluate r components fs step
 
             let value = 
                 match leftRes, rightRes with
@@ -88,7 +88,7 @@ let rec evaluate (tree: ExprInfo) components (sd: SimulationData) step: Value * 
                 | _ -> failwithf "should not happen" 
             resizeRes sizeL value 
         | UnOp op ->
-            let opEvald, size = evaluate op components sd step
+            let opEvald, size = evaluate op components fs step
 
             match opEvald with
             | Int op ->
@@ -113,7 +113,7 @@ let rec evaluate (tree: ExprInfo) components (sd: SimulationData) step: Value * 
             | Value (Bool bool) -> Bool bool
             | Id id -> 
                 let fCompId = getFComponentId id components 
-                let data = sd.FastSim.getSimulationData step fCompId (OutputPortNumber 0)
+                let data = fs.getSimulationData step fCompId (OutputPortNumber 0)
                 match data with 
                 | Data{Dat = fb; Width = _} ->  
                     match fb with 
@@ -125,12 +125,12 @@ let rec evaluate (tree: ExprInfo) components (sd: SimulationData) step: Value * 
 
     | Cast c, _ ->
         match c with
-        | ToSigned e -> cast e "int" components sd step// this might require some sort of manipulation? or will it be done automatically
-        | ToUnsigned e -> cast e "uint" components sd step
-        | ToBool e -> cast e "bool" components sd step
+        | ToSigned e -> cast e "int" components fs step// this might require some sort of manipulation? or will it be done automatically
+        | ToUnsigned e -> cast e "uint" components fs step
+        | ToBool e -> cast e "bool" components fs step
 
     | BusCast (destSize, e), _-> 
-        let value, _ = evaluate e components sd step
+        let value, _ = evaluate e components fs step
         resizeRes (Size destSize) value
 
     | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
@@ -156,9 +156,9 @@ let rec evaluate (tree: ExprInfo) components (sd: SimulationData) step: Value * 
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)
-and cast expr castType components sd step=
+and cast expr castType components fs step=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
-    let castExprEvaluated, size= evaluate expr components sd step
+    let castExprEvaluated, size= evaluate expr components fs step
     let value = 
         match castExprEvaluated, castType with
         | Int int, "uint" -> Uint(uint int)
@@ -170,3 +170,29 @@ and cast expr castType components sd step=
         | _, _ -> castExprEvaluated
     value, size
 //maybe make r an option to reduce the code? if it's present do binary else unary
+
+
+/// Represents a failed assertion
+/// Cycle: int - represents an integer value that indicates the cycle number in which the assertion failed
+/// FailureMessage: string - represents a string value that describes the reason for the assertion failure
+/// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
+/// TODO:(djj120/DomJustice) Not final place or form Lu will probs have her own version of this struct somewhere
+type FailedAssertion = {
+    Cycle: int
+    FailureMessage: string
+    Sheet: string
+}
+
+//function created by Lu for now will have place holder of fake data
+let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
+    let evalTree step assertion = 
+        let value, size = evaluate assertion.AST (Array.toList fs.FConstantComps) fs step
+        match value with 
+        | Bool true -> None 
+        | Bool false -> Some {Cycle = step; FailureMessage = $"the assertion n {assertion.Id} was supposed to return true but it returned false"; Sheet = "i don't know yet"} 
+        | _ -> failwithf "the top level expression should return a bool"
+    let evalAllAssertions assertions n = 
+        assertions
+        |> List.choose (evalTree n)
+    [startCycle..endCycle]
+    |> List.collect (evalAllAssertions fs.Assertions)

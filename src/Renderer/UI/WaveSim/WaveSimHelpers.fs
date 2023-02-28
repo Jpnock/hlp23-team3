@@ -5,6 +5,7 @@ open Fulma.Extensions.Wikiki
 open Fable.React
 open Fable.React.Props
 
+open AssertionEvaluation
 open CommonTypes
 open ModelType
 open ModelHelpers
@@ -729,5 +730,5 @@ let checkIfMemoryCompsOutOfDate (p: Project) (fs:FastSimulation) =
 
 /// returns the failed assertion occurring on the wsModel's current clk cycle
 let getCurrAssertionFailuresWaveSim (wsModel: WaveSimModel) : FailedAssertion list=
-    let failedAssertions = wsModel.FastSim.evaluateAssertionsInWindow wsModel.CurrClkCycle wsModel.CurrClkCycle
+    let failedAssertions = evaluateAssertionsInWindow wsModel.CurrClkCycle wsModel.CurrClkCycle wsModel.FastSim
     List.filter (fun assertion -> assertion.Cycle = wsModel.CurrClkCycle) failedAssertions

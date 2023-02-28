@@ -8,12 +8,11 @@
 
 module rec ModelType
 
+open AssertionTypes
 open CommonTypes
 open SimulatorTypes
 open TruthTableTypes
 open Fable.React
-open Sheet.SheetInterface
-open VerilogTypes
 open Optics
 
 module Constants =

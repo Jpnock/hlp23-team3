@@ -1,5 +1,6 @@
 module ErrorCheck
 
+open AssertionTypes
 open VerilogTypes
 open Fable.Core.JsInterop
 open CommonTypes 

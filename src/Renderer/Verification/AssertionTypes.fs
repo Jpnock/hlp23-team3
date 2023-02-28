@@ -76,24 +76,24 @@ type CheckRes =
 
 // TODO: Add cast
 type TokenType = 
-    | Lit of Lit
-    | Add       // +
-    | Sub       // -
-    | Mul       // *
-    | Div       // /
-    | Rem       // %
-    | BitAnd    // &
-    | BitNot    // ~
-    | BitOr     // |
-    | Eq        // ==
-    | Neq       // !=
-    | Lt        // <
-    | Gt        // >
-    | Gte       // >=
-    | Lte       // <=
-    | LogAnd    // &&
-    | LogNot    // ! 
-    | LogOr     // ||
+    | TLit of Lit
+    | TAdd       // +
+    | TSub       // -
+    | TMul       // *
+    | TDiv       // /
+    | TRem       // %
+    | TBitAnd    // &
+    | TBitNot    // ~
+    | TBitOr     // |
+    | TEq        // ==
+    | TNeq       // !=
+    | TLt        // <
+    | TGt        // >
+    | TGte       // >=
+    | TLte       // <=
+    | TLogAnd    // &&
+    | TLogNot    // ! 
+    | TLogOr     // ||
 
 type Token = {
     Type: TokenType
@@ -106,3 +106,13 @@ type ParseData = {
 }
 
 type ParseResult = Result<ParseData, Error>
+
+type ReplaceType =
+    |IODeclaration
+    |Assignment
+    |Variable of string
+    |NoReplace
+
+type ExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
+
+type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: ExtraErrorInfo array option}

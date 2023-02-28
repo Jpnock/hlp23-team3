@@ -1,6 +1,7 @@
 module CodeEditorHelpers
 
 open VerilogTypes
+open AssertionTypes
 open ErrorCheck
 open Fable.React
 open Fable.React.Props

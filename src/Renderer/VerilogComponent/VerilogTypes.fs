@@ -3,6 +3,8 @@ module VerilogTypes
 
 open Fable.React.Props
 
+open AssertionTypes
+
 //////////////////////// Code Editor Types /////////////////////////////////
 
 type State = 
@@ -72,16 +74,6 @@ type PortAssignmentError =
     |Unassigned
     |DoubleAssignment 
 
-type ReplaceType =
-    |IODeclaration
-    |Assignment
-    |Variable of string
-    |NoReplace
-
 type OneUnary = {Name:string;ResultWidth:int;Head:OneUnary option;Tail:OneUnary option;Elements:OneUnary list} 
-
-type ExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
-
-type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: ExtraErrorInfo array option}
 
 type ParserOutput = {Result: string option; Error: ErrorInfo option; NewLinesIndex: int array option}

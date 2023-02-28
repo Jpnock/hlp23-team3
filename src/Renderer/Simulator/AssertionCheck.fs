@@ -2,6 +2,7 @@ module AssertionCheck
 
 open AssertionTypes
 open CommonTypes
+open SimulatorTypes
 open System
 
 let (|RequiresBool|_|) (expr: ExprInfo) = 
@@ -45,13 +46,13 @@ let getType value =
     | Uint _ -> UintType 
     | Bool _ -> BoolType 
 
-let getLitProperties (components: Component List) lit = 
+let getLitProperties (components: FastComponent List) lit = 
     match lit with
     | Value value -> getType value, getLitMinSize value 
     | Id id -> 
         let width = 
-            let isRightComponent (comp: Component) = 
-                match comp.Label, comp.Type with 
+            let isRightComponent (comp: FastComponent) = 
+                match comp.FLabel, comp.FType with 
                 | idComp, Viewer width when idComp = id -> Some(width)
                 | idComp, Input1 (width,_) when idComp = id -> Some(width)
                 | _ -> None 
@@ -65,7 +66,7 @@ let getLitProperties (components: Component List) lit =
 
 // for unary expressions type checks are not needed, it's enough to return the type of the variable (tricky because it needs to take into account casts)
 // maybe do an active matching to check if it's a unary operator, in that case only evaluate the type and size
-let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes = 
+let rec checkAST (tree: ExprInfo) (components: FastComponent List): CheckRes = 
     let propagateError (leftRes: CheckRes) (rightRes: CheckRes) =
         let toErr =
             function

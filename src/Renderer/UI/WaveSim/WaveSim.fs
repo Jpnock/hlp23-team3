@@ -4,6 +4,7 @@ open Fulma
 open Fable.React
 open Fable.React.Props
 
+open AssertionEvaluation
 open CommonTypes
 open ModelType
 open ModelHelpers
@@ -501,7 +502,7 @@ let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
         )
 
     let colChildren =
-        let visibleFailedAssertions = wsModel.FastSim.evaluateAssertionsInWindow wsModel.StartCycle (endCycle wsModel)
+        let visibleFailedAssertions = evaluateAssertionsInWindow wsModel.StartCycle (endCycle wsModel) wsModel.FastSim
         let failedAssertionCycles = getFailedAssertionCycles(visibleFailedAssertions)
         let failedAssertionHighlights = failedAssertionCycles |> List.map (failedAssertionsHighlight wsModel) 
         let clkCycleNumberRowDiv = 

@@ -8,7 +8,6 @@ module rec SimulatorTypes
 open Fable.Core
 open CommonTypes
 
-
 /// document current status of a simulation as used by waveform simulator
 type SimulationRunStatus =
     | SimEmpty // simulation has been created but not yet setup from a circuit
@@ -951,16 +950,6 @@ type Driver = {
     DriverData: StepArray<FData>
 }
 
-/// Represents a failed assertion
-/// Cycle: int - represents an integer value that indicates the cycle number in which the assertion failed
-/// FailureMessage: string - represents a string value that describes the reason for the assertion failure
-/// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
-/// TODO:(djj120/DomJustice) Not final place or form Lu will probs have her own version of this struct somewhere
-type FailedAssertion = {
-    Cycle: int
-    FailureMessage: string
-    Sheet: string
-}
 
 type SheetPort = {
     Sheet: string
@@ -1046,14 +1035,8 @@ type FastSimulation = {
                 | Some fid -> this.FComps[fid].Outputs[0].Step[step]
                 | None -> failwithf "What? can't find %A in the fast simulation data" (cid,ap)
         
-        //function created by Lu for now will have place holder of fake data
-        member this.evaluateAssertionsInWindow (startCycle : int) (endCycle : int) : FailedAssertion list =
-            let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main" }
-            let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2" }
-            let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2" }
-            let failedAssertion3 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...2"; Sheet = "main" }
-            let failedAssertion4 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...3"; Sheet = "main" }
-            [failedAssertion0; failedAssertion1; failedAssertion2; failedAssertion3; failedAssertion4]
+            
+
 /// GatherTemp is the output type used to accumulate lists of data links when recursively exploring SimulationGraph
 /// as first step in flattening it.
 /// Each list of pairs is converted into a map at the end in the final GatherData structure

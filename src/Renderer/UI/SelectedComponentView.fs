@@ -663,7 +663,31 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
 let private makeDescription (comp:Component) model dispatch =
     match comp.Type with
-    | Plugin p -> str (Verification.Components.library.Components[p.LibraryID].GetDescription p)
+    | Plugin p ->
+        let openEditor code name=
+            createAssertionPopup (ExistingCodeFile {Name = name; Code = code}) model dispatch
+        
+        // TODO(jpnock): Move this logic into the component by changing
+        // the interface to return ReactElements.
+        let assertionEditButton = 
+            match p.AssertionText with
+            | Some text -> [
+                 br []
+                 Button.button [
+                     Button.Color IsPrimary
+                     Button.OnClick (fun _ -> 
+                         dispatch (StartUICmd SaveSheet)
+                         saveOpenFileActionWithModelUpdate model dispatch |> ignore
+                         dispatch <| Sheet(SheetT.DoNothing)
+                         openEditor text ":)")
+                 ] [str "View/Edit Assertion"]
+                 br []
+                ]
+            | _ -> []
+        div [] ([
+            str (Verification.Components.library.Components[p.LibraryID].GetDescription p)
+        ]  @ assertionEditButton)
+        
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ -> failwithf "Legacy Input component types should never occur"

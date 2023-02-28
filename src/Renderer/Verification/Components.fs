@@ -102,6 +102,9 @@ type SimpleComponent =
                 match output.FixedWidth with
                 | Some w -> w
                 | _ -> maxInputWidth)
+        member this.Build exprPortMap =
+            // TODO(jpnock): Add logic here
+            Lit (Id "")
 
 let signedDescription _ state =
     let signedOperation =
@@ -261,7 +264,7 @@ let getComp (state: ComponentState) : IComponent =
 type PortExprs = Map<InputPortNumber, Expr>
 
 let getExprInfo (exprs : PortExprs) port : ExprInfo =
-    exprs[port], {Start = uint 0; End = uint 0}
+    exprs[port], {Length = 0; Line = 0; Col = 0}
 
 let leftRight (exprs:PortExprs) : ExprInfo * ExprInfo =
    getExprInfo exprs 0, getExprInfo exprs 1

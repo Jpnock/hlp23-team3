@@ -75,6 +75,11 @@ type CheckRes =
     | Properties of Properties 
 
 // TODO: Add cast
+// TODO(jsand): This type is a (somewhat) duplicate of Expr.
+// However, there is not neccesarily a nice way of unifying the two types.
+// For one, Expr contains AST information which tokens inherently do not.
+// Additionally, some tokens such as LParen should not be a part of the Expr
+// at all. 
 type TokenType = 
     | TLit of Lit
     | TAdd       // +
@@ -94,6 +99,12 @@ type TokenType =
     | TLogAnd    // &&
     | TLogNot    // ! 
     | TLogOr     // ||
+    | TLParen    // (
+    | TRParen    // )
+    | TSigned    // signed
+    | TUnsigned  // unsigned
+    | TBool      // bool
+    | TBusCast   // '
 
 type Token = {
     Type: TokenType
@@ -106,6 +117,8 @@ type ParseData = {
 }
 
 type ParseResult = Result<ParseData, Error>
+
+type Precedence = Precedence of int option 
 
 type ReplaceType =
     |IODeclaration

@@ -16,6 +16,18 @@ This project implements assertion logic, improving how designs can be verified i
 
 ### Joachim Sand (jls20)
 
+- Author format: `Authored by jls20/jlsand (Joachim Sand)`
+- TODOs are marked with: `TODO(jlsand):`
+- [AssertionTypes.fs](src/Renderer/Verification/AssertionTypes.fs)
+Authored 4 types: Token, TokenType, ParseResult and Precedence.
+- [AssertionParser.fs](src/Renderer/AssertionParser.fs)
+Full operator-precedence parser. A unique mix between a operator-precedence parser and a recursive descent parser.
+- [CatalogueView.fs](src/Renderer/UI/CatalogueView.fs)
+Made several modifications to clean up the code editor popup and generalize it sufficiently
+to be used for the assertion expressions as well.
+- [ModelType.fs](src/Renderer/UI/ModelType.fs)
+Modified and added types to support the new generalized code editor.
+
 ### Lucia Necchi (ln220)
 
 - Author format: `Authored by ln220`
@@ -25,3 +37,5 @@ This project implements assertion logic, improving how designs can be verified i
 - [AssertionTypes.fs](src/Renderer/Verification/AssertionTypes.fs)
 
 ### Dominic Justice-Konec (djj120)
+
+- Author format: `Authored by djj120`

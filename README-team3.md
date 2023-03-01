@@ -18,4 +18,10 @@ This project implements assertion logic, improving how designs can be verified i
 
 ### Lucia Necchi (ln220)
 
+- Author format: `Authored by ln220`
+- [AssertionCheck.fs](src/Renderer/Simulator/AssertionCheck.fs)
+- [AssertionVerification.fs](src/Renderer/Simulator/AssertionVerification.fs)
+- [AssertionTests.fs](src/Renderer/Simulator/AssertionTests.fs)
+- [AssertionTypes.fs](src/Renderer/Verification/AssertionTypes.fs)
+
 ### Dominic Justice-Konec (djj120)

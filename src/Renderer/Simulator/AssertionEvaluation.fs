@@ -51,6 +51,23 @@ let getFComponentId label components =
             | _ -> failwithf "should not happen"
     compId
 
+let getLitProperties (components: FastComponent List) lit = 
+    match lit with
+    | Value value -> getType value, getLitMinSize value 
+    | Id id -> 
+        let width = 
+            let isRightComponent (comp: FastComponent) = 
+                match comp.FLabel, comp.FType with 
+                | idComp, Viewer width when idComp = id -> Some(width)
+                | idComp, Input1 (width,_) when idComp = id -> Some(width)
+                | _ -> None 
+            List.choose isRightComponent components 
+            |> function 
+                | id::[] -> id 
+                | [] -> failwithf "the component is not in the list" // TODO make an actual error message as this is a user error
+                | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
+        UintType, int width
+
 // assume that the AST is correct (as it will be checked upon creation of the component)
 let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
 
@@ -189,7 +206,7 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         let value, size = evaluate assertion.AST (Array.toList fs.FConstantComps) fs step
         match value with 
         | Bool true -> None 
-        | Bool false -> Some {Cycle = step; FailureMessage = $"the assertion n {assertion.Id} was supposed to return true but it returned false"; Sheet = "i don't know yet"} 
+        | Bool false -> Some {Cycle = step; FailureMessage = $"the assertion {assertion.AST} was supposed to return true but it returned false"; Sheet = "i don't know yet"} 
         | _ -> failwithf "the top level expression should return a bool"
     let evalAllAssertions assertions n = 
         assertions

@@ -278,13 +278,16 @@ let createFastArrays fs gather =
 let buildFastSimulation 
         (simulationArraySize: int) 
         (diagramName: string) 
-        (graph: SimulationGraph) 
+        (graph: SimulationGraph)
+        (assertions: AssertionTypes.Assertion list)
             : Result<FastSimulation,SimulationError> =
     let gather = gatherSimulation graph
-    let fs =  
+    let initFs =  
         emptyFastSimulation diagramName
         |> createInitFastCompPhase simulationArraySize gather
         |> linkFastComponents gather
+    
+    let fs = {initFs with Assertions = assertions}
     gather
     |> createFastArrays fs
     |> orderCombinationalComponents simulationArraySize
@@ -422,6 +425,7 @@ let runFastSimulation (timeOut: float option)(lastStepNeeded: int) (fs: FastSimu
                 while fs.ClockTick < lastStepNeeded  &&
                       (match timeOut with | None -> true | Some incr ->  time < simStartTime + incr) do
                     stepSimulation fs
+                    // TODO: Call evalAST on list of assertions in fs.
                     if (fs.ClockTick - startTick) % stepsBeforeCheck = 0 then
                         time <- getTimeMs()
                 if fs.ClockTick >= lastStepNeeded then

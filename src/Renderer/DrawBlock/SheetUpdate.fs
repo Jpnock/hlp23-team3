@@ -778,6 +778,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<Msg> =
             | None -> 
                 printfn "Error: can't validate the two symbols selected to reorder ports"
                 model, Cmd.none   
+    // authored by ln220
     | TestCheckAst ->
         printf "check ast"
         let printRes testN res  = 

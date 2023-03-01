@@ -1039,15 +1039,6 @@ let viewCatalogue model dispatch =
                         (List.append 
                             [menuItem styles "New Verilog Component" (fun _ -> createVerilogPopup NewCodeFile model dispatch) ]
                             (makeVerilogList styles model dispatch))
-
-                    makeMenuGroupWithTip 
-                        styles
-                        "Assertion"
-                        "Write assertion logic and use it as a Custom Component. 
-                         To edit/delete an assertion component add it in a sheet and click on 'properties'"
-                        // TODO: Show created assertion components
-                        [menuItem styles "New Assertion Component" (fun _ -> createAssertionPopup NewCodeFile model dispatch) ]
-
                           
                 ]
         (viewCatOfModel) model 

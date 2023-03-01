@@ -144,12 +144,12 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
 
     | Cast c, _ ->
         match c with
-        | ToSigned e -> cast e "int" components fs step// this might require some sort of manipulation? or will it be done automatically
-        | ToUnsigned e -> cast e "uint" components fs step
-        | ToBool e -> cast e "bool" components fs step
+        | ToSigned e -> cast e "int" fs step// this might require some sort of manipulation? or will it be done automatically
+        | ToUnsigned e -> cast e "uint" fs step
+        | ToBool e -> cast e "bool" fs step
 
     | BusCast (destSize, e), _-> 
-        let value, _ = evaluate e components fs step
+        let value, _ = evaluate e fs step
         resizeRes (Size destSize) value
 
     | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
@@ -175,9 +175,9 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)
-and cast expr castType components fs step=
+and cast expr castType fs step=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
-    let castExprEvaluated, size= evaluate expr components fs step
+    let castExprEvaluated, size= evaluate expr fs step
     let value = 
         match castExprEvaluated, castType with
         | Int int, "uint" -> Uint(uint int)
@@ -205,7 +205,7 @@ type FailedAssertion = {
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
     let evalTree step assertion = 
-        let value, size = evaluate assertion.AST (List.ofSeq fs.FComps.Values) fs step
+        let value, size = evaluate assertion.AST fs step
         match value with 
         | Bool true -> None 
         | Bool false ->

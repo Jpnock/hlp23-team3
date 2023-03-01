@@ -20,6 +20,7 @@ open Fable.Core.JsInterop
 open BuildUartHelpers
 open Node.ChildProcess
 open Node
+open AssertionTests
 
 module node = Node.Api
 

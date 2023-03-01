@@ -111,9 +111,9 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         match propertiesL, propertiesR with 
         | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
             match exprL, exprR with 
-            | (Lit litL, _), (Lit litR, _) -> Properties{Type = typeL; Size = max sizeL sizeR}
-            | (Lit litL, _), _ -> checkLit sizeL sizeR typeR true
-            | _, (Lit litR, _) -> checkLit sizeR sizeL typeL false
+            | (Lit (Value valL), _), (Lit (Value valR), _) -> Properties{Type = typeL; Size = max sizeL sizeR}
+            | (Lit (Value valL), _), _ -> checkLit sizeL sizeR typeR true
+            | _, (Lit (Value valR), _) -> checkLit sizeR sizeL typeL false
             | _, _ -> 
                 if sizeL = sizeR && makesBool 
                 then Properties {Type = BoolType; Size = sizeL} 
@@ -146,7 +146,6 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | RequiresBool (l, r, pos) -> // check that operand(s) are bool 
         let leftRes = checkAST l components
         let rightRes = checkAST r components 
-        printf "checked left: %A checked right %A pos %A" leftRes rightRes pos
         match leftRes, rightRes with 
         | Properties {Type = typeL; Size = _}, Properties {Type = typeR; Size =_} -> 
             if typeL = BoolType && typeL = typeR 

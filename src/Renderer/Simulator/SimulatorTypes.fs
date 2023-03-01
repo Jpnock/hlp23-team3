@@ -1028,8 +1028,6 @@ type FastSimulation = {
     } with
         member this.getSimulationData (step: int) ((cid,ap): FComponentId) (opn: OutputPortNumber) =
             let (OutputPortNumber n) = opn
-            printf "cid ap %A %A" cid ap 
-            printf "fcomps %A" this.FComps
             match Map.tryFind (cid,ap) this.FComps with
             | Some fc -> fc.Outputs[n].Step[step]
             | None ->

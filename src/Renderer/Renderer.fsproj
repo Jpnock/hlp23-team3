@@ -13,8 +13,10 @@
     <Compile Include="Verification\EEExtensions.fs" />
     <Compile Include="Verification\AssertionTypes.fs" />
     <Compile Include="Verification\AssertionParser.fs" />
-    <Compile Include="Verification\ASTMap.fs" />
+    <Compile Include="Verification\AssertionASTMap.fs" />
     <Compile Include="Verification\Components.fs" />
+    <Compile Include="Verification\VerificationLibrary.fs" />
+    <Compile Include="Verification\VerificationASTGen.fs" />
     
     <!-- Common definitions -->
     <Compile Include="Common\Optics.fs" />

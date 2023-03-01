@@ -53,7 +53,7 @@ module Constants =
     let labelPadding = 3
     /// Color for cursor and values column
     let cursorColor = "Lavender"
-    /// Color for falied assertions
+    /// Color for falied assertions djj120
     let failedAssertionColor = "red"
 
 
@@ -575,6 +575,9 @@ let backgroundSVG (wsModel: WaveSimModel) count : ReactElement list =
     [ wsModel.StartCycle + 1 .. endCycle wsModel + 1 ] 
     |> List.map (fun x -> clkLine (float x * singleWaveWidth wsModel))
 
+/// Create a SVG that highlights a column in the wave simulator abstraction of original 
+/// clkCycleHighlightSVG to avoid duplicate code with the addition of failedAssertionsHighlight 
+/// djj120
 let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) : ReactElement =
     let onClickFun = Option.defaultValue (fun _ -> ()) onClick
     let highlightedCol = Option.defaultValue m.CurrClkCycle specificCol
@@ -602,6 +605,7 @@ let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol:
         (reactElement :: backgroundSVG m count)
 
 /// Controls the background highlighting of which clock cycle is selected
+/// reformated to call highlightColSVG djj120
 let clkCycleHighlightSVG m dispatch =
     let updateCurrCycleToClickedCycle  (ev: Browser.Types.MouseEvent)  =
             let svgEl = Browser.Dom.document.getElementById "ClkCycleHighlight"
@@ -616,6 +620,7 @@ let clkCycleHighlightSVG m dispatch =
     highlightColSVG m Constants.cursorColor "ClkCycleHighlight" None (Some updateCurrCycleToClickedCycle) 
 
 /// Controls the background highlighting of which clock cycle is selected
+/// djj120
 let failedAssertionsHighlight m cycle=
     highlightColSVG m Constants.failedAssertionColor "AssertionHighlight" (Some cycle) None 
 

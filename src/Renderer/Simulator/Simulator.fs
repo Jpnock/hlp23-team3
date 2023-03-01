@@ -223,15 +223,8 @@ let rec startCircuitSimulation
         | Constant (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
         | _ -> makeState source.Id source.Label None
         
-    
-    let connectionToSourceComponent =
-        canvasConnections
-        |> List.map (fun el -> el.Id, getSourceComponentState el.Source.HostId)
-        |> Map.ofList
-    
-    // Problem : port number is empty on components
+    // Problem : port number is None on components
     // Solution : make a mapping between port Id and number
-    
     let inputPortIDToNumber =
         canvasComps
         |> List.map (fun comp -> comp.InputPorts)
@@ -257,11 +250,7 @@ let rec startCircuitSimulation
                         | false -> None )
             k, Map.ofList inputMap)
         |> Map.ofList
-    
-    printf $"oooh {componentIDToInputPortState}" 
-    
-    // printf $"got map of {canvasComps} // {canvasConnections}"
-    
+
     let assertionComps =
         canvasComps
         |> List.choose (fun el ->
@@ -270,7 +259,14 @@ let rec startCircuitSimulation
                 Some state
             | _ -> None)
     
-    let assertionASTs : AssertionTypes.Assertion list =
+    let assertionTexts =
+        canvasComps
+        |> List.choose (fun el ->
+            match el.Type with
+            | Plugin state when state.AssertionText.IsSome -> state.AssertionText
+            | _ -> None)
+    
+    let assertionCompASTs : AssertionTypes.Assertion list =
         assertionComps
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
@@ -280,16 +276,21 @@ let rec startCircuitSimulation
             let assertion = ast, exprPos
             {AST = assertion})
     
-    printf $"Got assertion ASTs {assertionASTs}"
+    // TODO(jpnock): invoke lexer/parser here or whatever
+    let assertionTextASTs : AssertionTypes.Assertion list = []
     
-    assertionASTs
+    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
+    
+    printf $"Got assertion ASTs {allASTs}"
+    
+    allASTs
     |> List.map (fun el ->
         let pretty = AssertionParser.prettyPrintAST (fst el.AST) "" false
         printf $"Got AST:\n{pretty}")
     |> ignore
     
     let checkedASTs =
-        assertionASTs
+        allASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AST canvasComps)
     
     let goodASTs =
@@ -300,12 +301,10 @@ let rec startCircuitSimulation
             | _ -> None)
     
     let finalAssertions =
-        if goodASTs.Length = checkedASTs.Length then assertionASTs
+        if goodASTs.Length = checkedASTs.Length then allASTs
         else
             printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
             []
-    
-    
     
     // Remove all connections that are connected to verification components
     // at either end.

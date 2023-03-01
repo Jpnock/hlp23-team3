@@ -1,23 +1,42 @@
+/// Contains logic for converting between components
+/// and their respective Assertion AST types.
+///
 /// Author: James Nock
 module AssertionASTMap
 
 open AssertionTypes
 
+/// Represents the port number (0..N) of an input on a given
+/// component.
 type InputPortNumber = int
+
+/// Represents the port number (0..N) of an output on a given
+/// component.
 type OutputPortNumber = int
+
+/// Helper type which represents an Assertion AST Expression for the
+/// connection that feeds into a given InputPortNumber of a component.
 type PortExprs = Map<InputPortNumber, Expr>
+
+/// Helper type for functions that accept the current map of built Assertion
+/// AST Expressions for all inputs of a component; the functions should return
+/// a new Expression representing the AST including the component.
 type ASTBuilder = PortExprs -> Expr option
+
+let private getExprInfo (exprs : PortExprs) port : ExprInfo =
+    exprs[port], {Length = 0; Line = 0; Col = 0}
+
+let private binaryOp (exprs : PortExprs) =
+   (getExprInfo exprs 0, getExprInfo exprs 1)
+   |> BinOp
 
 let noAssertion _ =
     None
 
-let getExprInfo (exprs : PortExprs) port : ExprInfo =
-    exprs[port], {Length = 0; Line = 0; Col = 0}
-
-let binaryOp (exprs : PortExprs) =
-   (getExprInfo exprs 0, getExprInfo exprs 1)
-   |> BinOp
-
+/// Helper function which can be partially applied to return an ASTBuilder.
+/// The `typ` argument represents what type of component should be built;
+/// for example, TAdd will construct an `Add` AST based on the provided
+/// input port expressions.
 let astMapper (typ : TokenType) (exprs : PortExprs) : Expr option =
     match typ with
     | TLit _ ->

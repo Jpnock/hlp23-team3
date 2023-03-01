@@ -282,6 +282,11 @@ let rec startCircuitSimulation
     
     printf $"Got assertion ASTs {assertionASTs}"
     
+    assertionASTs
+    |> List.map (fun el ->
+        let pretty = AssertionParser.prettyPrintAST (fst el.AST) "" false
+        printf $"Got AST:\n{pretty}")
+    
     let checkedASTs =
         assertionASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AST canvasComps)

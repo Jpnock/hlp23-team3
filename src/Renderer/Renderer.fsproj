@@ -50,7 +50,7 @@
     <Compile Include="Simulator\AssertionEvaluation.fs" />
     <Compile Include="Simulator\Simulator.fs" />
     <Compile Include="Simulator\AssertionHelpers.fs" />
-
+    
     <!-- Verilog Component -->
     <Compile Include="VerilogComponent\VerilogTypes.fs" />
     <Compile Include="VerilogComponent\SheetCreator.fs" />

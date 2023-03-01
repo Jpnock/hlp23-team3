@@ -71,7 +71,6 @@ let getLitProperties (components: FastComponent List) lit =
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
 let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
-    printf $"we are evaluating {components}"
     let resizeRes (size: Size) res = 
         match res, size with 
         | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1))))), size

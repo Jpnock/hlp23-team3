@@ -132,5 +132,4 @@ type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: 
 
 type Assertion = {
     AST: ExprInfo;
-    Id: string
 }

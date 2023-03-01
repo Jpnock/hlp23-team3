@@ -481,6 +481,7 @@ let clkCycleNumberRow (wsModel: WaveSimModel) =
     |> svg (clkCycleNumberRowProps wsModel)
 
 /// Generate a column of waveforms corresponding to selected waves.
+/// Reformatted and added creation of red highlighting over failed assertions djj120
 let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
     let start = TimeHelpers.getTimeMs ()
     /// Note that this is generated after calling selectedWaves.
@@ -1011,6 +1012,7 @@ let topHalf canvasState (model: Model) dispatch : ReactElement =
         ]
 
 /// Entry point to the waveform simulator.
+/// Reformate output react and add assertion failure element djj120 
 let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
     let wsModel = getWSModel model
     let notRunning = 

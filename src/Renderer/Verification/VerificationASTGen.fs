@@ -1,10 +1,25 @@
-// Author: James Nock
+/// Contains logic for building an Assertion AST
+/// from a set of visual verification components.
+///
+/// Author: James Nock
 module VerificationASTGen
 
 open AssertionTypes
 open VerificationComponents
 open VerificationLibrary
 
+/// Returns the component state at a given input port number.
+let getStateForInput (portToSource: Map<int, ComponentState>) inputNum =
+    // TODO(jpnock): use try-catch here
+    printf $"Getting state for: {inputNum}"
+    portToSource[inputNum]
+
+/// Helper function for recursively generating an Assertion AST.
+/// The `componentPortSources` arg contains a map of component IDs
+/// too a map of input port component states. This allows a component ID
+/// to be looked up and the state returned for any component connected to
+/// its input ports. The `state` arg represents the state of the component
+/// the AST is currently being built for.
 let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>) (state: ComponentState) : Expr =
     match state.IsInput with
     | Some true -> Lit (Id state.Outputs[0].Name)

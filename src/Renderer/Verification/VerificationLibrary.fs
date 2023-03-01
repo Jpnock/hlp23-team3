@@ -1,3 +1,6 @@
+/// Contains logic for representing the collection
+/// of verification components (the library).
+///
 /// Author: James Nock
 module VerificationLibrary
 

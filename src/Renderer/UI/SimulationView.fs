@@ -406,6 +406,9 @@ let viewSimulationError (simError : SimulationError) =
         error
     ]
 
+/// Turns a failed assertion into displayable react with button to go to the sheet it occures 
+/// Authored by djj120
+/// failure message formatting by jpn119
 let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
     let buttonString = 
         if fa.Sheet = project.OpenFileName then 
@@ -439,7 +442,8 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
         br []
     ]
 
-/// turning failed assertions into react elements
+/// Turns failed assertion list into a react element
+/// Authored by djj120
 let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Model) dispatch =
     let project =
         match model.CurrentProj with
@@ -571,7 +575,7 @@ let simulationClockChangeAction dispatch simData (dialog:PopupDialogData) =
         |> dispatch
 
 
-
+/// Added button colour change on failed assertion djj120
 let private viewSimulationData (step: int) (simData : SimulationData) model dispatch =
     let viewerWidthList =
         FastRun.extractViewers simData
@@ -591,7 +595,7 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
         | false -> div [] []
         | true ->
             let clkTickColour = 
-                match ModelHelpers.getCurrAssertionFailuresStepSim(simData) with
+                match getCurrAssertionFailuresStepSim(simData) with
                 | [] -> IsSuccess
                 | _ -> IsDanger
             div [] [
@@ -695,6 +699,7 @@ let setSimErrorFeedback (simError:SimulatorTypes.SimulationError) (model:Model) 
             // make whole diagram visible if any of the errors are not visible
             keyDispatch <| SheetT.KeyboardMsg.CtrlW
 
+/// added failed assertion element and re formated djj120
 let viewSimulation canvasState model dispatch =
     printf "Viewing Simulation"
     // let JSState = model.Diagram.GetCanvasState ()
@@ -762,7 +767,7 @@ let viewSimulation canvasState model dispatch =
             match sim with
             | Error _ -> div [] []
             | Ok simData ->
-                match ModelHelpers.getCurrAssertionFailuresStepSim(simData) with
+                match getCurrAssertionFailuresStepSim(simData) with
                 | [] -> div [] []
                 | assertionList -> viewFailedAssertions assertionList model dispatch
 

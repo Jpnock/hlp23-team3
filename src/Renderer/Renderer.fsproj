@@ -43,9 +43,9 @@
     <Compile Include="Simulator\Verilog.fs" />
     <Compile Include="Simulator\Runner.fs" />
     <Compile Include="Simulator\DependencyMerger.fs" />
-    <Compile Include="Simulator\Simulator.fs" />
     <Compile Include="Simulator\AssertionCheck.fs" />
     <Compile Include="Simulator\AssertionEvaluation.fs" />
+    <Compile Include="Simulator\Simulator.fs" />
 
     <!-- Verilog Component -->
     <Compile Include="VerilogComponent\VerilogTypes.fs" />

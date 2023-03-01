@@ -32,13 +32,14 @@ let (|IsBinExpr|_|) (expr: ExprInfo) =
     | _ -> None
 
 let getLitMinSize lit = 
-    let num = 
-        match lit with
-        | Int int -> float int 
-        | Uint uint -> float uint 
-        | Bool bool -> 1. //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
-    let log = Math.Log(num, 2.)
-    (ceil >> int) log
+    match lit with
+    | Int intN -> 
+        let n = float intN
+        (ceil >> int) (Math.Log (n, 2.) + 0.1) + 1
+    | Uint uint -> 
+        let n = float uint 
+        (ceil >> int) (Math.Log (n, 2.) + 0.1)
+    | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
 
 let getType value = 
     match value with 
@@ -97,10 +98,10 @@ let rec checkAST (tree: ExprInfo) (components: FastComponent List): CheckRes =
             Properties {Type = Option.defaultValue t castType; Size = Option.defaultValue size castSize} 
         | _ -> exprRes //propagate error
 
-    let checkSize exprL exprR propertiesL propertiesR pos = 
+    let checkSize exprL exprR propertiesL propertiesR pos makesBool = 
         let checkLit sizeLit sizeOther typeOther left= 
             if sizeLit <= sizeOther 
-            then Properties{Type = typeOther; Size = sizeOther}
+            then Properties{Type = (if makesBool then BoolType else typeOther); Size = sizeOther}
             else 
                 if left
                 then makeSizeError sizeLit sizeOther pos//make this better (with a general function that also prints the sizes on the left and on the right)
@@ -109,25 +110,18 @@ let rec checkAST (tree: ExprInfo) (components: FastComponent List): CheckRes =
         match propertiesL, propertiesR with 
         | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
             match exprL, exprR with 
-            | (Lit litL, _), (Lit litR, _) -> 
-                printfn "both lit"
-                Properties{Type = typeL; Size = max sizeL sizeR}
-            | (Lit litL, _), _ -> 
-                printfn "one lit"
-                printfn "%A" exprR
-                printfn "%A"  exprL
-                checkLit sizeL sizeR typeR true
-            | _, (Lit litR, _) -> 
-                printfn "one lit, the right one"
-                printfn "%A" exprL
-                printfn "%A"  exprR
-                checkLit sizeR sizeL typeL false
+            | (Lit litL, _), (Lit litR, _) -> Properties{Type = typeL; Size = max sizeL sizeR}
+            | (Lit litL, _), _ -> checkLit sizeL sizeR typeR true
+            | _, (Lit litR, _) -> checkLit sizeR sizeL typeL false
             | _, _ -> 
-                printfn "creating error potentially"
-                if sizeL = sizeR then propertiesL else makeSizeError sizeL sizeR pos
+                if sizeL = sizeR && makesBool 
+                then Properties {Type = BoolType; Size = sizeL} 
+                elif sizeL = sizeR 
+                then propertiesL 
+                else makeSizeError sizeL sizeR pos
         | _ -> ErrLst (propagateError propertiesL propertiesR)
 
-    let checkBin l r pos supportsBool =
+    let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  
         match leftChecked, rightChecked with
@@ -138,7 +132,7 @@ let rec checkAST (tree: ExprInfo) (components: FastComponent List): CheckRes =
                 then leftChecked
                 else makeTypeError invTypesErr typeL (Some typeR) pos
             elif typeL = typeR 
-            then checkSize l r leftChecked rightChecked pos
+            then checkSize l r leftChecked rightChecked pos makesBool 
             else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
@@ -151,14 +145,15 @@ let rec checkAST (tree: ExprInfo) (components: FastComponent List): CheckRes =
     | RequiresBool (l, r, pos) -> // check that operand(s) are bool 
         let leftRes = checkAST l components
         let rightRes = checkAST r components 
+        printf "checked left: %A checked right %A pos %A" leftRes rightRes pos
         match leftRes, rightRes with 
         | Properties {Type = typeL; Size = _}, Properties {Type = typeR; Size =_} -> 
             if typeL = BoolType && typeL = typeR 
             then leftRes // it's not important what is passed, it's enough to pass type and size information 
             else makeTypeError invTypesErr typeL (Some typeR) pos
         | _ -> ErrLst (propagateError leftRes rightRes)
-    | IsBoolExpr (l, r, pos) -> checkBin l r pos true
-    | IsBinExpr (l, r, pos) -> checkBin l r pos false
+    | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
+    | IsBinExpr (l, r, pos) -> checkBin l r pos false false 
     | Lit lit, _ -> 
         let litType, size = getLitProperties components lit
         Properties {Type = litType; Size = size}

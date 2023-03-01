@@ -63,32 +63,40 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
 
     // can definitely be improved and abstracted more (maybe put together unOp and binOp)
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
+        let getResSize (lExpr, posL) (rExpr, posR) sizeL sizeR= 
+            match lExpr, rExpr with 
+            | Lit litL, Lit litR -> max sizeL sizeR
+            | Lit _ , _ -> sizeR
+            | _-> sizeL 
+
         match ops with
         | BinOp(l, r) ->
             let leftRes, sizeL = evaluate l fs step
             let rightRes, sizeR = evaluate r fs step
+            printf "evaluated left and right: %A %A " leftRes rightRes
 
-            let value = 
+            let value, size = 
                 match leftRes, rightRes with
                 | Int op1, Int op2 ->
                     match fInt with
-                    | Some(ItB f) -> Bool(f op1 op2)
-                    | Some(ItI f) -> Int(f op1 op2)
+                    | Some(ItB f) -> Bool(f op1 op2), Size 1
+                    | Some(ItI f) -> Int(f op1 op2), getResSize l r sizeL sizeR
                     // here I can have both operands being int but maybe the function one that can only be applied to bools or stuff like this
                     | _ -> failwithf "should not happen"
                 | Uint op1, Uint op2 ->
                     match fUint with
-                    | Some(UtB f) -> Bool(f op1 op2)
-                    | Some(UtU f) -> Uint(f op1 op2)
+                    | Some(UtB f) -> Bool(f op1 op2), Size 1
+                    | Some(UtU f) -> Uint(f op1 op2), getResSize l r sizeL sizeR
                     | _ -> failwithf "should not happen" 
                 | Bool op1, Bool op2 ->
                     match fBool with
-                    | Some(BtB f) -> Bool(f op1 op2)
+                    | Some(BtB f) -> Bool(f op1 op2), Size 1
                     | _ -> failwithf "should not happen" 
                 | _ -> failwithf "should not happen" 
-            resizeRes sizeL value 
+            resizeRes size value
         | UnOp op ->
             let opEvald, size = evaluate op fs step
+            printf "evaluated %A ops %A" opEvald op
 
             match opEvald with
             | Int op ->

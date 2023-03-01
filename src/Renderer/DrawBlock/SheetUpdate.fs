@@ -779,6 +779,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<Msg> =
                 printfn "Error: can't validate the two symbols selected to reorder ports"
                 model, Cmd.none   
     | TestCheckAst ->
+        printf "check ast"
         let printRes testN res  = 
             match res with
             | Ok(msg) -> printf ($"test {testN} PASSED: {msg}")

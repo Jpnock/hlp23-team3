@@ -206,7 +206,9 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         let value, size = evaluate assertion.AST (List.ofSeq fs.FComps.Values) fs step
         match value with 
         | Bool true -> None 
-        | Bool false -> Some {Cycle = step; FailureMessage = $"the assertion {assertion.AST} was supposed to return true but it returned false"; Sheet = "i don't know yet"} 
+        | Bool false ->
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
+            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
         | _ -> failwithf "the top level expression should return a bool"
     let evalAllAssertions assertions n = 
         assertions

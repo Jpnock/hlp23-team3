@@ -43,7 +43,8 @@ let getFComponentId label components =
     let isRightComponent (comp: FastComponent) = 
         match comp.FLabel, comp.FType with 
         | labelComp, Viewer _ when labelComp = label-> Some(comp.fId)
-        | _ -> None 
+        | labelComp, Input1 _ when labelComp = label-> Some(comp.fId)
+        | _ -> None
     let compId = 
         List.choose isRightComponent components 
         |> function 
@@ -70,7 +71,7 @@ let getLitProperties (components: FastComponent List) lit =
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
 let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
-
+    printf $"we are evaluating {components}"
     let resizeRes (size: Size) res = 
         match res, size with 
         | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1))))), size
@@ -203,7 +204,7 @@ type FailedAssertion = {
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
     let evalTree step assertion = 
-        let value, size = evaluate assertion.AST (Array.toList fs.FConstantComps) fs step
+        let value, size = evaluate assertion.AST (List.ofSeq fs.FComps.Values) fs step
         match value with 
         | Bool true -> None 
         | Bool false -> Some {Cycle = step; FailureMessage = $"the assertion {assertion.AST} was supposed to return true but it returned false"; Sheet = "i don't know yet"} 

@@ -1,4 +1,5 @@
-module ASTMap
+/// Author: James Nock
+module AssertionASTMap
 
 open AssertionTypes
 

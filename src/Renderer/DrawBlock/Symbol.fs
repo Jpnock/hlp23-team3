@@ -316,7 +316,7 @@ let getPrefix (compType:ComponentType) =
     | MergeWires -> "MW"
     | SplitWire _ -> "SW"
     | Plugin p ->
-        let comp = Verification.Components.library.Components[p.LibraryID]
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
         (comp.GetSymbolDetails p).Prefix
     |_  -> ""
 
@@ -351,7 +351,7 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
     | Shift (n,_,_) -> busTitleAndBits "Shift" n
     | Custom x -> x.Name.ToUpper()
     | Plugin p ->
-        let comp = Verification.Components.library.Components[p.LibraryID]
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
         (comp.GetSymbolDetails p).Name
     | _ -> ""
 
@@ -631,7 +631,7 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | Shift _ -> (  2 , 1, 3.*gS  , 4.*gS)
     | Custom cct -> cct.InputLabels.Length, cct.OutputLabels.Length, 0., 0.
     | Plugin p -> (
-        let comp = Verification.Components.library.Components[p.LibraryID]
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
         let symbolProps = comp.GetSymbolDetails p
         p.Inputs.Count, p.Outputs.Count, symbolProps.Height, symbolProps.Width)
 

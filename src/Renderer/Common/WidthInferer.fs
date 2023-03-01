@@ -178,7 +178,7 @@ let private calculateOutputPortsWidth
         if notAllWidthsValid then
             Ok <| Map.empty
         else
-            let emptyInputWidths: Map<ASTMap.InputPortNumber, int> = Map.empty
+            let emptyInputWidths: Map<AssertionASTMap.InputPortNumber, int> = Map.empty
             let emptyOutputWidths: Map<OutputPortId, int> = Map.empty
             
             let convertedInputWidths =
@@ -187,7 +187,7 @@ let private calculateOutputPortsWidth
                         match k with InputPortNumber inputNum -> Map.add inputNum (Option.get v) state
                     )
                 )
-            let pluginComp = Verification.Components.library.Components[pState.LibraryID]
+            let pluginComp = VerificationLibrary.library.Components[pState.LibraryID]
             let outputWidths = pluginComp.GetOutputWidths pState convertedInputWidths
             let outputFolder = (fun state k v -> (Map.add (getOutputPortId comp k) v state))
             Ok ((emptyOutputWidths, outputWidths) ||> Map.fold outputFolder)

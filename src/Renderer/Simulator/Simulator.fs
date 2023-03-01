@@ -211,7 +211,7 @@ let rec startCircuitSimulation
             | _ -> false)
         
     let makeState =
-        Verification.Components.makeStateFromExternalInputComponent
+        VerificationComponents.makeStateFromExternalInputComponent
         
     let getSourceComponentState componentId =
         let source = componentMap[componentId]
@@ -275,7 +275,7 @@ let rec startCircuitSimulation
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
             let compConnectedToAssert = componentIDToInputPortState[el.InstanceID.Value][0]
-            let ast = Verification.Components.generateAST componentIDToInputPortState compConnectedToAssert
+            let ast = VerificationASTGen.generateAST componentIDToInputPortState compConnectedToAssert
             let exprPos = {Line = 0; Col = 0; Length = 0} : AssertionTypes.Pos
             let assertion = ast, exprPos
             {AST = assertion})
@@ -286,6 +286,7 @@ let rec startCircuitSimulation
     |> List.map (fun el ->
         let pretty = AssertionParser.prettyPrintAST (fst el.AST) "" false
         printf $"Got AST:\n{pretty}")
+    |> ignore
     
     let checkedASTs =
         assertionASTs

@@ -942,7 +942,7 @@ let viewCatalogue model dispatch =
                     [ react ]
             
             let verificationComponents =
-                Verification.Components.library.Components.Values
+                VerificationLibrary.library.Components.Values
                 |> Seq.sortBy (fun el -> el.GetName)
                 |> Seq.map (fun el ->
                     let factory = (fun _ -> createComponent (Plugin el.GetDefaultState) "" model dispatch)

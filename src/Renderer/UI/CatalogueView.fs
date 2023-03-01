@@ -655,21 +655,20 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
     let compileAction =
         fun (dialogData : PopupDialogData) ->
             match model.CurrentProj with
-            | None -> failwithf "What? current project cannot be None at this point in compiling Verilog Component"
-            | Some project ->
+            | None -> failwithf "What? current project cannot be None at this point in compiling an Assertion Component"
+            | Some _ ->
                 let code = getCodeContents dialogData
-                printfn "Compiling assertion code..."
                 let parserOutput = parseAssertion code
 
                 let errors = 
                     match parserOutput with
                     | Ok _ -> []
-                    | Error e -> [{e with ExtraErrors = Some [|{ Text = "test"; Copy = false; Replace = NoReplace }|]}]
+                    | Error e -> [e]
 
-                printfn "errors: %A" errors
-                let showErrors = not <| List.isEmpty errors
-                let codeData = { Errors = errors; ShowErrors = showErrors; Contents = Some code; Type = AssertionCode }
-                dispatch <| SetPopupDialogCode (Some codeData)
+                printfn "Other errors: %A" errors
+
+                let dialogData' = Optic.set code_errors_ errors dialogData
+                dispatch <| SetPopupDialogCode dialogData'.Code
 
     let addAction =
         fun (dialogData : PopupDialogData) ->

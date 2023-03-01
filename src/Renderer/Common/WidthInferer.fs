@@ -178,7 +178,7 @@ let private calculateOutputPortsWidth
         if notAllWidthsValid then
             Ok <| Map.empty
         else
-            let emptyInputWidths: Map<Verification.Components.InputPortNumber, int> = Map.empty
+            let emptyInputWidths: Map<ASTMap.InputPortNumber, int> = Map.empty
             let emptyOutputWidths: Map<OutputPortId, int> = Map.empty
             
             let convertedInputWidths =

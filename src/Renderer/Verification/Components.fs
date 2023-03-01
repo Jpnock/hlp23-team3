@@ -2,6 +2,7 @@ module Verification.Components
 
 open System
 open AssertionTypes
+open ASTMap
 
 type ComponentInput =
     { Name: string
@@ -13,8 +14,7 @@ type ComponentOutput =
       FixedWidth: int option
       Signed: bool option }
 
-type InputPortNumber = int
-type OutputPortNumber = int
+
 type LibraryID = string
 
 type ComponentState =
@@ -39,8 +39,6 @@ type SymbolDetails =
       Height: float
       Width: float }
 
-type PortExprs = Map<InputPortNumber, Expr>
-type ASTBuilder = PortExprs -> AssertionTypes.Expr option
 
 
 type IComponent =
@@ -75,20 +73,6 @@ module SymbolDefaults =
     let Width = 3.0 * GridSize
     let Height = 2.0 * GridSize
     let Prefix = "VERI"
-
-
-let noAssertion _ =
-    None
-
-let getExprInfo (exprs : PortExprs) port : ExprInfo =
-    exprs[port], {Length = 0; Line = 0; Col = 0}
-
-let leftRight (exprs:PortExprs) : ExprInfo * ExprInfo =
-   getExprInfo exprs 0, getExprInfo exprs 1    
-
-let add (exprs: PortExprs) : Expr option = Some (Add(BinOp(leftRight exprs)))
-
-let gte (exprs: PortExprs) : Expr option = Some (BoolExpr (Gte (BinOp(leftRight exprs))))
 
 let collectionMaxWithDefault<'t when 't: comparison> defaultValue (sequence:Collections.Generic.ICollection<'t>) =
     match sequence.Count with
@@ -184,7 +168,7 @@ let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IODefaults.OneF
 let makeOneInputOneOutputComponent = makeOneOutputComponent IODefaults.OneInput
 let makeTwoInputOneOutputComponent = makeOneOutputComponent IODefaults.TwoInputs
 
-let makeSignedPairOfComponents outputs description name baseLibraryID symbolName : IComponent * IComponent =
+let makeSignedPairOfComponents outputs description name baseLibraryID symbolName builder : IComponent * IComponent =
     let signedName = $"{name} (Signed)"
     let unsignedName = $"{name} (Unsigned)"
     
@@ -209,7 +193,7 @@ let makeSignedPairOfComponents outputs description name baseLibraryID symbolName
         DescriptionFunc = description
         TooltipText = ""
         DefaultState = unsignedState
-        AssertionBuilder = gte
+        AssertionBuilder = builder
     }
     
     let signedComp = { unsignedComp with Name = signedName; DefaultState = signedState }
@@ -239,14 +223,14 @@ let private components: IComponent list =
             "Assert LOW" "PLUGIN_ASSERT_LOW" "Assert\nLOW" "Raises an assertion if the input is not LOW"
      
     let operatorPairs = [
-        makeSignedPairOfOperators "Multiplies" "Multiply" "PLUGIN_MULTIPLY" "A*B" 
-        makeSignedPairOfOperators "Divides" "Divide" "PLUGIN_DIVIDE" "A/B"
-        makeSignedPairOfOperators "Applies A mod B using" "Modulo" "PLUGIN_MODULO" "A % B"
-        makeSignedPairOfOperators "Applies pow(A, B) using" "Power" "PLUGIN_POWER" "pow(A, B)" 
-        makeSignedPairOfComparators "less than" "Less than" "PLUGIN_COMPARISON_LESS_THAN" "A < B"
-        makeSignedPairOfComparators "less than or equal to" "Less than or equal" "PLUGIN_COMPARISON_LESS_THAN_OR_EQUAL_TO" "A <= B" 
-        makeSignedPairOfComparators "greater than" "Greater than" "PLUGIN_COMPARISON_GREATER_THAN" "A > B"
-        makeSignedPairOfComparators "greater than or equal to" "Greater than or equal" "PLUGIN_COMPARISON_GREATER_THAN_OR_EQUAL_TO" "A >= B"
+        makeSignedPairOfOperators "Multiplies" "Multiply" "PLUGIN_MULTIPLY" "A*B" (astMapper TMul)
+        makeSignedPairOfOperators "Divides" "Divide" "PLUGIN_DIVIDE" "A/B" (astMapper TDiv)
+        makeSignedPairOfOperators "Applies A mod B using" "Modulo" "PLUGIN_MODULO" "A % B" (astMapper TRem)
+        makeSignedPairOfOperators "Applies pow(A, B) using" "Power" "PLUGIN_POWER" "pow(A, B)" (astMapper TSigned)
+        makeSignedPairOfComparators "less than" "Less than" "PLUGIN_COMPARISON_LESS_THAN" "A < B" (astMapper TLt)
+        makeSignedPairOfComparators "less than or equal to" "Less than or equal" "PLUGIN_COMPARISON_LESS_THAN_OR_EQUAL_TO" "A <= B" (astMapper TLte)
+        makeSignedPairOfComparators "greater than" "Greater than" "PLUGIN_COMPARISON_GREATER_THAN" "A > B" (astMapper TGt)
+        makeSignedPairOfComparators "greater than or equal to" "Greater than or equal" "PLUGIN_COMPARISON_GREATER_THAN_OR_EQUAL_TO" "A >= B" (astMapper TGte)
     ]
     
     let operators =
@@ -269,9 +253,9 @@ let private components: IComponent list =
         zeroExtend noAssertion
         makeSimpleComponent
             (IODefaults.OneFixedWidthOutputX 1) IODefaults.TwoInputs "Equals" "PLUGIN_EQUALS" "A == B"
-            "Outputs HIGH when the two inputs are equal" noAssertion
-        makeTwoInputOneOutputComponent "Add" "PLUGIN_ADD" "A+B" "Adds the two inputs" add
-        makeTwoInputOneOutputComponent "Subtract" "PLUGIN_SUBTRACT" "A-B" "Subtracts input B from input A" noAssertion
+            "Outputs HIGH when the two inputs are equal" (astMapper TEq)
+        makeTwoInputOneOutputComponent "Add" "PLUGIN_ADD" "A+B" "Adds the two inputs" (astMapper TAdd)
+        makeTwoInputOneOutputComponent "Subtract" "PLUGIN_SUBTRACT" "A-B" "Subtracts input B from input A" (astMapper TSub)
     ] @ operators
 
 type ComponentLibrary =

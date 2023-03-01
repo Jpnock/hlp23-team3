@@ -783,7 +783,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<Msg> =
             | Ok(msg) -> printf ($"test {testN} PASSED: {msg}")
             | Error(msg) -> printf ($"test {testN} FAILED {msg}")
         let results = []
-        results @ [testCheck1 (); testCheck2 (); testEvaluate1 (); testEvaluate2 ()]
+        results @ [testCheck1 (); testCheck2 (); testCheck3 (); testCheck4 ()]
         |> List.mapi printRes
         model, Cmd.none
     | ToggleNet _ | DoNothing | _ -> model, Cmd.none

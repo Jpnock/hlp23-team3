@@ -193,7 +193,7 @@ and cast expr castType components fs step=
 /// Cycle: int - represents an integer value that indicates the cycle number in which the assertion failed
 /// FailureMessage: string - represents a string value that describes the reason for the assertion failure
 /// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
-/// TODO:(djj120/DomJustice) Not final place or form Lu will probs have her own version of this struct somewhere
+/// Authored by djj120
 type FailedAssertion = {
     Cycle: int
     FailureMessage: string
@@ -215,3 +215,17 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         |> List.choose (evalTree n)
     [startCycle..endCycle]
     |> List.collect (evalAllAssertions fs.Assertions)
+
+/// return the integers of the cycles with failed assertions given a list of failed assertions
+/// Authored by djj120
+let getFailedAssertionCycles (failedAssertions: FailedAssertion list)= 
+    failedAssertions
+    |> List.map (fun assertion -> assertion.Cycle)
+    |> List.distinct
+
+/// returns a list oc the failed assertions occurring at the current clk cycle specified in a 
+/// SimulationData's FastSim
+/// Authored by djj120
+let getCurrAssertionFailuresStepSim (simData : SimulationData) =
+    let failedAssertions = evaluateAssertionsInWindow simData.ClockTickNumber simData.ClockTickNumber simData.FastSim
+    List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions

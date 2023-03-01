@@ -427,8 +427,13 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
         Button.OnClick onClickFunc 
     ]
 
+    let failureLines = fa.FailureMessage.Split "\n"
+    let failureMessageElements =
+        failureLines
+        |> Seq.collect (fun line -> [str line ; br []])
+        |> List.ofSeq
+    failureMessageElements @
     [
-        str fa.FailureMessage
         br []
         Button.button buttonProps [ str buttonString ]
         br []

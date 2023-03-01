@@ -110,19 +110,9 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         match propertiesL, propertiesR with 
         | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
             match exprL, exprR with 
-            | (Lit litL, _), (Lit litR, _) -> 
-                printfn "both lit"
-                Properties{Type = typeL; Size = max sizeL sizeR}
-            | (Lit litL, _), _ -> 
-                printfn "one lit"
-                printfn "%A" exprR
-                printfn "%A"  exprL
-                checkLit sizeL sizeR typeR true
-            | _, (Lit litR, _) -> 
-                printfn "one lit, the right one"
-                printfn "%A" exprL
-                printfn "%A"  exprR
-                checkLit sizeR sizeL typeL false
+            | (Lit (Value valL), _), (Lit (Value valR), _) -> Properties{Type = typeL; Size = max sizeL sizeR}
+            | (Lit (Value valL), _), _ -> checkLit sizeL sizeR typeR true
+            | _, (Lit (Value valR), _) -> checkLit sizeR sizeL typeL false
             | _, _ -> 
                 printfn "creating error potentially"
                 if sizeL = sizeR then propertiesL else makeSizeError sizeL sizeR pos

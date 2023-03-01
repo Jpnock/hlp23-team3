@@ -266,7 +266,8 @@ let rec prettyPrintAST expr prefix isLast =
             match bExpr with
             | Eq op | Neq op | LogAnd op | LogNot op
             | LogOr op | Lt op | Gt op | Gte op | Lte op ->
-                printOperand op
+                let addInfo, nextLines = printOperand op
+                addInfo + printTypeName bExpr, nextLines
         | Lit l -> sprintf "%A" l, ""
         | Cast c ->
             let (ToSigned info| ToUnsigned info | ToBool info) = c

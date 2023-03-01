@@ -550,6 +550,11 @@ let private createMemoryPopup memType model (dispatch: Msg -> Unit) =
     dialogPopup title body buttonText buttonAction isDisabled [] dispatch
 
 
+/// Authored by jls20
+/// Originally, this was a recursive function which would call itself to update 
+/// the view (!) rather than dispatching message to update the model state.
+/// This has now been fixed and the function has been abstracted to allow 
+/// editing other languages beyond just Verilog.
 let createCodeEditorPopup title preamble saveAction updateAction compileAction addAction (origin:CodeEditorOpen) model (dispatch: Msg -> Unit) =
     
     let moreInfoButton = 
@@ -574,13 +579,13 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
     let title = "Create assertions to verify your sheet" 
     
     let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
-    let verilogCode = {
+    let assertionCode = {
         Type = AssertionCode
         Contents = initContents
         Errors = []
         ShowErrors = false
     }
-    Some verilogCode |> SetPopupDialogCode |> dispatch
+    Some assertionCode |> SetPopupDialogCode |> dispatch
 
     // Content to be shown before the code editor itself
     let preamble =
@@ -589,68 +594,14 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
 
     let saveAction =
         fun (dialogData : PopupDialogData) ->
-            match model.CurrentProj with
-            | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
-            | Some project ->
-                let name = getModuleName dialogData
-                let folderPath = project.ProjectPath
-                let path = pathJoin [| folderPath; name + ".assert" |]
-                let path2 = pathJoin [| folderPath; name + ".dgm" |]
-                let code = getCodeContents dialogData
-                
-                match writeFile path code with
-                | Ok _ -> ()
-                | Error _ -> failwithf "Writing verilog file FAILED"
-                
-                (*
-                let parsedCodeNearley = parseFromFile(code)
-                let output = Json.parseAs<ParserOutput> parsedCodeNearley
-                let result = Option.get output.Result
-                let fixedAST = fix result
-                printfn "fixed %A" fixedAST
-                let parsedAST = fixedAST |> Json.parseAs<VerilogInput>
-
-                let cs = SheetCreator.createSheet parsedAST
-                let toSaveCanvasState = Helpers.JsonHelpers.stateToJsonString (cs, None, Some {Form = Some (Verilog name);Description=None})
-
-                match writeFile path2 toSaveCanvasState with
-                | Ok _ -> 
-                    let newComponent = 
-                        match tryLoadComponentFromPath path2 with
-                        |Ok comp -> comp
-                        |Error _ -> failwithf "failed to load the created Verilog file"
-                    let updatedProject =
-                        {project with LoadedComponents = newComponent :: project.LoadedComponents}
-                    openFileInProject project.OpenFileName updatedProject model dispatch
-                | Error _ -> failwithf "Writing .dgm file FAILED"
-                *)
             dispatch ClosePopup
 
     let updateAction = 
         fun (dialogData : PopupDialogData) ->
-            match model.CurrentProj with
-            | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
-            | Some project ->
-                let name = getModuleName dialogData
-                let folderPath = project.ProjectPath
-                let path = pathJoin [| folderPath; name + ".assert" |]
-                let code = getCodeContents dialogData
-                match writeFile path code with
-                | Ok _ -> ()
-                | Error _ -> failwithf "Writing assertion file FAILED"
-                
-                (*
-                let parsedCodeNearley = parseFromFile(code)
-                let output = Json.parseAs<ParserOutput> parsedCodeNearley
-                let result = Option.get output.Result
-                let fixedAST = fix result
-                let parsedAST = fixedAST |> Json.parseAs<VerilogInput>
-                let newCS = SheetCreator.createSheet parsedAST
+            dispatch (StartUICmd SaveSheet)        
 
-                dispatch (StartUICmd SaveSheet)               
-                updateVerilogFileActionWithModelUpdate newCS name model dispatch |> ignore
-                dispatch <| Sheet(SheetT.DoNothing)
-                *)
+            dispatch FinishUICmd     
+            dispatch <| Sheet(SheetT.DoNothing)
 
     let compileAction =
         fun (dialogData : PopupDialogData) ->
@@ -665,8 +616,6 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
                     | Ok _ -> []
                     | Error e -> [e]
 
-                printfn "Other errors: %A" errors
-
                 let dialogData' = Optic.set code_errors_ errors dialogData
                 dispatch <| SetPopupDialogCode dialogData'.Code
 
@@ -677,6 +626,10 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
 
     createCodeEditorPopup title preamble saveAction updateAction compileAction addAction (origin:CodeEditorOpen) model dispatch
 
+/// "Authored" by jls20
+/// Function to a create a code editor for Verilog code
+/// A lot of this code is unchanged, but has been slightly
+/// alterated to use the new generalized createCodeEditorPopup.
 let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
     let title = sprintf "Create Combinational Logic Components using Verilog" 
     

@@ -2,6 +2,7 @@
     AssertionParser.fs
 
     Hand-written parser for assertion logic.
+    Author: jlsand
 *)
 
 module AssertionParser
@@ -13,6 +14,9 @@ let (|RegexPattern|_|) regex str =
     let regex' = "^" + regex 
     String.regexMatchFull regex' str
 
+/// Lex an assertion expression into a series of tokens.
+/// Will supply errors messages pointing to the piece of text
+/// which cannot be correctly tokenized.
 let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<Token list, Error> =
     if code.Length = 0 then
         Ok tokens
@@ -30,6 +34,15 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern "( |\t)+" m -> 
             // Similar concept for white space
             lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
+        | RegexPattern "[1-9]\d*'" m ->
+            let matchedStr = m.Value;
+            let width = System.Int32.Parse <| matchedStr.Remove (matchedStr.Length - 1)
+            addToken (TBusCast width) m.Length
+        | RegexPattern "'" m ->
+            Error { 
+                Pos = {Line = curLine; Col = curCol; Length = m.Length}
+                Msg = "Remember to specify a width for the bus cast"
+            }
         | RegexPattern "[1-9]\d*" m -> 
             // integer literals
             let intTok = System.Int32.Parse m.Value |> Int |> Value |> TLit 
@@ -60,7 +73,6 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern "<=" m ->   addToken TLte m.Length
         | RegexPattern "<" m ->    addToken TLt m.Length
         | RegexPattern ">" m ->    addToken TGt m.Length
-        | RegexPattern "'" m ->    addToken TBusCast m.Length
         | RegexPattern ".*(\n|$)" m ->
             // Catch all syntax to match any invalid input
             Error {
@@ -113,7 +125,6 @@ let mapBinaryOpToExpr tokenType binaryOperands =
 /// See https://class.ece.uw.edu/cadta/verilog/operators.html
 let operatorPrecedence (tokType:TokenType):Precedence =
     match tokType with
-    | TBusCast ->               Precedence <| Some 110
     | TLogNot ->                Precedence <| Some 100
     | TMul | TDiv | TRem ->     Precedence <| Some 80
     | TAdd | TSub ->            Precedence <| Some 70
@@ -133,6 +144,8 @@ let nextToken (tokens: Token list): Token =
 let popToken (tokens: Token list): Token list = 
     List.tail tokens
 
+/// Parse an operand, potentially being prefixed by unary operations (e.g. casts)
+/// or contained in a set of parentheses.
 let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseResult =
     if List.isEmpty tokens then
         Error { Msg = "Missing operand!"; Pos = prevToken.Pos}
@@ -147,7 +160,6 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                     Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos }
                 else 
                     Ok {parenExpr with RemainingTokens = popToken parenExpr.RemainingTokens}
-                    //parseBinaryOp 0 expectParen {parenExpr with RemainingTokens = popToken parenExpr.RemainingTokens}
             Result.bind handleEndOfParen parenthisedExpr
 
         let handleCast castType =
@@ -165,6 +177,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                 | _ -> 
                     Error { Msg = sprintf "Expected a left-parenthesis, got %A" lParenToken.Type; Pos = lParenToken.Pos }
 
+
         let handleUnaryOp unaryType =
             parseOperand expectParen prevToken tokens'
             |> Result.bind (fun exprData ->
@@ -174,15 +187,20 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
 
         match token.Type with
         | TLit l -> 
-            let expr = Expr.Lit l
-            Ok {Expr = expr ; RemainingTokens = tokens'}
-        | TLParen ->
-            handleParens token tokens'
+            let litExpr = Expr.Lit l
+            Ok {Expr = litExpr ; RemainingTokens = tokens'}
+        | TLParen -> handleParens token tokens'
         | TSigned -> handleCast ToSigned
         | TUnsigned -> handleCast ToUnsigned
         | TBool -> handleCast ToBool
         | TAdd -> handleUnaryOp Add
         | TSub -> handleUnaryOp Sub
+        | TBusCast width ->
+            parseOperand expectParen prevToken tokens'
+            |> Result.bind (fun castOperand ->
+                let castExpr = BusCast (width, (castOperand.Expr, token.Pos))
+                Ok {Expr = castExpr; RemainingTokens = castOperand.RemainingTokens}
+            )
         | _ ->
             Error {Msg = sprintf "%A is not a valid operand!" token.Type; Pos = token.Pos }
 
@@ -216,8 +234,6 @@ and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
         | Some precedence when precedence < minPrecedence -> Ok lhs  // Peek token does not have a high enough precedence or 
         | Some precedence ->
             // Token is valid binary operator and has high enough precedence to continue
-            printfn "Current op: %A" token
-            printfn "Remaining tokens: %A" <| List.tail lhs.RemainingTokens
 
             // Parse the RHS operand of the binary operation
             let rhsRes = parseExpr (precedence + 1) expectParen token <| popToken lhs.RemainingTokens 
@@ -236,28 +252,36 @@ and parseExpr (minPrecedence:int) expectParen (prevToken:Token) (tokens: Token l
     |> Result.bind (parseBinaryOp minPrecedence expectParen)
 
 
-let printASTprefix (prefix:string) isLast: string*string =
-    if isLast then
-        prefix + "└──", prefix + "    "
-    else 
-        prefix + "├──", prefix + "│  "
 
+/// Generate a pretty print string for the generated AST. 
+let rec prettyPrintAST expr prevPrefix isLast:string =
 
-/// Helper to only print the type name itself e.g. cases for DU types
-let printTypeName t =
-    Option.get << String.regexMatch "([^\s]+)" <| sprintf "%A" t
-
-let rec prettyPrintAST expr prefix isLast =
-    let curPrefix, newPrefix = printASTprefix prefix isLast
+    // Helper to only print the type name itself e.g. cases for DU types
+    // rather than the full type
+    let printTypeName t =
+        sprintf "%A" t
+        |> String.regexMatch "([^\s]+)"
+        |> Option.defaultValue ""
+    
+    // Fable will append a newline to every printf, which is why
+    // a lot of strings here need to be stored and then concatenated
+    // at the end together.
+    let curPrefix, newPrefix =
+        if isLast then
+            prevPrefix + "└──", prevPrefix + "    "
+        else 
+            prevPrefix + "├──", prevPrefix + "│  "
 
     let printOperand op = 
         match op with
         | UnOp info -> 
             "", prettyPrintAST (fst info) newPrefix true
         | BinOp (left, right) -> 
-            "", prettyPrintAST (fst left) newPrefix false + prettyPrintAST (fst right) newPrefix true 
+            let leftAST = prettyPrintAST (fst left) newPrefix false
+            let rightAST = prettyPrintAST (fst right) newPrefix true 
+            "", leftAST + rightAST 
 
-    let addInfo, nextLines = 
+    let operandInfo, childLines = 
         match expr with
         | Add op | Sub op | Mul op | Div op | Rem op 
         | BitOr op | BitNot op | BitAnd op -> 
@@ -266,41 +290,35 @@ let rec prettyPrintAST expr prefix isLast =
             match bExpr with
             | Eq op | Neq op | LogAnd op | LogNot op
             | LogOr op | Lt op | Gt op | Gte op | Lte op ->
-                let addInfo, nextLines = printOperand op
-                addInfo + printTypeName bExpr, nextLines
+                let boolOpInfo, boolOpAST = printOperand op
+                boolOpInfo + printTypeName bExpr, boolOpAST
         | Lit l -> sprintf "%A" l, ""
         | Cast c ->
             let (ToSigned info| ToUnsigned info | ToBool info) = c
-            printTypeName c, prettyPrintAST (fst info) newPrefix true
-        | BusCast (size,_)-> sprintf "%A" size, "" 
+            let castInfo = printTypeName c
+            let castAST = prettyPrintAST (fst info) newPrefix true
+            castInfo, castAST 
+        | BusCast (size, info)-> 
+            sprintf "%A" size, prettyPrintAST (fst info) newPrefix true 
 
-    sprintf "%A %A %A\n %A" curPrefix (printTypeName expr) addInfo nextLines
-
-
+    // Print the current AST node and its children
+    sprintf "%A %A %A\n %A" curPrefix (printTypeName expr) operandInfo childLines
 
 /// Returns either the resulting AST or an Error 
 let parseAssertion code: Result<Expr, ErrorInfo>=
-    printfn "Parsing string32: %A" code
-
-    let pipePrint x =
-        printfn "%A" x
-        x
 
     lexAssertion code 1 1 []
     |> Result.bind (fun tokens ->
         if List.isEmpty tokens then
             Error { Msg = "Missing assertion expression!"; Pos = {Line = 1; Col = 1; Length = 1} }
         else 
-            pipePrint tokens |> ignore
             parseExpr 0 false (List.head tokens) tokens
-            |> pipePrint
     )
     |> Result.map (fun parseData -> 
         printfn "%A" <| prettyPrintAST parseData.Expr "" true
         parseData.Expr
-
     )
     |> Result.mapError (fun e -> {Message = e.Msg; Line = e.Pos.Line; Col = e.Pos.Col; Length = e.Pos.Length; ExtraErrors = None})
     
     // TODO(jsand): In the above we have to map from our own error type to the error type used by the Verilog code editor.
-    // These types should be unified.
+    // These types should be unified in the group stage.

@@ -53,6 +53,7 @@ let getLitProperties (components: Component List) lit =
             let isRightComponent (comp: Component) = 
                 match comp.Label, comp.Type with 
                 | idComp, Viewer width when idComp = id -> Some(width)
+                | idComp, Input1 (width,_) when idComp = id -> Some(width)
                 | _ -> None 
             List.choose isRightComponent components 
             |> List.head

@@ -52,7 +52,7 @@ let getFComponentId label components =
     compId
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
-let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
+let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size= 
 
     let resizeRes (size: Size) res = 
         match res, size with 
@@ -65,8 +65,8 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
-            let leftRes, sizeL = evaluate l components fs step
-            let rightRes, sizeR = evaluate r components fs step
+            let leftRes, sizeL = evaluate l fs step
+            let rightRes, sizeR = evaluate r fs step
 
             let value = 
                 match leftRes, rightRes with
@@ -88,7 +88,7 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
                 | _ -> failwithf "should not happen" 
             resizeRes sizeL value 
         | UnOp op ->
-            let opEvald, size = evaluate op components fs step
+            let opEvald, size = evaluate op fs step
 
             match opEvald with
             | Int op ->
@@ -112,7 +112,7 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
             | Value (Uint uint) -> Uint uint
             | Value (Bool bool) -> Bool bool
             | Id id -> 
-                let fCompId = getFComponentId id components 
+                let fCompId = getFComponentId id (Array.toList fs.FConstantComps)
                 let data = fs.getSimulationData step fCompId (OutputPortNumber 0)
                 match data with 
                 | Data{Dat = fb; Width = _} ->  
@@ -120,17 +120,17 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
                     | Word w -> Uint w
                     | _ -> failwithf "not supported yet"
                 | _ -> failwithf "should not happen"
-        let _, size = getLitProperties components lit
+        let _, size = getLitProperties (Array.toList fs.FConstantComps) lit
         value, Size size
 
     | Cast c, _ ->
         match c with
-        | ToSigned e -> cast e "int" components fs step// this might require some sort of manipulation? or will it be done automatically
-        | ToUnsigned e -> cast e "uint" components fs step
-        | ToBool e -> cast e "bool" components fs step
+        | ToSigned e -> cast e "int" fs step// this might require some sort of manipulation? or will it be done automatically
+        | ToUnsigned e -> cast e "uint" fs step
+        | ToBool e -> cast e "bool" fs step
 
     | BusCast (destSize, e), _-> 
-        let value, _ = evaluate e components fs step
+        let value, _ = evaluate e fs step
         resizeRes (Size destSize) value
 
     | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
@@ -156,9 +156,9 @@ let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * S
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)
-and cast expr castType components fs step=
+and cast expr castType fs step=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
-    let castExprEvaluated, size= evaluate expr components fs step
+    let castExprEvaluated, size= evaluate expr fs step
     let value = 
         match castExprEvaluated, castType with
         | Int int, "uint" -> Uint(uint int)
@@ -186,7 +186,7 @@ type FailedAssertion = {
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
     let evalTree step assertion = 
-        let value, size = evaluate assertion.AST (Array.toList fs.FConstantComps) fs step
+        let value, size = evaluate assertion.AST  fs step
         match value with 
         | Bool true -> None 
         | Bool false -> Some {Cycle = step; FailureMessage = $"the assertion n {assertion.Id} was supposed to return true but it returned false"; Sheet = "i don't know yet"} 

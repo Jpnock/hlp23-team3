@@ -49,6 +49,6 @@ let astMapper (typ : TokenType) (exprs : PortExprs) : Expr option =
         printf "Unsigned not yet implemented"
         None
     | TBool -> None
-    | TBusCast ->
+    | TBusCast _->
         printf "Bus cast not yet implemented"
         None

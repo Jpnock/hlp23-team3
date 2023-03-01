@@ -74,7 +74,6 @@ type CheckRes =
     | ErrLst of Error list 
     | Properties of Properties 
 
-// TODO: Add cast
 // TODO(jsand): This type is a (somewhat) duplicate of Expr.
 // However, there is not neccesarily a nice way of unifying the two types.
 // For one, Expr contains AST information which tokens inherently do not.
@@ -104,7 +103,7 @@ type TokenType =
     | TSigned    // signed
     | TUnsigned  // unsigned
     | TBool      // bool
-    | TBusCast   // '
+    | TBusCast of int // '
 
 type Token = {
     Type: TokenType

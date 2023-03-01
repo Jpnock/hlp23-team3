@@ -42,6 +42,7 @@ let uintToBool n = if n = uint 0 then false else true
 let getFComponentId label components = 
     let isRightComponent (comp: FastComponent) = 
         match comp.FLabel, comp.FType with 
+        | labelComp, Input1 _ when labelComp = label-> Some(comp.fId)
         | labelComp, Viewer _ when labelComp = label-> Some(comp.fId)
         | labelComp, Input1 _ when labelComp = label-> Some(comp.fId)
         | _ -> None
@@ -83,8 +84,8 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
-            let leftRes, sizeL = evaluate l components fs step
-            let rightRes, sizeR = evaluate r components fs step
+            let leftRes, sizeL = evaluate l fs step
+            let rightRes, sizeR = evaluate r fs step
 
             let value = 
                 match leftRes, rightRes with
@@ -106,7 +107,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
                 | _ -> failwithf "should not happen" 
             resizeRes sizeL value 
         | UnOp op ->
-            let opEvald, size = evaluate op components fs step
+            let opEvald, size = evaluate op fs step
 
             match opEvald with
             | Int op ->
@@ -130,7 +131,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
             | Value (Uint uint) -> Uint uint
             | Value (Bool bool) -> Bool bool
             | Id id -> 
-                let fCompId = getFComponentId id components 
+                let fCompId = getFComponentId id (List.ofSeq fs.FComps.Values)
                 let data = fs.getSimulationData step fCompId (OutputPortNumber 0)
                 match data with 
                 | Data{Dat = fb; Width = _} ->  
@@ -138,7 +139,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
                     | Word w -> Uint w
                     | _ -> failwithf "not supported yet"
                 | _ -> failwithf "should not happen"
-        let _, size = getLitProperties components lit
+        let _, size = getLitProperties (List.ofSeq fs.FComps.Values) lit
         value, Size size
 
     | Cast c, _ ->

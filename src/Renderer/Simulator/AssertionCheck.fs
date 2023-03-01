@@ -32,13 +32,16 @@ let (|IsBinExpr|_|) (expr: ExprInfo) =
     | _ -> None
 
 let getLitMinSize lit = 
-    let num = 
-        match lit with
-        | Int int -> float int 
-        | Uint uint -> float uint 
-        | Bool bool -> 1. //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
-    let log = Math.Log(num, 2.)
-    (ceil >> int) log
+    match lit with
+    | Int intN -> 
+        let n = float intN
+        (ceil >> int) (Math.Log (n, 2.) + 0.1) + 1
+    | Uint uint -> 
+        let n = float uint 
+        (ceil >> int) (Math.Log (n, 2.) + 0.1)
+    | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
+
+
 
 let getType value = 
     match value with 
@@ -98,10 +101,10 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             Properties {Type = Option.defaultValue t castType; Size = Option.defaultValue size castSize} 
         | _ -> exprRes //propagate error
 
-    let checkSize exprL exprR propertiesL propertiesR pos = 
+    let checkSize exprL exprR propertiesL propertiesR pos makesBool = 
         let checkLit sizeLit sizeOther typeOther left= 
             if sizeLit <= sizeOther 
-            then Properties{Type = typeOther; Size = sizeOther}
+            then Properties{Type = (if makesBool then BoolType else typeOther); Size = sizeOther}
             else 
                 if left
                 then makeSizeError sizeLit sizeOther pos//make this better (with a general function that also prints the sizes on the left and on the right)
@@ -118,7 +121,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
                 if sizeL = sizeR then propertiesL else makeSizeError sizeL sizeR pos
         | _ -> ErrLst (propagateError propertiesL propertiesR)
 
-    let checkBin l r pos supportsBool =
+    let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  
         match leftChecked, rightChecked with
@@ -129,7 +132,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
                 then leftChecked
                 else makeTypeError invTypesErr typeL (Some typeR) pos
             elif typeL = typeR 
-            then checkSize l r leftChecked rightChecked pos
+            then checkSize l r leftChecked rightChecked pos makesBool
             else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
@@ -148,8 +151,8 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             then leftRes // it's not important what is passed, it's enough to pass type and size information 
             else makeTypeError invTypesErr typeL (Some typeR) pos
         | _ -> ErrLst (propagateError leftRes rightRes)
-    | IsBoolExpr (l, r, pos) -> checkBin l r pos true
-    | IsBinExpr (l, r, pos) -> checkBin l r pos false
+    | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
+    | IsBinExpr (l, r, pos) -> checkBin l r pos false false
     | Lit lit, _ -> 
         let litType, size = getLitProperties components lit
         Properties {Type = litType; Size = size}

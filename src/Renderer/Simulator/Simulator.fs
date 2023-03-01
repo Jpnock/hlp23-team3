@@ -178,7 +178,7 @@ let rec startCircuitSimulation
 
     // Remove all verification components from the simulation
     // as this logic is performed outside of the simulator.
-    let canvasComps, canvasConnections = fullCanvasState
+    let canvasComps, canvasConnections = fullCanvasState 
     
     let isTypeVerificationComp =
         function
@@ -197,6 +197,109 @@ let rec startCircuitSimulation
         |> List.filter (fun comp -> not (isTypeVerificationComp comp.Type))
     
     let isVerificationComp compId = verificationCompMap[compId]
+    
+    let componentMap =
+        canvasComps
+        |> List.map (fun el -> el.Id, el)
+        |> Map.ofList
+    
+    let textAssertions =
+        canvasComps
+        |> List.filter (fun c ->
+            match c.Type with
+            | Plugin state when state.AssertionText.IsSome -> true
+            | _ -> false)
+        
+    let makeState =
+        Verification.Components.makeStateFromExternalInputComponent
+        
+    let getSourceComponentState componentId =
+        let source = componentMap[componentId]
+        match source.Type with
+        | Plugin state -> state
+        | Input1 (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
+        | IOLabel -> makeState source.Id source.Label None
+        | Viewer busWidth -> makeState source.Id source.Label (Some busWidth)
+        | Constant (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
+        | _ -> makeState source.Id source.Label None
+        
+    
+    let connectionToSourceComponent =
+        canvasConnections
+        |> List.map (fun el -> el.Id, getSourceComponentState el.Source.HostId)
+        |> Map.ofList
+    
+    // Problem : port number is empty on components
+    // Solution : make a mapping between port Id and number
+    
+    let inputPortIDToNumber =
+        canvasComps
+        |> List.map (fun comp -> comp.InputPorts)
+        |> List.concat
+        |> List.map (fun port -> (port.Id, port.PortNumber))
+        |> Map.ofList
+    
+    let targetIDtoPortNum id =
+        printf $"Looking up {id}"
+        inputPortIDToNumber[id]
+    
+    // HostId -> Map<input port number, state>
+    let componentIDToInputPortState =
+        canvasConnections
+        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, getSourceComponentState conn.Source.HostId))
+        |> List.groupBy (fun (hostId, _, _) -> hostId)
+        |> List.map (fun (k, v) ->
+            let inputMap =
+                v |> List.choose (
+                        fun (_, inputNumber, state) ->
+                        match inputNumber.IsSome with
+                        | true -> Some (inputNumber.Value, state)
+                        | false -> None )
+            k, Map.ofList inputMap)
+        |> Map.ofList
+    
+    printf $"oooh {componentIDToInputPortState}" 
+    
+    // printf $"got map of {canvasComps} // {canvasConnections}"
+    
+    let assertionComps =
+        canvasComps
+        |> List.choose (fun el ->
+            match el.Type with
+            | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
+                Some state
+            | _ -> None)
+    
+    let assertionASTs : AssertionTypes.Assertion list =
+        assertionComps
+        |> List.map (fun el ->
+            // TODO(jpnock): Currently assuming assert HIGH
+            let compConnectedToAssert = componentIDToInputPortState[el.InstanceID.Value][0]
+            let ast = Verification.Components.generateAST componentIDToInputPortState compConnectedToAssert
+            let exprPos = {Line = 0; Col = 0; Length = 0} : AssertionTypes.Pos
+            let assertion = ast, exprPos
+            {AST = assertion})
+    
+    printf $"Got assertion ASTs {assertionASTs}"
+    
+    let checkedASTs =
+        assertionASTs
+        |> List.map (fun el -> AssertionCheck.checkAST el.AST canvasComps)
+    
+    let goodASTs =
+        checkedASTs
+        |> List.choose (
+            function
+            | AssertionTypes.Properties properties -> Some properties
+            | _ -> None)
+    
+    let finalAssertions =
+        if goodASTs.Length = checkedASTs.Length then assertionASTs
+        else
+            printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
+            []
+    
+    
     
     // Remove all connections that are connected to verification components
     // at either end.
@@ -224,8 +327,8 @@ let rec startCircuitSimulation
             | Some err -> Error err
             | None -> 
                 try
-                    match FastRun.buildFastSimulation simulationArraySize diagramName  graph with
-                    | Ok fs -> 
+                    match FastRun.buildFastSimulation simulationArraySize diagramName graph finalAssertions with
+                    | Ok fs ->
                         let fs = saveStateInSimulation canvasState diagramName loadedDependencies fs   
                         Ok {
                             FastSim = fs                           

@@ -1,5 +1,6 @@
 module Verification.Components
 
+open System
 open AssertionTypes
 
 type ComponentInput =
@@ -17,12 +18,14 @@ type OutputPortNumber = int
 type LibraryID = string
 
 type ComponentState =
-    { LibraryID: LibraryID
+    { InstanceID: string option
+      LibraryID: LibraryID
       Inputs: Map<InputPortNumber, ComponentInput>
       Outputs: Map<OutputPortNumber, ComponentOutput>
       AssertionText: string option
       IsInput: bool option }
     static member Default : ComponentState = {
+        InstanceID = Some (Guid.NewGuid().ToString())
         LibraryID = ""
         Inputs = Map.empty
         Outputs = Map.empty
@@ -36,7 +39,9 @@ type SymbolDetails =
       Height: float
       Width: float }
 
-type ASTBuilder = ComponentState -> AssertionTypes.Expr option
+type PortExprs = Map<InputPortNumber, Expr>
+type ASTBuilder = PortExprs -> AssertionTypes.Expr option
+
 
 type IComponent =
     abstract member GetLibraryID: LibraryID
@@ -74,7 +79,16 @@ module SymbolDefaults =
 
 let noAssertion _ =
     None
-    
+
+let getExprInfo (exprs : PortExprs) port : ExprInfo =
+    exprs[port], {Length = 0; Line = 0; Col = 0}
+
+let leftRight (exprs:PortExprs) : ExprInfo * ExprInfo =
+   getExprInfo exprs 0, getExprInfo exprs 1    
+
+let add (exprs: PortExprs) : Expr option = Some (Add(BinOp(leftRight exprs)))
+
+let gte (exprs: PortExprs) : Expr option = Some (BoolExpr (Gte (BinOp(leftRight exprs))))
 
 type SimpleComponent =
     { 
@@ -104,7 +118,10 @@ type SimpleComponent =
                 | _ -> maxInputWidth)
         member this.Build exprPortMap =
             // TODO(jpnock): Add logic here
-            Lit (Id "")
+            let built = this.AssertionBuilder exprPortMap
+            match built with
+            | Some b -> b
+            | _ -> failwithf $"Unable to build for {this.Name}"
 
 let signedDescription _ state =
     let signedOperation =
@@ -143,18 +160,18 @@ let mustGetOperands (state:ComponentState) =
         input1, input2
     | _ -> failwithf "Expected this component to have two operands"
 
-let makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName description : SimpleComponent =
+let makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName description builder : SimpleComponent =
     {
         Name = name
         SymbolName = symbolName
         DescriptionFunc = (fun _ _ -> description)
         TooltipText = description
         DefaultState = makeState outputs inputs baseLibraryID
-        AssertionBuilder = noAssertion
+        AssertionBuilder = builder
     }
 
-let makeSimpleComponent outputs inputs name baseLibraryID symbolName description : IComponent =
-    makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName description
+let makeSimpleComponent outputs inputs name baseLibraryID symbolName description builder : IComponent =
+    makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName description builder
 
 let makeOneOutputComponent = makeSimpleComponent IODefaults.OneOutput
 let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IODefaults.OneFixedWidthInputA 1)
@@ -186,7 +203,7 @@ let makeSignedPairOfComponents outputs description name baseLibraryID symbolName
         DescriptionFunc = description
         TooltipText = ""
         DefaultState = unsignedState
-        AssertionBuilder = noAssertion
+        AssertionBuilder = gte
     }
     
     let signedComp = { unsignedComp with Name = signedName; DefaultState = signedState }
@@ -232,7 +249,7 @@ let private components: IComponent list =
     
     let textAssertionBase =
         makeSimpleComponentConcrete
-            Map.empty Map.empty "Text Assertion" "PLUGIN_TEXT_ASSERTION" "Assertion" "Verifies the logic of your sheet using text based expressions"
+            Map.empty Map.empty "Text Assertion" "PLUGIN_TEXT_ASSERTION" "Assertion" "Verifies the logic of your sheet using text based expressions" noAssertion
     
     let textAssertion =
         {
@@ -240,59 +257,65 @@ let private components: IComponent list =
         }
     [
         textAssertion
-        assertHigh
-        assertLow
-        signExtend
-        zeroExtend
+        assertHigh noAssertion
+        assertLow noAssertion
+        signExtend noAssertion
+        zeroExtend noAssertion
         makeSimpleComponent
             (IODefaults.OneFixedWidthOutputX 1) IODefaults.TwoInputs "Equals" "PLUGIN_EQUALS" "A == B"
-            "Outputs HIGH when the two inputs are equal" 
-        makeTwoInputOneOutputComponent "Add" "PLUGIN_ADD" "A+B" "Adds the two inputs"
-        makeTwoInputOneOutputComponent "Subtract" "PLUGIN_SUBTRACT" "A-B" "Subtracts input B from input A"
+            "Outputs HIGH when the two inputs are equal" noAssertion
+        makeTwoInputOneOutputComponent "Add" "PLUGIN_ADD" "A+B" "Adds the two inputs" add
+        makeTwoInputOneOutputComponent "Subtract" "PLUGIN_SUBTRACT" "A-B" "Subtracts input B from input A" noAssertion
     ] @ operators
 
 type ComponentLibrary =
     { Components: Map<LibraryID, IComponent> }
     member this.register (comp:IComponent) = this.Components.Add (comp.GetLibraryID, comp)
 
-let mutable library: ComponentLibrary = {
+let library: ComponentLibrary = {
     Components =
         components
         |> List.map (fun comp -> (comp.GetLibraryID, comp))
         |> Map.ofList
 }
 
+
+/// ConnectionID to Component
 type SheetConnections = Map<string, ComponentState> 
 
-let getStateForInput (cons: SheetConnections) (input: ComponentInput) =
+let getStateForInput (portToSource: Map<int, ComponentState>) inputNum =
     // TODO(jpnock): safety first!
-    input.Name
-    |> cons.TryFind
-    |> Option.get
+    printf $"Getting state for: {inputNum}"
+    portToSource[inputNum]
     
 let getComp (state: ComponentState) : IComponent =
     library.Components[state.LibraryID]
-  
-type PortExprs = Map<InputPortNumber, Expr>
+ 
 
-let getExprInfo (exprs : PortExprs) port : ExprInfo =
-    exprs[port], {Length = 0; Line = 0; Col = 0}
 
-let leftRight (exprs:PortExprs) : ExprInfo * ExprInfo =
-   getExprInfo exprs 0, getExprInfo exprs 1
-   
-let add (exprs: PortExprs) : Expr = Add(BinOp(leftRight exprs))
-    
-let rec generateAST (cons: SheetConnections) (state: ComponentState) : Expr =
+let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>) (state: ComponentState) : Expr =
     match state.IsInput with
     | Some true -> Lit (Id state.Outputs[0].Name)
     | _ ->
+        printf $"Getting state for {state}"
+        let componentPortMap = componentPortSources[state.InstanceID.Value]
+        printf $"Looking up state {state}"
         state.Inputs
-        |> Map.map (fun _ -> getStateForInput cons)
-        |> Map.map (fun _ -> generateAST cons)
+        |> Map.map (fun k _ -> getStateForInput componentPortMap k)
+        |> Map.map (fun _ -> generateAST componentPortSources)
         |> (getComp state).Build
 
 let implementsVariableWidth (state : ComponentState) =
     match state.Inputs.TryFind 0 with
     | Some input when input.FixedWidth.IsSome -> input.FixedWidth
     | _ -> None
+
+let makeStateFromExternalInputComponent id inputName width : ComponentState =
+    {
+        ComponentState.Default with
+            InstanceID = Some id
+            Outputs = Map [
+                (0, {IODefaults.OutputX with Name = inputName; FixedWidth = width})
+            ]
+            IsInput = Some true
+    }

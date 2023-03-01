@@ -276,8 +276,22 @@ let rec startCircuitSimulation
             let assertion = ast, exprPos
             {AST = assertion})
     
-    // TODO(jpnock): invoke lexer/parser here or whatever
-    let assertionTextASTs : AssertionTypes.Assertion list = []
+    let assertionParseResults = List.map AssertionParser.parseAssertion assertionTexts
+    
+    let resultFolder state result =
+        match result with 
+        | Ok expr -> (List.append [expr] <| fst state, snd state)
+        | Error e -> (fst state, List.append [e] <| snd state)
+
+    let (assertionExprs, assertionErrors) = List.fold resultFolder ([], []) assertionParseResults
+
+    if assertionErrors.IsEmpty = false then
+        printf $"Not all assertions could be parsed:"
+        List.iter ( fun e -> printf $"{e}") assertionErrors
+
+    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
+    let assertionASTs = List.map (fun expr -> {AssertionTypes.AST = expr, emptyPos}) assertionExprs
+    let assertionTextASTs : AssertionTypes.Assertion list = assertionASTs
     
     let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
     

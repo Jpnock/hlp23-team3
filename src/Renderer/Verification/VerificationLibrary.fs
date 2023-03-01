@@ -1,7 +1,7 @@
 /// Contains logic for representing the collection
 /// of verification components (the library).
 ///
-/// Author: James Nock
+/// Authored by jpn119 (James Nock)
 module VerificationLibrary
 
 open AssertionTypes

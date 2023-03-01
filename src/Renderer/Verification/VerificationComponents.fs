@@ -1,7 +1,7 @@
 /// Represents types and logic for verification component creation,
 /// as well as internal component logic.
 ///
-/// Author: James Nock
+/// Authored by jpn119 (James Nock)
 module VerificationComponents
 
 open System

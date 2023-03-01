@@ -7,6 +7,58 @@ open SimulatorTypes
 open CommonTypes 
 open FastCreate
 
+let rec print(tree: ExprInfo) : string=
+    match tree with
+    | Lit lit, pos->
+
+        match lit with
+        | Value value ->
+
+            match value with
+            | Int int -> string int  
+            | Uint uint -> string uint
+            | Bool bool -> string bool  
+
+        | Id id -> string 0 // not implemented yet
+
+    | Cast c, pos ->
+
+        match c with
+        | ToSigned e -> "int(" + (print e) + ")"
+        | ToUnsigned e -> "uint" + (print e) + ")" 
+        | ToBool e -> "bool" + (print e) + ")" 
+
+    | Add (BinOp(l, r)), pos -> "(" + print l + "+" + (print r) + ")"
+
+    | Sub(BinOp(l, r)), pos -> "(" + print l + "-" + (print r) + ")"
+
+    | Mul(BinOp(l, r)), pos -> "(" + print l + "*" + (print r) + ")"
+
+    | Div(BinOp(l, r)), pos -> "(" + print l + "/" + (print r) + ")"
+
+    | Rem(BinOp(l, r)), pos -> "(" + print l + "%" + (print r) + ")"
+
+    | BitAnd(BinOp(l, r)), pos -> "(" + print l + "&&&" + (print r) + ")"
+
+    | BitOr(BinOp(l, r)), pos -> "(" + print l + "|||" + (print r) + ")"
+
+    | BitNot(UnOp(op)), pos -> "(~~~"+ (print op) + ")"
+
+    | BoolExpr (boolExpr), pos-> 
+        match boolExpr with
+        | Neq(BinOp(l, r)) -> "(" + (print l) + "<>" + (print r) + ")"
+        | LogAnd(BinOp(l, r)) -> "(" + (print l) + "&&" + (print r) + ")"
+        | LogOr(BinOp(l, r)) -> "(" + (print l) + "||" + (print r) + ")"
+        | Lt(BinOp(l, r)) -> "(" + (print l) + "<" + (print r) + ")"
+        | Gt(BinOp(l, r)) -> "(" + (print l) + ">" + (print r) + ")"
+        | Gte(BinOp(l, r)) -> "(" + (print l) + ">=" + (print r) + ")"
+        | Lte(BinOp(l, r)) -> "(" + (print l) + "<=" + (print r) + ")"
+        | LogNot(UnOp op) -> "(not"+ (print op) + ")"
+        | _ -> failwithf "not implemented yet"
+
+    | _ -> string 0
+
+
 let fsList comp = 
     createFastComponent 5 comp []// applied the curried function to the last argument
 
@@ -18,6 +70,20 @@ let makeGhostComp id label cType =
     Outputs = Map [(OutputPortNumber 0, [ComponentId "ciao", InputPortNumber 0])]; 
     CustomSimulationGraph = None; 
     State = NoState}
+
+let makeComp id label cType = 
+    {
+        Id = id;
+        Type = cType; 
+        Label = label; 
+        InputPorts = []; 
+        OutputPorts = []; 
+        X = 1.;
+        Y = 1.; 
+        H = 1.; 
+        W = 1.; 
+        SymbolInfo = None
+    }
 
 /// test compilation of AST: size error
 let testCheck1 () : Result<string, string>= 
@@ -36,7 +102,7 @@ let testCheck1 () : Result<string, string>=
         match eLst with 
         | e::_ -> 
             if (e = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 4"; Pos = {Line = 0; Col = 7; Length = 8}})
-            then Ok($"The following expr: should not compile because {e.Msg}")
+            then Ok($"The following expr: {print tree}, should not compile because {e.Msg}")
             else Error($"wrong error returned: {e}")
         | lst -> Error($"too many errors: {lst}")
     | _ -> Error("The following expression should not compile. It should give a width error")
@@ -51,13 +117,11 @@ let testCheck2 (): Result<string, string> =
     let addExpr = Add(BinOp(lit3u, litA)), {Line = 0; Col = 7; Length = 5}
     let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5u))), {Line = 0; Col = 7; Length = 8}
     let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5}
-    let comp = 
-        makeGhostComp "compA" "a" (Viewer 3)
-        |> fsList
+    let comp = makeComp "compA" "a" (Viewer 3)
     let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16} 
     let compile = checkAST tree [comp]
     match compile with
-    | Properties {Type = t; Size = s} when t = BoolType && s = 1 -> Ok($"The AST was successfully compiled. It has type {t} and size {s}")
+    | Properties {Type = t; Size = s} when t = BoolType && s = 1 -> Ok($"The expr: {print tree} was successfully compiled. It has type {t} and size {s}")
     | Properties {Type = t; Size = s} -> Error($"Wrong evaluation of the following expression. It was expected to have type Bool and size 1, but it has type {t} and size {s} instead ")
     | ErrLst e -> Error($"the compilation failed and it wrongly detected the following errors: {e}")  
 
@@ -141,7 +205,7 @@ let testEvaluate1(): Result<string, string> =
     let addExpr = Add(BinOp(lit1, lit5)), {Line = 0; Col = 0; Length = 5}
     let gtExpr = BoolExpr(Lt(BinOp(addExpr, lit2))), {Line = 0; Col = 0; Length = 8}
     let fs = makeSimpleFs Array.empty [] None
-    let check = checkAST gtExpr (Array.toList fs.FConstantComps)
+    let check = checkAST gtExpr []
     match check with 
     | Properties p -> 
         let res = evaluate gtExpr fs 0
@@ -153,16 +217,17 @@ let testEvaluate1(): Result<string, string> =
 
 /// test evaluation of AST: basic evaluation and result retrieval from fs
 let testEvaluate2(): Result<string, string> = 
-    //(1+5) < a -> false (a = 2)
-    let lit1 = Lit(Value(Int(1))), {Line = 0; Col = 1; Length = 1}
-    let lit5 = Lit(Value(Int(5))), {Line = 0; Col = 3; Length = 1}
+    //(1+16) < a -> false (a = 2)
+    let lit1 = Lit(Value(Uint(1u))), {Line = 0; Col = 1; Length = 1}
+    let lit16 = Lit(Value(Uint(16u))), {Line = 0; Col = 3; Length = 1}
     let litA = Lit(Id("a")), {Line = 0; Col = 5; Length = 1}
-    let addExpr = Add(BinOp(lit1, lit5)), {Line = 0; Col = 0; Length = 5}
+    let addExpr = Add(BinOp(lit1, lit16)), {Line = 0; Col = 0; Length = 5}
     let gtExpr = BoolExpr(Lt(BinOp(addExpr, litA))), {Line = 0; Col = 0; Length = 8}
     let simComp = makeGhostComp "compA" "a" (Viewer 5) 
-    let fastComp = makeFastComponent "compA" "a" 5 0u 0u [2u] simComp
+    let comp = makeComp "compA" "a" (Viewer 5) 
+    let fastComp = makeFastComponent "a" "a" 5 0u 0u [2u] simComp
     let fs = makeSimpleFs Array.empty [] (Some(Map[((ComponentId "a", []), fastComp)]))
-    let check = checkAST gtExpr (Array.toList fs.FConstantComps)
+    let check = checkAST gtExpr [comp] 
 
     match check with 
     | Properties p -> 
@@ -172,3 +237,4 @@ let testEvaluate2(): Result<string, string> =
         | Bool b, Size s -> Error($"returned the wrong result. {b} {s}")
         | t, Size s -> Error($"returned the wrong result type {t}")
     | ErrLst e -> Error($"the AST did not compile. There were the following errors: {e}")
+

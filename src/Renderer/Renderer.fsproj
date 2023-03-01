@@ -14,7 +14,7 @@
     <Compile Include="Verification\AssertionTypes.fs" />
     <Compile Include="Verification\AssertionParser.fs" />
     <Compile Include="Verification\AssertionASTMap.fs" />
-    <Compile Include="Verification\Components.fs" />
+    <Compile Include="Verification\VerificationComponents.fs" />
     <Compile Include="Verification\VerificationLibrary.fs" />
     <Compile Include="Verification\VerificationASTGen.fs" />
     

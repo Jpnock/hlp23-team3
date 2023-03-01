@@ -668,8 +668,15 @@ let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:stri
 
 
 /// Function to generate a new symbol
-let createNewSymbol (ldcs: LoadedComponent list) (pos: XYPos) (comptype: ComponentType) (label:string) (theme:ThemeType) =
+let createNewSymbol (ldcs: LoadedComponent list) (pos: XYPos) (ctype: ComponentType) (label:string) (theme:ThemeType) =
     let id = JSHelpers.uuid ()
+    
+    let comptype =
+        match ctype with
+        | Plugin state ->
+            Plugin {state with InstanceID = Some id}
+        | _ -> ctype
+    
     let style = Constants.componentLabelStyle
     let comp = makeComponent pos comptype id label
     let transform = {Rotation= Degree0; flipped= false}

@@ -1,7 +1,7 @@
 /// Contains logic for converting between components
 /// and their respective Assertion AST types.
 ///
-/// Author: James Nock
+/// Authored by jpn119 (James Nock)
 module AssertionASTMap
 
 open AssertionTypes

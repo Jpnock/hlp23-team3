@@ -1,7 +1,7 @@
 /// Contains logic for building an Assertion AST
 /// from a set of visual verification components.
 ///
-/// Author: James Nock
+/// Authored by jpn119 (James Nock)
 module VerificationASTGen
 
 open AssertionTypes

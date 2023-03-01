@@ -17,6 +17,7 @@
     <Compile Include="Verification\VerificationComponents.fs" />
     <Compile Include="Verification\VerificationLibrary.fs" />
     <Compile Include="Verification\VerificationASTGen.fs" />
+
     <!-- Common definitions -->
     <Compile Include="Common\Optics.fs" />
     <Compile Include="Common\ElectronAPI.fs" />
@@ -26,8 +27,10 @@
     <Compile Include="Common\Helpers.fs" />
     <Compile Include="Common\TimeHelpers.fs" />
     <Compile Include="Common\WidthInferer.fs" />
+
     <!-- UART -->
     <Compile Include="UartFiles\BuildUartHelpers.fs" />
+
     <!-- simulator -->
     <Compile Include="Simulator\SimulatorTypes.fs" />
     <Compile Include="Simulator\TruthTableTypes.fs" />
@@ -47,12 +50,14 @@
     <Compile Include="Simulator\AssertionEvaluation.fs" />
     <Compile Include="Simulator\Simulator.fs" />
     <Compile Include="Simulator\AssertionHelpers.fs" />
+
     <!-- Verilog Component -->
     <Compile Include="VerilogComponent\VerilogTypes.fs" />
     <Compile Include="VerilogComponent\SheetCreator.fs" />
     <Compile Include="VerilogComponent\NearleyBindings.fs" />
     <Compile Include="VerilogComponent\ErrorCheck.fs" />
     <Compile Include="VerilogComponent\CodeEditorHelpers.fs" />
+
     <!-- JS and File interface -->
     <Compile Include="Interface\Version.fs" />
     <Compile Include="Interface\JSHelpers.fs" />
@@ -62,9 +67,9 @@
     <Compile Include="DrawBlock\PopupDrawingView.fs" />
     <!-- Draw2D diagram -->
     <Compile Include="DrawBlock\Symbol.fs" />
-	<Compile Include="DrawBlock\SymbolView.fs" />
-	<Compile Include="DrawBlock\SymbolUpdatePortHelpers.fs" />
-	<Compile Include="DrawBlock\SymbolReplaceHelpers.fs" />
+    <Compile Include="DrawBlock\SymbolView.fs" />
+    <Compile Include="DrawBlock\SymbolUpdatePortHelpers.fs" />
+    <Compile Include="DrawBlock\SymbolReplaceHelpers.fs" />
     <Compile Include="DrawBlock\SymbolUpdate.fs" />
     <Compile Include="DrawBlock\BusWire.fs" />
     <Compile Include="DrawBlock\BusWireUpdateHelpers.fs" />
@@ -107,6 +112,7 @@
     <Compile Include="UI\Update.fs" />
     <Compile Include="Renderer.fs" />
   </ItemGroup>
+
   <!-- Dependencies -->
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

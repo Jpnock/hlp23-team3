@@ -44,7 +44,8 @@ let getFComponentId label components =
         match comp.FLabel, comp.FType with 
         | labelComp, Input1 _ when labelComp = label-> Some(comp.fId)
         | labelComp, Viewer _ when labelComp = label-> Some(comp.fId)
-        | _ -> None 
+        | labelComp, Input1 _ when labelComp = label-> Some(comp.fId)
+        | _ -> None
     let compId = 
         List.choose isRightComponent components 
         |> function 
@@ -70,8 +71,8 @@ let getLitProperties (components: FastComponent List) lit =
         UintType, int width
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
-let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size= 
-
+let rec evaluate (tree: ExprInfo) components (fs:FastSimulation) step: Value * Size= 
+    printf $"we are evaluating {components}"
     let resizeRes (size: Size) res = 
         match res, size with 
         | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1))))), size

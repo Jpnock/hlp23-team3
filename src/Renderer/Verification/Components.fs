@@ -90,6 +90,11 @@ let add (exprs: PortExprs) : Expr option = Some (Add(BinOp(leftRight exprs)))
 
 let gte (exprs: PortExprs) : Expr option = Some (BoolExpr (Gte (BinOp(leftRight exprs))))
 
+let collectionMaxWithDefault<'t when 't: comparison> defaultValue (sequence:Collections.Generic.ICollection<'t>) =
+    match sequence.Count with
+    | 0 -> defaultValue
+    | _ -> Seq.max sequence
+
 type SimpleComponent =
     { 
       Name: string
@@ -110,7 +115,8 @@ type SimpleComponent =
               Width = SymbolDefaults.Width }
         member this.GetDescription state = this.DescriptionFunc this state
         member this.GetOutputWidths state inputPortWidths =
-            let maxInputWidth = Map.values inputPortWidths |> Seq.max
+            // TODO(jpnock): Check logic
+            let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
             state.Outputs
             |> Map.map (fun outputPortNum output ->
                 match output.FixedWidth with
@@ -290,8 +296,6 @@ let getStateForInput (portToSource: Map<int, ComponentState>) inputNum =
     
 let getComp (state: ComponentState) : IComponent =
     library.Components[state.LibraryID]
- 
-
 
 let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>) (state: ComponentState) : Expr =
     match state.IsInput with

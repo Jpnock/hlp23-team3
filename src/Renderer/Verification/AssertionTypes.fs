@@ -1,11 +1,13 @@
 module AssertionTypes
 
+// authored by ln220
 type Pos = {
     Line : int
     Col : int
     Length : int
 }
 
+// authored by ln220
 type Error = {
     Msg: string; 
     Pos: Pos
@@ -13,20 +15,24 @@ type Error = {
 
 // this type was created to wrap the results of the evaluate function, otherwise 
 // it would have tried to return different types causing errors 
+// authored by ln220
 type Value = 
     | Int of int 
     | Bool of bool 
     | Uint of uint 
 
+// authored by ln220
 type Lit = 
     | Value of Value
     | Id of string // for now, later make it of BusLabel of whatever type there is 
 
+// authored by ln220
 type Cast = 
     | ToSigned of ExprInfo
     | ToUnsigned of ExprInfo 
     | ToBool of ExprInfo 
 
+// authored by ln220
 and Expr = 
     | BoolExpr of BoolExpr 
     | Add of Op 
@@ -41,6 +47,7 @@ and Expr =
     | Cast of Cast 
     | BusCast of int * ExprInfo 
 
+// authored by ln220
 and BoolExpr = 
     | Eq of Op//eval 
     | Neq of Op//eval 
@@ -52,24 +59,30 @@ and BoolExpr =
     | Gte of Op//eval 
     | Lte of Op//eval
 
+// authored by ln220
 and Op = 
     | BinOp of left: ExprInfo * right: ExprInfo
     | UnOp of ExprInfo
 
+// authored by ln220
 and ExprInfo = Expr * Pos 
 
+// authored by ln220
 and Size = Size of int
 
+// authored by ln220
 type Type = 
     | IntType
     | UintType 
     | BoolType 
 
+// authored by ln220
 type Properties = {
     Type: Type;
     Size: int 
 }
 
+// authored by ln220
 type CheckRes = 
     | ErrLst of Error list 
     | Properties of Properties 

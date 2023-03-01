@@ -488,8 +488,8 @@ let private makeNumberOfBitsField model (comp:Component) text dispatch =
         | BusCompare( w, _) -> "Bus width", w
         | BusCompare1( w,_, _) -> "Bus width", w
         | Constant1(w, _,_) -> "Number of bits in the wire", w
-        | Plugin p when (Verification.Components.implementsVariableWidth p).IsSome ->
-            "Number of bits", (Verification.Components.implementsVariableWidth p).Value
+        | Plugin p when (VerificationComponents.implementsVariableWidth p).IsSome ->
+            "Number of bits", (VerificationComponents.implementsVariableWidth p).Value
         | c -> failwithf $"makeNumberOfBitsField called with invalid component: {c}"
     intFormField title "60px" width 1 (
         fun newWidth ->
@@ -685,7 +685,7 @@ let private makeDescription (comp:Component) model dispatch =
                 ]
             | _ -> []
         div [] ([
-            str (Verification.Components.library.Components[p.LibraryID].GetDescription p)
+            str (VerificationLibrary.library.Components[p.LibraryID].GetDescription p)
         ]  @ assertionEditButton)
         
     | ROM _ | RAM _ | AsyncROM _ -> 
@@ -892,7 +892,7 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
         makeBusCompareDialog model comp text dispatch
     | Constant1 _ ->         
         makeConstantDialog model comp text dispatch
-    | Plugin p when (Verification.Components.implementsVariableWidth p).IsSome ->
+    | Plugin p when (VerificationComponents.implementsVariableWidth p).IsSome ->
         makeNumberOfBitsField model comp text dispatch
     | _ -> div [] []
 

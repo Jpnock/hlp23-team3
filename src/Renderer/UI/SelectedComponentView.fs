@@ -665,8 +665,7 @@ let private makeDescription (comp:Component) model dispatch =
     match comp.Type with
     | Plugin p ->
         let openEditor code name=
-            printfn "Opening code editr: %A" code
-            createAssertionPopup (ExistingCodeFile {Name = name; Code = code}) model dispatch
+            createAssertionPopup comp.Id (ExistingCodeFile {Name = name; Code = code}) model dispatch
         
         // TODO(jpnock): Move this logic into the component by changing
         // the interface to return ReactElements.

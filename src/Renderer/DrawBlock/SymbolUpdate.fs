@@ -824,6 +824,15 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
         let newsymbol = changeNumberOfBitsf model compId newBits
         (replaceSymbol model newsymbol compId), Cmd.none
     
+    | ChangeAssertionText (compId, newText) ->
+        let oldSymbol = Map.find compId model.Symbols
+        let newCompType = 
+            match oldSymbol.Component.Type with
+            | Plugin state -> Plugin {state with AssertionText = Some newText}
+            | _ -> failwithf "Tried to change assertion text on non-verification component"
+        let newSymbol = set (component_ >-> type_) newCompType oldSymbol
+        (replaceSymbol model newSymbol compId), Cmd.none
+    
     | ChangeScale (compId,newScale,whichScale) ->
         let symbol = Map.find compId model.Symbols
         let newSymbol = 

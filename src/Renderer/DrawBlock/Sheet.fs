@@ -90,6 +90,9 @@ module SheetInterface =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeNumberOfBits (compId, width) ) ) )
             this.DoBusWidthInference dispatch
 
+        member this.ChangeAssertionText (dispatch: Dispatch<Msg>) (compId: ComponentId) (text : string) =
+            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeAssertionText (compId, text) ) ) )
+        
         /// Given a compId and a width, update the width of the Component specified by compId
         member this.ChangeScale (dispatch: Dispatch<Msg>) (compId: ComponentId) (newScale: float) (whichScale:ScaleAdjustment) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeScale (compId, newScale, whichScale) ) ) )

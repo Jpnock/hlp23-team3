@@ -29,6 +29,7 @@ open JSHelpers
 open System
 open FileMenuView
 open Optics
+open Sheet.SheetInterface
 
 NearleyBindings.importGrammar
 NearleyBindings.importFix
@@ -575,13 +576,13 @@ let createCodeEditorPopup title preamble saveAction updateAction compileAction a
     let saveUpdateButton = match origin with |NewCodeFile -> saveAction | ExistingCodeFile _ -> updateAction
     dialogCodeEditorPopup title body saveUpdateText saveUpdateButton moreInfoButton extra dispatch
 
-let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
+let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch =
     let title = "Create assertions to verify your sheet" 
     
     let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
     let assertionCode = {
         Type = AssertionCode
-        Contents = initContents
+        Contents = initContents 
         Errors = []
         ShowErrors = false
     }
@@ -599,7 +600,10 @@ let createAssertionPopup (origin: CodeEditorOpen) model dispatch =
     let updateAction = 
         fun (dialogData : PopupDialogData) ->
             dispatch (StartUICmd SaveSheet)        
-
+            
+            let code = getCodeContents dialogData
+            model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
+            
             dispatch FinishUICmd     
             dispatch <| Sheet(SheetT.DoNothing)
 

@@ -221,7 +221,8 @@ module SymbolT =
         | PasteSymbols of sIds: ComponentId list
         | ColorSymbols of compList : ComponentId list * colour : HighLightColor
         | ErrorSymbols of errorIds: ComponentId list * selectIds: ComponentId list * isDragAndDrop: bool
-        | ChangeNumberOfBits of compId:ComponentId * NewBits:int 
+        | ChangeNumberOfBits of compId:ComponentId * NewBits:int
+        | ChangeAssertionText of compId:ComponentId * string
         | ChangeLsb of compId: ComponentId * NewBits:int64 
         | ChangeInputValue of compId: ComponentId * newVal: int
         | ChangeScale of compId:ComponentId * newScale:float * whichScale:ScaleAdjustment

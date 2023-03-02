@@ -96,7 +96,7 @@ type CodeEditorReactStatefulComponent (props) =
         let codeType = Option.get <| Optic.get code_type_ props.DialogData 
         match codeType with 
         | VerilogCode _ -> { code = "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" }
-        | AssertionCode -> { code = "a == b" }
+        | AssertionCode -> { code = props.CurrentCode }
     )
 
     // override this.shouldComponentUpdate (nextProps,nextState) =

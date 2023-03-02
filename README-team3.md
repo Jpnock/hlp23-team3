@@ -39,3 +39,8 @@ Modified and added types to support the new generalized code editor.
 ### Dominic Justice-Konec (djj120)
 
 - Author format: `Authored by djj120`
+- [AssertionEvaluation.fs](src/Renderer/Simulator/AssertionEvaluation.fs)
+- [SimulationView.fs](src/Renderer/UI/SimulationView.fs)
+- [WaveSim.fs](src/Renderer/UI/WaveSim/WaveSim.fs)
+- [WaveSimStyle.fs](src/Renderer/UI/WaveSim/WaveSimStyle.fs)
+- [WaveSimStyle.fs](src/Renderer/UI/WaveSim/WaveSimStyle.fs)

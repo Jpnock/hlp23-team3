@@ -463,7 +463,7 @@ let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Mode
     
     let assertionExpander =
         details [Open false] [
-            summary [] [ str "Assertion Failures!" ]
+            summary [Style [FontSize "20px"]] [ b [] [ str "Assertion Failures!" ] ]
             Menu.list [] failedAssertionElements
             // Button.button [Button.OnClick onClickPrev] [ str "◀" ]
             // Button.button [Button.OnClick onClickNext] [ str "▶" ]

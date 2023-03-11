@@ -188,6 +188,11 @@ let getSymbolColour compType clocked (theme:ThemeType) =
             -> "#E8D0A9"  //dark orange: for IO
         | SplitWire _ | MergeWires _ | BusSelection _ | NbitSpreader _ | IOLabel ->
             "rgb(120,120,120)"
+        | Plugin p -> (
+            let comp = VerificationLibrary.library.Components[p.LibraryID]
+            let symbolProps = comp.GetSymbolDetails p
+            printf $"got colour {symbolProps.Colour}"
+            symbolProps.Colour)
         | _ -> "rgba(255,255,217,1)" //lightyellow: for combinational components
 
 

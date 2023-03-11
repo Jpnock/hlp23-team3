@@ -67,6 +67,8 @@ type SymbolDetails =
       Height: float
       // The width of the symbol.
       Width: float
+      // The colour of the symbol.
+      Colour: string
     }
     
 /// Abstracts the behaviour of any component behind an interface. This allows
@@ -141,6 +143,7 @@ module SymbolDefaults =
     let Width = 3.0 * GridSize
     let Height = 2.0 * GridSize
     let Prefix = "VERI"
+    let Colour = "rgb(175,220,120)"
 
 /// Returns the maximum value of a collection, or the default value if
 /// the list is empty.
@@ -169,7 +172,8 @@ type SimpleComponent =
             { Name = this.SymbolName
               Prefix = SymbolDefaults.Prefix
               Height = SymbolDefaults.Height
-              Width = SymbolDefaults.Width }
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour }
         member this.GetDescription state = this.DescriptionFunc this state
         member this.GetOutputWidths state inputPortWidths =
             // TODO(jpnock): Check logic

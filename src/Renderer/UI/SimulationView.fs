@@ -433,15 +433,14 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
     let failureLines = fa.FailureMessage.Split "\n"
     let failureMessageElements =
         failureLines
-        |> Seq.collect (fun line -> [str line ; br []])
+        |> Seq.collect (fun line -> [br [] ; str line ; br []])
         |> List.ofSeq
-    failureMessageElements @
+    div [] (failureMessageElements @
     [
         br []
         Button.button buttonProps [ str buttonString ]
         br []
-    ]
-
+    ])
 /// Turns failed assertion list into a react element
 /// Authored by djj120
 let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Model) dispatch =
@@ -450,11 +449,28 @@ let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Mode
         | Some p -> p
         | None -> failwith "What - Project shouldn't be empty here"
     
-    let failedAssertionElements = List.collect (fun fa -> viewFailedAssertion fa project dispatch) failedAssertions 
+    // let mutable currentAssertionIndex = 0
+    
+    let failedAssertionElements = 
+        List.map (fun fa -> viewFailedAssertion fa project dispatch) failedAssertions 
+    
+    // let onClickPrev = fun _ ->
+    //     printf "%d" (List.length failedAssertionElements)
+    //     currentAssertionIndex <- (currentAssertionIndex - 1 + List.length failedAssertionElements) % List.length failedAssertionElements
+    
+    // let onClickNext = fun _ ->
+    //     currentAssertionIndex <- (currentAssertionIndex + 1) % List.length failedAssertionElements
+    
+    let assertionExpander =
+        details [Open false] [
+            summary [] [ str "Assertion Failures!" ]
+            Menu.list [] failedAssertionElements
+            // Button.button [Button.OnClick onClickPrev] [ str "◀" ]
+            // Button.button [Button.OnClick onClickNext] [ str "▶" ]
+        ]
 
     div [] [
-        Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
-        div [] failedAssertionElements
+        assertionExpander
     ]
 
 let private simulationClockChangePopup (simData: SimulationData) (dispatch: Msg -> Unit) (dialog:PopupDialogData) =

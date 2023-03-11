@@ -39,12 +39,11 @@ let boolToUint =
 let intToBool n = if n = 0 then false else true
 let uintToBool n = if n = uint 0 then false else true
 
-//get FComponentId for component that is in the sheet where it's currently being simulated 
+/// get FComponentId for component that is in the sheet where it's currently being simulated 
 let getFComponentId label components = 
     let isRightComponent (comp: FastComponent) = 
-        match comp.FLabel, comp.FType with 
-        | labelComp, Input1 _ when labelComp = label-> Some(comp.fId)
-        | labelComp, Viewer _ when labelComp = label-> Some(comp.fId)
+        match comp.FLabel with 
+        | labelComp when labelComp = label -> Some(comp.fId)
         | _ -> None
     let compId = 
         List.choose isRightComponent components 
@@ -62,6 +61,7 @@ let getLitProperties (components: FastComponent List) lit =
                 match comp.FLabel, comp.FType with 
                 | idComp, Viewer width when idComp = id -> Some(width)
                 | idComp, Input1 (width,_) when idComp = id -> Some(width)
+                | idComp, _ when idComp= id -> Some(1)
                 | _ -> None 
             List.choose isRightComponent components 
             |> function 

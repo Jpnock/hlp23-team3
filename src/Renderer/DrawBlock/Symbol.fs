@@ -191,7 +191,6 @@ let getSymbolColour compType clocked (theme:ThemeType) =
         | Plugin p -> (
             let comp = VerificationLibrary.library.Components[p.LibraryID]
             let symbolProps = comp.GetSymbolDetails p
-            printf $"got colour {symbolProps.Colour}"
             symbolProps.Colour)
         | _ -> "rgba(255,255,217,1)" //lightyellow: for combinational components
 

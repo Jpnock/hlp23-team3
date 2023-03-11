@@ -50,22 +50,24 @@ let getType value =
     | Uint _ -> UintType 
     | Bool _ -> BoolType 
 
-let getLitProperties (components: Component List) lit = 
+
+/// get size of lit, if the id is not found in the schematics returns an error
+let getLitProperties (components: Component List) (lit: Lit) : Result<(AssertionTypes.Type * int), string> = 
     match lit with
-    | Value value -> getType value, getLitMinSize value 
+    | Value value -> Ok(getType value, getLitMinSize value)
     | Id id -> 
-        let width = 
-            let isRightComponent (comp: Component) = 
-                match comp.Label, comp.Type with 
-                | idComp, Viewer width when idComp = id -> Some(width)
-                | idComp, Input1 (width,_) when idComp = id -> Some(width)
-                | _ -> None 
-            List.choose isRightComponent components 
-            |> function 
-                | id::[] -> id 
-                | [] -> failwithf "the component is not in the list" // TODO make an actual error message as this is a user error
-                | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
-        UintType, int width
+        let isRightComponent (comp: Component) = 
+            match comp.Label, comp.Type with 
+            | idComp, Viewer width when idComp = id -> Some(width)
+            | idComp, Input1 (width,_) when idComp = id -> Some(width)
+            | idComp, _ when idComp = id -> Some(1)
+            | _ -> None 
+
+        List.choose isRightComponent components 
+        |> function 
+            | width::[] -> Ok(UintType, int width) 
+            | [] -> Error($"the ID {id} does not exist") 
+            | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
 
 
 // for unary expressions type checks are not needed, it's enough to return the type of the variable (tricky because it needs to take into account casts)
@@ -108,7 +110,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             then Properties{Type = (if makesBool then BoolType else typeOther); Size = sizeOther}
             else 
                 if left
-                then makeSizeError sizeLit sizeOther pos//make this better (with a general function that also prints the sizes on the left and on the right)
+                then makeSizeError sizeLit sizeOther pos //make this better (with a general function that also prints the sizes on the left and on the right)
                 else makeSizeError sizeOther sizeLit pos
     
         match propertiesL, propertiesR with 
@@ -154,9 +156,10 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         | _ -> ErrLst (propagateError leftRes rightRes)
     | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
     | IsBinExpr (l, r, pos) -> checkBin l r pos false false
-    | Lit lit, _ -> 
-        let litType, size = getLitProperties components lit
-        Properties {Type = litType; Size = size}
+    | Lit lit, pos -> 
+        match getLitProperties components lit with 
+            | Ok(litType, size) -> Properties {Type = litType; Size = size}
+            | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos } ]
     | Cast cast, pos -> 
         match cast with
         | ToSigned expr -> checkCast expr (Some IntType) None pos

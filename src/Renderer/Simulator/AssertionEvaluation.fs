@@ -201,23 +201,30 @@ type FailedAssertion = {
     Cycle: int
     FailureMessage: string
     Sheet: string
+    CompId: ComponentId
 }
 
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
-    let evalTree step assertion = 
-        let value, size = evaluate assertion.AST fs step
-        match value with 
-        | Bool true -> None 
-        | Bool false ->
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
-            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
-        | _ -> failwithf "the top level expression should return a bool"
-    let evalAllAssertions assertions n = 
-        assertions
-        |> List.choose (evalTree n)
-    [startCycle..endCycle]
-    |> List.collect (evalAllAssertions fs.Assertions)
+    // let evalTree step assertion = 
+    //     let value, size = evaluate assertion.AST fs step
+    //     match value with 
+    //     | Bool true -> None 
+    //     | Bool false ->
+    //         let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
+    //         Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
+    //     | _ -> failwithf "the top level expression should return a bool"
+    // let evalAllAssertions assertions n = 
+    //     assertions
+    //     |> List.choose (evalTree n)
+    // [startCycle..endCycle]
+    // |> List.collect (evalAllAssertions fs.Assertions)
+    let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
+    let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
+    let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
+    let failedAssertion3 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...2"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
+    let failedAssertion4 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...3"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
+    [failedAssertion0; failedAssertion1; failedAssertion2; failedAssertion3; failedAssertion4]
 
 /// return the integers of the cycles with failed assertions given a list of failed assertions
 /// Authored by djj120

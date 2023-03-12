@@ -443,6 +443,14 @@ let update (msg : Msg) (model : Model): Model*Cmd<Msg> =
         Cmd.batch [
             Cmd.ofMsg (ColourSelection([], newWires, HighLightColor.SkyBlue)); 
             wireCmd (BusWireT.SelectWires newWires)]
+    | HighlightFailedAssertions compIds ->
+        {model with FailedAssertionsHighlighted = compIds},
+        symbolCmd (SymbolT.ColorSymbols (compIds, HighLightColor.Orange))
+    | RemoveFailedAssertionHighlights ->
+        let currentHighlightedAssertions = model.FailedAssertionsHighlighted
+        {model with FailedAssertionsHighlighted = []},
+        // TODO:(djj120) change to unhighlight or to highlight same colour as assertion
+        symbolCmd (SymbolT.ColorSymbols (currentHighlightedAssertions, HighLightColor.SkyBlue))
     | SetSpinner isOn ->
         if isOn then {model with CursorType = Spinner}, Cmd.none
         else {model with CursorType = Default}, Cmd.none
@@ -807,6 +815,7 @@ let init () =
         SelectedComponents = []
         SelectedLabel = None
         SelectedWires = []
+        FailedAssertionsHighlighted = []
         NearbyComponents = []
         ErrorComponents = []
         DragToSelectBox = {TopLeft = {X=0.0; Y=0.0}; H=0.0; W=0.0}

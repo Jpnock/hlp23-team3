@@ -497,6 +497,8 @@ module SheetT =
         | ResetModel
         | UpdateSelectedWires of ConnectionId list * bool
         | ColourSelection of compIds : ComponentId list * connIds : ConnectionId list * colour : HighLightColor
+        | HighlightFailedAssertions of compIds : ComponentId list
+        | RemoveFailedAssertionHighlights
         | PortMovementStart
         | PortMovementEnd
         | ResetSelection
@@ -551,6 +553,7 @@ module SheetT =
         SelectedLabel: CommonTypes.ComponentId option
         SelectedComponents: CommonTypes.ComponentId List
         SelectedWires: CommonTypes.ConnectionId list
+        FailedAssertionsHighlighted : ComponentId list
         NearbyComponents: CommonTypes.ComponentId list
         ErrorComponents: CommonTypes.ComponentId list
         DragToSelectBox: BoundingBox

@@ -6,6 +6,8 @@
 
 module SelectedComponentView
 open EEExtensions
+open Microsoft.FSharp.Reflection
+open VerificationComponents
 open VerilogTypes
 open Fulma
 open Fable.React
@@ -57,7 +59,7 @@ let private textFormField isRequired name defaultValue isBad onChange onDeleteAt
                 SpellCheck false; 
                 Name name; 
                 AutoFocus true; 
-                Style [ Width "200px"]; 
+                Style [ Width "100%" ]; 
                 OnKeyDown onDelete]
             Input.DefaultValue defaultValue
             Input.CustomClass "www"
@@ -491,7 +493,7 @@ let private makeNumberOfBitsField model (comp:Component) text dispatch =
         | Plugin p when (VerificationComponents.implementsVariableWidth p).IsSome ->
             "Number of bits", (VerificationComponents.implementsVariableWidth p).Value
         | c -> failwithf $"makeNumberOfBitsField called with invalid component: {c}"
-    intFormField title "60px" width 1 (
+    intFormField title "100%" width 1 (
         fun newWidth ->
             if newWidth < 1
             then
@@ -527,7 +529,7 @@ let makeDefaultValueField (model: Model) (comp: Component) dispatch: ReactElemen
             | None -> w, 0
         | _ -> failwithf "Other component types should not call this function."
     
-    intFormField title "60px" defValue 0 (
+    intFormField title "100%" defValue 0 (
         fun newValue ->
             // Check if value is within bit range
             match NumberHelpers.checkWidth width (int64 newValue) with
@@ -634,7 +636,7 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
     match comp.Type with
     | BusCompare(width, _) -> 
-        intFormField infoText "120px"  (int lsbPos) 1  (
+        intFormField infoText "100%"  (int lsbPos) 1  (
             fun cVal ->
                 if cVal < 0 || uint32 cVal > uint32 ((1 <<< width) - 1)
                 then
@@ -646,7 +648,7 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
                     dispatch ClosePropertiesNotification
         )
     | BusSelection(width, _) -> 
-        intFormField infoText "60px" (int lsbPos) 1 (
+        intFormField infoText "100%" (int lsbPos) 1 (
             fun newLsb ->
                 if newLsb < 0
                 then
@@ -849,7 +851,52 @@ let private makeDescription (comp:Component) model dispatch =
         makeMemoryInfo descr mem (ComponentId comp.Id) comp.Type model dispatch
     | Shift _ -> 
         div [] [str "Issie Internal Error: This is an internal component and should never appear selected to view properties"]
-        
+
+let private makeComparatorDropdown model dispatch (comp: Component) (state: ComponentState) =    
+    let menuItem typ =
+        Menu.Item.li [
+            Menu.Item.IsActive (state.ComparatorType.IsSome && state.ComparatorType.Value = typ)
+            Menu.Item.OnClick (fun _ ->
+                 model.Sheet.ChangeComparatorType (Sheet >> dispatch) (ComponentId comp.Id) typ
+                 )
+            ] [comparatorTypeName typ |> str]
+
+    let ioSelect =
+        Dropdown.dropdown [
+                Dropdown.IsHoverable
+                Dropdown.Option.Props [
+                    Style [
+                        BorderRadius "4px"
+                        BoxShadow "inset 0 0.0625em 0.125em rgba(10, 10, 10, 0.05)"
+                        BackgroundColor "white"
+                        Color "#363636"
+                        Border "1px solid"
+                        BorderColor "#dbdbdb"
+                        Width "100%"
+                    ]
+                ]
+            ] [
+            
+            let dropDownDefault =
+                match state.ComparatorType with
+                | Some typ -> comparatorTypeName typ
+                | _ -> "Select comparator type"
+            Navbar.Link.a [
+                Navbar.Link.Option.Props [
+                    Style [Width "100%"]
+                ]
+            ] [ str dropDownDefault ]
+            Dropdown.menu [Props [Style [Width "100%"]]] [
+                Dropdown.content [Props [Style [ZIndex 1000]]] [
+                    Dropdown.Item.div [] [
+                        Menu.menu [Props [Style [OverflowY OverflowOptions.Scroll]]] [
+                            Menu.list [] (
+                                FSharpType.GetUnionCases typeof<ComparatorType>
+                                |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> ComparatorType)
+                                |> Seq.map menuItem
+                                |> List.ofSeq)
+                        ]]]]]
+    readOnlyFormField "Comparator configuration" ioSelect
 
 let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
     match comp.Type with
@@ -892,8 +939,19 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
         makeBusCompareDialog model comp text dispatch
     | Constant1 _ ->         
         makeConstantDialog model comp text dispatch
-    | Plugin p when (VerificationComponents.implementsVariableWidth p).IsSome ->
-        makeNumberOfBitsField model comp text dispatch
+    | Plugin p ->
+        let varWidth = 
+            match VerificationComponents.implementsVariableWidth p with
+            | Some _ -> Some (makeNumberOfBitsField model comp text dispatch)
+            | _ -> None
+        let comparator =
+            Some (makeComparatorDropdown model dispatch comp p)
+        let all = [varWidth; comparator]
+        div [] (
+           Seq.choose id all
+           |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])
+        )
+        
     | _ -> div [] []
 
 
@@ -981,6 +1039,7 @@ let viewSelectedComponent (model: ModelType.Model) dispatch =
                 else    None
 
             //printfn $"{comp.Label}:{label'} - {isBad} - {label'}"
+            div [Style [PaddingTop "1.3rem"]] [
             textFormField 
                 required 
                 "Component Name" 
@@ -1000,6 +1059,7 @@ let viewSelectedComponent (model: ModelType.Model) dispatch =
                     let sheetDispatch sMsg = dispatch (Sheet sMsg)
                     let dispatchKey = SheetT.KeyPress >> sheetDispatch
                     dispatchKey SheetT.KeyboardMsg.DEL)
+            ]
         ]    
     | _ -> 
         match model.CurrentProj with

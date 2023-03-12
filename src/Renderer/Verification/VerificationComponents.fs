@@ -8,6 +8,29 @@ open System
 open AssertionTypes
 open AssertionASTMap
 
+type ComparatorType =
+    | Eq
+    | Lt
+    | Lte
+    | Gt
+    | Gte
+    
+let comparatorTypeName typ =
+    match typ with
+    | Lt -> "Less than"
+    | Lte -> "Less than or equals"
+    | Gt -> "Greater than"
+    | Gte -> "Greater than or equals"
+    | Eq -> "Equal"
+
+let comparatorTypeSymbolName typ =
+    match typ with
+    | Lt -> "A < B"
+    | Lte -> "A <= B"
+    | Gt -> "A > B"
+    | Gte -> "A >= B"
+    | Eq -> "A == B"
+
 /// Represents stored data about a component input.
 type ComponentInput =
     {
@@ -46,7 +69,8 @@ type ComponentState =
       Inputs: Map<InputPortNumber, ComponentInput>
       Outputs: Map<OutputPortNumber, ComponentOutput>
       AssertionText: string option
-      IsInput: bool option }
+      IsInput: bool option
+      ComparatorType: ComparatorType option }
     static member Default : ComponentState = {
         InstanceID = Some (Guid.NewGuid().ToString())
         LibraryID = ""
@@ -54,6 +78,7 @@ type ComponentState =
         Outputs = Map.empty
         AssertionText = None
         IsInput = None
+        ComparatorType = None
     }
 
 /// Represents stored data about a Symbol for a component.
@@ -102,7 +127,7 @@ type IComponent =
     abstract member GetOutputWidths : ComponentState -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
     /// Builds the Assertion AST for this component, when the ASTs
     /// corresponding to each input port are provided.
-    abstract member Build : Map<InputPortNumber, Expr> -> Expr
+    abstract member Build : ComponentState -> Map<InputPortNumber, Expr> -> Expr
   
 /// Defines helper defaults that are useful when constructing Component IO ports.
 module IODefaults =
@@ -183,11 +208,55 @@ type SimpleComponent =
                 match output.FixedWidth with
                 | Some w -> w
                 | _ -> maxInputWidth)
-        member this.Build exprPortMap =
+        member this.Build state exprPortMap =
             let built = this.AssertionBuilder exprPortMap
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for {this.Name}"
+
+
+type ComparatorComponent =
+    { LibraryID: string }
+    member this.ToInterface : IComponent = this
+    interface IComponent with
+        member this.GetLibraryID = this.LibraryID
+        member this.GetName = "Comparator"
+        member this.GetTooltipText =
+            "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
+        member this.GetDefaultState = {
+            ComponentState.Default with
+                ComparatorType = Some Eq
+                Inputs = IODefaults.TwoInputs
+                Outputs = IODefaults.OneFixedWidthOutputX 1
+                LibraryID = this.LibraryID }
+        member this.GetSymbolDetails state =
+            let comparatorTyp =
+                match state.ComparatorType with
+                | Some typ -> typ
+                | _ -> failwithf "Tried to get the comparator type of a non-comparator"
+            { Name = comparatorTypeSymbolName comparatorTyp
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour }
+        member this.GetDescription state =
+            "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
+        member this.GetOutputWidths state inputPortWidths = Map.map (fun _ _ -> 1) state.Outputs
+        member this.Build state exprPortMap =
+            let built =
+                match state.ComparatorType with
+                | None -> failwith "Tried to build assertion AST for comparator without state set"
+                | Some typ ->
+                    match typ with
+                    | Eq -> astMapper TEq exprPortMap
+                    | Lt -> astMapper TLt exprPortMap
+                    | Gt -> astMapper TGt exprPortMap
+                    | Lte -> astMapper TLte exprPortMap
+                    | Gte -> astMapper TGte exprPortMap
+            match built with
+            | Some b -> b
+            | _ -> failwithf $"Unable to build for comparator {state.ComparatorType}"
+            
 
 // Helper function for dynamically generating the description of a
 // signed component, based on its state.
@@ -251,39 +320,6 @@ module ComponentDefaults =
     let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IODefaults.OneFixedWidthInputA 1)
     let makeOneInputOneOutputComponent = makeOneOutputComponent IODefaults.OneInput
     let makeTwoInputOneOutputComponent = makeOneOutputComponent IODefaults.TwoInputs
-
-/// Returns an unsigned and signed version of a base component, modifying the library ID
-/// and name as required.
-let makeSignedPairOfComponents outputs description tooltip name baseLibraryID symbolName builder : SimpleComponent * SimpleComponent =
-    let signedName = $"{name} (Signed)"
-    let unsignedName = $"{name} (Unsigned)"
-    
-    let extendLibraryID id signed =
-        match signed with
-        | true -> $"{id}_SIGNED"
-        | false -> $"{id}_UNSIGNED"
-
-    let defaultState = makeState outputs IODefaults.TwoInputs baseLibraryID
-    
-    let unsignedState =
-        { defaultState with LibraryID = extendLibraryID defaultState.LibraryID false }
-        |> makeIOSigned false
-    
-    let signedState =
-        { defaultState with LibraryID = extendLibraryID defaultState.LibraryID true }
-        |> makeIOSigned true
-    
-    let unsignedComp = {
-        Name = unsignedName
-        SymbolName = symbolName
-        DescriptionFunc = description
-        TooltipText = tooltip
-        DefaultState = unsignedState
-        AssertionBuilder = builder
-    }
-    
-    let signedComp = { unsignedComp with Name = signedName; DefaultState = signedState }
-    unsignedComp, signedComp
 
 /// Returns whether the component specifies a user-controllable
 /// input port 0 width.

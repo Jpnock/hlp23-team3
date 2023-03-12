@@ -14,6 +14,11 @@ type ComponentClass =
     | ClassNoIO of string
     | ClassAssert of string
 
+let makeLibraryID (cls:ComponentClass) (name:string) =
+    let normalised = name.Replace(" ", "_").Replace("(", "_").Replace(")", "_").ToUpper()
+    let className = cls.ToString().ToUpper().Split(" ")[0]
+    $"PLUGIN_{className}_{normalised.ToUpper()}"
+
 type DefaultComponent = {
     Name: string
     Class: ComponentClass
@@ -21,11 +26,7 @@ type DefaultComponent = {
     Builder: ASTBuilder
     SignedAndUnsigned: bool
 } with
-    member this.MakeID =
-        let normalised = this.Name.Replace(" ", "_").Replace("(", "_").Replace(")", "_").ToUpper()
-        let className = this.Class.ToString().ToUpper()
-        $"PLUGIN_{className}_{normalised.ToUpper()}"
-    
+    member this.MakeID = makeLibraryID this.Class this.Name
     member this.makeSimpleComponents : SimpleComponent list =
         let inputs, outputs =
             match this.Class with
@@ -43,11 +44,57 @@ type DefaultComponent = {
         
         let description = basicDescription tooltip
         
+        let baseComp =
+            makeSimpleComponentConcrete outputs inputs this.Name this.MakeID this.SymbolName description tooltip this.Builder
+        
         match this.SignedAndUnsigned with
-        | false -> [makeSimpleComponentConcrete outputs inputs this.Name this.MakeID this.SymbolName description tooltip this.Builder]
-        | true ->
-            let u, s = makeSignedPairOfComponents outputs description tooltip this.Name this.MakeID this.SymbolName this.Builder
-            [u; s]
+        | false -> [baseComp]
+        | true -> [{baseComp with DefaultState = baseComp.DefaultState |> makeIOSigned false}]
+
+// let lessThan =
+//      {
+//         Name = "Less Than"
+//         Class = ClassComparator "Outputs HIGH when A is less than B"
+//         SymbolName = "A < B"
+//         Builder = astMapper TLt
+//         SignedAndUnsigned = true
+//      }
+//
+// let lessThanOrEqual =
+//      {
+//         Name = "Less Than or Equal"
+//         Class = ClassComparator "Outputs HIGH when A is less than or equal to B"
+//         SymbolName = "A <= B"
+//         Builder = astMapper TLte
+//         SignedAndUnsigned = true
+//      }
+//
+// let greaterThan = 
+//      {
+//         Name = "Greater Than"
+//         Class = ClassComparator "Outputs HIGH when A is greater than B"
+//         SymbolName = "A > B"
+//         Builder = astMapper TGt
+//         SignedAndUnsigned = true
+//      }
+//
+// let greaterThanOrEqual =
+//      {
+//         Name = "Greater Than or Equal"
+//         Class = ClassComparator "Outputs HIGH when A is greater than or equal to B"
+//         SymbolName = "A >= B"
+//         Builder = astMapper TGte
+//         SignedAndUnsigned = true
+//      }
+//      
+// let equals =
+//      {
+//          Name = "Equals"
+//          Class = ClassComparator "Outputs HIGH when A equals B"
+//          SymbolName = "A == B"
+//          Builder = astMapper TEq
+//          SignedAndUnsigned = false
+//      }
 
 // TODO(jpnock): Add more components in group phase
 let private defaultComps : DefaultComponent list = [
@@ -80,41 +127,6 @@ let private defaultComps : DefaultComponent list = [
         SignedAndUnsigned = true
      }
      {
-        Name = "Less Than"
-        Class = ClassComparator "Outputs HIGH when A is less than B"
-        SymbolName = "A < B"
-        Builder = astMapper TLt
-        SignedAndUnsigned = true
-     }
-     {
-        Name = "Less Than or Equal"
-        Class = ClassComparator "Outputs HIGH when A is less than or equal to B"
-        SymbolName = "A <= B"
-        Builder = astMapper TLte
-        SignedAndUnsigned = true
-     }
-     {
-        Name = "Greater Than"
-        Class = ClassComparator "Outputs HIGH when A is greater than B"
-        SymbolName = "A > B"
-        Builder = astMapper TGt
-        SignedAndUnsigned = true
-     }
-     {
-        Name = "Greater Than or Equal"
-        Class = ClassComparator "Outputs HIGH when A is greater than or equal to B"
-        SymbolName = "A >= B"
-        Builder = astMapper TGte
-        SignedAndUnsigned = true
-     }
-     {
-         Name = "Equals"
-         Class = ClassComparator "Outputs HIGH when A equals B"
-         SymbolName = "A == B"
-         Builder = astMapper TEq
-         SignedAndUnsigned = false
-     }
-     {
          Name = "Add"
          Class = ClassTwoInputOperator "Outputs the sum of A and B"
          SymbolName = "A + B"
@@ -125,7 +137,7 @@ let private defaultComps : DefaultComponent list = [
          Name = "Subtract"
          Class = ClassTwoInputOperator "Outputs the value of B subtracted from A"
          SymbolName = "A - B"
-         Builder = astMapper TAdd
+         Builder = astMapper TSub
          SignedAndUnsigned = false
      }
      {
@@ -149,12 +161,17 @@ let private makeTextAssertion : IComponent =
         }.makeSimpleComponents[0]
     {comp with DefaultState = {comp.DefaultState with AssertionText = Some ""}}
 
+let private comparatorComp : IComponent =
+    {
+        LibraryID = makeLibraryID (ClassComparator "") "Comparator"
+    } : ComparatorComponent
+
 let private components: IComponent list =
     let allDefaultComps =
         defaultComps
         |> List.collect (fun el -> el.makeSimpleComponents)
         |> List.map (fun el -> el.ToInterface)
-    List.concat [allDefaultComps; [makeTextAssertion]]
+    List.concat [allDefaultComps; [makeTextAssertion; comparatorComp]]
 
 type ComponentLibrary =
     { Components: Map<LibraryID, IComponent> }

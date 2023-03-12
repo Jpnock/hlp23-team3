@@ -312,6 +312,23 @@ let highlightCircuit fs comps wave (dispatch: Msg -> Unit) =
     let conns = connsOfWave fs wave 
     dispatch <| Sheet (SheetT.Msg.SelectWires conns)    
 
+let highlightFailedAssertionComps (model: Model) failedAssertions dispatch = 
+    let symbols = model.Sheet.Wire.Symbol.Symbols
+    let filter compId= 
+        match Map.tryFind compId symbols with
+        | Some _ -> true
+        | _ -> false
+
+    let filteredCompIds = 
+        failedAssertions
+        |> List.map (fun fa -> fa.CompId)
+        |> List.filter filter 
+    
+    match filteredCompIds with
+    | [] -> ()
+    | _ ->
+        dispatch <| Sheet (SheetT.HighlightFailedAssertions filteredCompIds)
+
 /// Create label of waveform name for each selected wave.
 /// Note that this is generated after calling selectedWaves. Any changes to this function
 /// must also be made to valueRows and waveRows, as the order of the waves matters here.
@@ -342,7 +359,7 @@ let nameRows (model: Model) (wsModel: WaveSimModel) dispatch: ReactElement list 
                                 |> List.map (fun (_,sym) -> sym.Component)
                                 |> List.filter (function | {Type=IOLabel;Label = lab'} when lab' = lab -> true |_ -> false)
                                 |> List.map (fun comp -> ComponentId comp.Id)
-                            highlightCircuit wsModel.FastSim labelComps wave dispatch                            
+                            highlightCircuit wsModel.FastSim labelComps wave dispatch
                         | Some sym ->
                             highlightCircuit wsModel.FastSim [fst wave.WaveId.Id] wave dispatch
                         | None -> ()
@@ -1057,8 +1074,12 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                         ]
 
                     match getCurrAssertionFailuresWaveSim(wsModel) with
-                    | [] -> reactChildren
-                    | _ -> [assertionFaliersElement] @ [hr []] @ reactChildren
+                    | [] -> 
+                        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
+                        reactChildren
+                    | lst -> 
+                        highlightFailedAssertionComps model lst dispatch
+                        [assertionFaliersElement] @ [hr []] @ reactChildren
                     |> div [showWaveformsAndRamStyle] 
                         
                 hr []

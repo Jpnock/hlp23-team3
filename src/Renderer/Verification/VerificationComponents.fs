@@ -177,6 +177,15 @@ let private collectionMaxWithDefault<'t when 't: comparison> defaultValue (seque
     | 0 -> defaultValue
     | _ -> Seq.max sequence
 
+/// Updates the state of a component, such that
+/// all inputs are set to `signed`.
+let makeIOSigned signed state  =
+    {
+     state with
+        Inputs = state.Inputs |> Map.map (fun _ v -> {v with Signed = Some signed})
+        Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
+    }
+
 /// Represents a generic component that implements all features required for
 /// Assertion components. Implements IComponent.
 type SimpleComponent =
@@ -223,7 +232,7 @@ type ComparatorComponent =
         member this.GetName = "Comparator"
         member this.GetTooltipText =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
-        member this.GetDefaultState = {
+        member this.GetDefaultState = makeIOSigned false <| {
             ComponentState.Default with
                 ComparatorType = Some Eq
                 Inputs = IODefaults.TwoInputs
@@ -271,15 +280,6 @@ let signedDescription _ state =
 /// Helper function for creating a static description (regardless of state).
 let basicDescription description _ _ =
     description
-
-/// Updates the state of a component, such that
-/// all inputs are set to `signed`.
-let makeIOSigned signed state  =
-    {
-     state with
-        Inputs = state.Inputs |> Map.map (fun _ v -> {v with Signed = Some signed})
-        Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
-    }
 
 /// Helper function for creating component state, with
 /// defaults applied.

@@ -417,13 +417,14 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
             "Goto sheet with failure"
 
     let onClickFunc (_ : Browser.Types.MouseEvent) =
+        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
         dispatch (StartUICmd ChangeSheet)
         printfn "Starting UI Cmd"
         dispatch <| ExecFuncInMessage(
             (fun model dispatch -> 
                 let p = Option.get model.CurrentProj
                 FileMenuView.openFileInProject fa.Sheet p model dispatch), dispatch)
-
+        
     let buttonProps = [
         Button.Color IsInfo
         Button.Disabled(fa.Sheet = project.OpenFileName)
@@ -776,6 +777,7 @@ let viewSimulation canvasState model dispatch =
         let endSimulation _ =
             dispatch CloseSimulationNotification // Close error notifications.
             dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
+            dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
             dispatch EndSimulation // End simulation.
             dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
             
@@ -784,8 +786,12 @@ let viewSimulation canvasState model dispatch =
             | Error _ -> div [] []
             | Ok simData ->
                 match getCurrAssertionFailuresStepSim(simData) with
-                | [] -> div [] []
-                | assertionList -> viewFailedAssertions assertionList model dispatch
+                | [] -> 
+                    dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
+                    div [] []
+                | assertionList -> 
+                    ModelHelpers.highlightFailedAssertionComps model assertionList dispatch
+                    viewFailedAssertions assertionList model dispatch
 
         div [Style [Height "100%"]] [
                 Button.button

@@ -944,9 +944,38 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             match VerificationComponents.implementsVariableWidth p with
             | Some _ -> Some (makeNumberOfBitsField model comp text dispatch)
             | _ -> None
+        
         let comparator =
-            Some (makeComparatorDropdown model dispatch comp p)
-        let all = [varWidth; comparator]
+            match p.ComparatorType with
+            | Some _ -> Some (makeComparatorDropdown model dispatch comp p)
+            | _ -> None
+        
+        let reactElementForSign portName portNum currentVal =
+            div [] [
+            Checkbox.checkbox [] [
+                Checkbox.input [ Props [
+                    Style [ MarginRight "5px"; MarginBottom "1rem" ]
+                    Checked currentVal
+                    OnChange (fun checkbox ->
+                        model.Sheet.ChangeInputSignedness (Sheet >> dispatch) (ComponentId comp.Id) portNum checkbox.Checked
+                    )
+                ] ]
+                str $"{portName} is Signed"
+            ]]
+        
+        let makeSection title (body: ReactElement list) =
+            match body with
+            | [] -> None
+            | _ -> Some (readOnlyFormField title (div [] body))
+        
+        let inputsWithSign =
+            p.Inputs
+            |> Map.filter (fun _ v -> v.Signed.IsSome) 
+            |> Map.toList
+            |> List.map (fun (port, input) -> reactElementForSign input.Name port input.Signed.Value)
+            |> makeSection "Input configuration"
+            
+        let all = [inputsWithSign; varWidth; comparator]
         div [] (
            Seq.choose id all
            |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])

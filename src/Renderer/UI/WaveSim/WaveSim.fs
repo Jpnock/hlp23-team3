@@ -312,23 +312,6 @@ let highlightCircuit fs comps wave (dispatch: Msg -> Unit) =
     let conns = connsOfWave fs wave 
     dispatch <| Sheet (SheetT.Msg.SelectWires conns)    
 
-let highlightFailedAssertionComps (model: Model) failedAssertions dispatch = 
-    let symbols = model.Sheet.Wire.Symbol.Symbols
-    let filter compId= 
-        match Map.tryFind compId symbols with
-        | Some _ -> true
-        | _ -> false
-
-    let filteredCompIds = 
-        failedAssertions
-        |> List.map (fun fa -> fa.CompId)
-        |> List.filter filter 
-    
-    match filteredCompIds with
-    | [] -> ()
-    | _ ->
-        dispatch <| Sheet (SheetT.HighlightFailedAssertions filteredCompIds)
-
 /// Create label of waveform name for each selected wave.
 /// Note that this is generated after calling selectedWaves. Any changes to this function
 /// must also be made to valueRows and waveRows, as the order of the waves matters here.
@@ -1077,8 +1060,8 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                     | [] -> 
                         dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
                         reactChildren
-                    | lst -> 
-                        highlightFailedAssertionComps model lst dispatch
+                    | assertionList -> 
+                        highlightFailedAssertionComps model assertionList dispatch
                         [assertionFaliersElement] @ [hr []] @ reactChildren
                     |> div [showWaveformsAndRamStyle] 
                         

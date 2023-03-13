@@ -824,6 +824,7 @@ let private mapInputPortIdsToVirtualConnectionIds (conns: Connection list) (comp
 let inferConnectionsWidth
         ((comps: Component list,conns: Connection list) : CanvasState)
         : Result<ConnectionsWidth, WidthInferError> =
+    printfn "Connectionss: %A" (List.length conns)
     let start = TimeHelpers.getTimeMs()
     let connectionsWidth = initialiseConnectionsWidth conns // start with all as None 
     match mapInputPortIdsToVirtualConnectionIds conns comps with

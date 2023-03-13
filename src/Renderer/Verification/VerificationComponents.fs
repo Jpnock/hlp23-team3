@@ -69,6 +69,7 @@ type ComponentState =
       Inputs: Map<InputPortNumber, ComponentInput>
       Outputs: Map<OutputPortNumber, ComponentOutput>
       AssertionText: string option
+      AssertionDescription: string option
       IsInput: bool option
       ComparatorType: ComparatorType option }
     static member Default : ComponentState = {
@@ -77,6 +78,7 @@ type ComponentState =
         Inputs = Map.empty
         Outputs = Map.empty
         AssertionText = None
+        AssertionDescription = None
         IsInput = None
         ComparatorType = None
     }
@@ -265,7 +267,7 @@ type ComparatorComponent =
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for comparator {state.ComparatorType}"
-            
+
 
 // Helper function for dynamically generating the description of a
 // signed component, based on its state.

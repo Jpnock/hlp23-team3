@@ -47,9 +47,14 @@ type DefaultComponent = {
         let baseComp =
             makeSimpleComponentConcrete outputs inputs this.Name this.MakeID this.SymbolName description tooltip this.Builder
         
+        let assertState =
+            match this.Class with
+            | ClassAssert _ -> {baseComp with DefaultState = {baseComp.DefaultState with AssertionDescription = Some ""}}
+            | _ -> baseComp
+        
         match this.SignedAndUnsigned with
-        | false -> [baseComp]
-        | true -> [{baseComp with DefaultState = baseComp.DefaultState |> makeIOSigned false}]
+        | false -> [assertState]
+        | true -> [{assertState with DefaultState = assertState.DefaultState |> makeIOSigned false}]
 
 // let lessThan =
 //      {
@@ -141,7 +146,7 @@ let private defaultComps : DefaultComponent list = [
          SignedAndUnsigned = false
      }
      {
-         Name = "Assert HIGH"
+         Name = "Assert HIGH (Visual)"
          Class = ClassAssert "Raises an assertion if the input is not HIGH"
          SymbolName = "Assert\nHIGH"
          Builder = noAssertion
@@ -153,13 +158,19 @@ let private defaultComps : DefaultComponent list = [
 let private makeTextAssertion : IComponent =
     let comp =
         {
-            Name = "Text Assert HIGH"
+            Name = "Assert HIGH (Text)"
             Class = ClassNoIO "Evaluates the provided expression and raises an assertion if the result is not HIGH"
             SymbolName = "Text\nAssertion"
             Builder = noAssertion
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]
-    {comp with DefaultState = {comp.DefaultState with AssertionText = Some ""}}
+    {
+        comp with DefaultState = {
+            comp.DefaultState with
+                AssertionText = Some ""
+                AssertionDescription = Some ""
+        }
+    }
 
 let private comparatorComp : IComponent =
     {

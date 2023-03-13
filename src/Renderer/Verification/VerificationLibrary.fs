@@ -165,11 +165,7 @@ let private makeTextAssertion : IComponent =
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]
     {
-        comp with DefaultState = {
-            comp.DefaultState with
-                AssertionText = Some ""
-                AssertionDescription = Some ""
-        }
+        comp with DefaultState = { comp.DefaultState with AssertionText = Some ""; AssertionDescription = Some "" }
     }
 
 let private comparatorComp : IComponent =

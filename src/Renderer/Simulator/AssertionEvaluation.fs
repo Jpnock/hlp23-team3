@@ -131,9 +131,9 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
             | Value (Int int)->  Int int
             | Value (Uint uint) -> Uint uint
             | Value (Bool bool) -> Bool bool
-            | Id (id, _) -> 
+            | Id (id, portNumber) -> 
                 let fCompId = getFComponentId id (List.ofSeq fs.FComps.Values)
-                let data = fs.getSimulationData step fCompId (OutputPortNumber 0)
+                let data = fs.getSimulationData step fCompId (OutputPortNumber portNumber)
                 match data with 
                 | Data{Dat = fb; Width = _} ->  
                     match fb with 

@@ -55,7 +55,7 @@ let getType value =
 let getLitProperties (components: Component List) (lit: Lit) : Result<(AssertionTypes.Type * int), string> = 
     match lit with
     | Value value -> Ok(getType value, getLitMinSize value)
-    | Id id -> 
+    | Id (id, _) -> 
         let isRightComponent (comp: Component) = 
             match comp.Label, comp.Type with 
             | idComp, Viewer width when idComp = id -> Some(width)

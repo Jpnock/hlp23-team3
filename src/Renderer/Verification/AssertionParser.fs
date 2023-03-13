@@ -57,7 +57,8 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern "assertFalse" m -> addToken TAssertFalse m.Length 
         | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
             // identifiers
-            let idTok = Id m.Value |> TLit
+            // ln220: added 0 as a temporary fix to the fact that now output port number is fixed
+            let idTok = Id (m.Value, 0) |> TLit
             addToken idTok m.Length
         | RegexPattern "\(" m ->   addToken TLParen m.Length
         | RegexPattern "\)" m ->   addToken TRParen m.Length

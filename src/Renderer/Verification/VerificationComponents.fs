@@ -96,6 +96,10 @@ type SymbolDetails =
       Width: float
       // The colour of the symbol.
       Colour: string
+      // The port labels for each input.
+      InputLabels: string list
+      // The port labels for each output.
+      OutputLabels: string list
     }
     
 /// Abstracts the behaviour of any component behind an interface. This allows
@@ -167,7 +171,7 @@ module IODefaults =
 /// Defines helper defaults that are useful when constructing Component symbols.
 module SymbolDefaults =
     let GridSize = 30.0
-    let Width = 3.0 * GridSize
+    let Width = 3.5 * GridSize
     let Height = 2.0 * GridSize
     let Prefix = "VERI"
     let Colour = "rgb(175,220,120)"
@@ -187,6 +191,19 @@ let makeIOSigned signed state  =
         Inputs = state.Inputs |> Map.map (fun _ v -> {v with Signed = Some signed})
         Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
     }
+
+let inputPortLabels (state:ComponentState) =
+    match state.Inputs.IsEmpty with
+    | true -> []
+    | false ->
+        let highestPort =
+            state.Inputs.Keys
+            |> Seq.max
+        [0..highestPort]
+        |> List.choose (fun idx ->
+            match state.Inputs.TryFind idx with
+            | Some port -> Some port.Name
+            | None -> None)
 
 /// Represents a generic component that implements all features required for
 /// Assertion components. Implements IComponent.
@@ -209,7 +226,9 @@ type SimpleComponent =
               Prefix = SymbolDefaults.Prefix
               Height = SymbolDefaults.Height
               Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour }
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels state
+              OutputLabels = [] }
         member this.GetDescription state = this.DescriptionFunc this state
         member this.GetOutputWidths state inputPortWidths =
             // TODO(jpnock): Check logic
@@ -249,7 +268,9 @@ type ComparatorComponent =
               Prefix = SymbolDefaults.Prefix
               Height = SymbolDefaults.Height
               Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour }
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels state
+              OutputLabels = [] }
         member this.GetDescription state =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
         member this.GetOutputWidths state inputPortWidths = Map.map (fun _ _ -> 1) state.Outputs

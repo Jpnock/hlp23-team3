@@ -6,6 +6,7 @@
 
 module Simulator
 
+open AssertionTypes
 open CommonTypes
 open SimulatorTypes
 open SynchronousUtils
@@ -263,50 +264,61 @@ let rec startCircuitSimulation
         canvasComps
         |> List.choose (fun el ->
             match el.Type with
-            | Plugin state when state.AssertionText.IsSome -> state.AssertionText
+            | Plugin state -> state.AssertionText
             | _ -> None)
     
-    let assertionCompASTs : AssertionTypes.Assertion list =
+    // TODO(jpnock): Fix uses of this
+    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
+    
+    let assertionCompASTs : Result<AssertionTypes.Assertion, ErrorInfo> list =
         assertionComps
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
-            let compConnectedToAssert = componentIDToInputPortState[el.InstanceID.Value][0]
-            let ast = VerificationASTGen.generateAST componentIDToInputPortState compConnectedToAssert
-            let exprPos = {Line = 0; Col = 0; Length = 0} : AssertionTypes.Pos
-            let assertion = ast, exprPos
-            {AST = assertion})
+            let connectedToPort = componentIDToInputPortState.TryFind el.InstanceID.Value
+            match connectedToPort with
+            | None -> Error {
+                Message = "An assertion component was not driven by any inputs"
+                Line = 0
+                Col = 0
+                Length = 0
+                ExtraErrors = None }
+            | Some connectedTo ->               
+                let assertionInput = connectedTo[0]
+                let ast = VerificationASTGen.generateAST componentIDToInputPortState assertionInput
+                let assertion = ast, emptyPos
+                Ok {AST = assertion})
     
-    let assertionParseResults = List.map AssertionParser.parseAssertion assertionTexts
+    let assertionTextASTs =
+        List.map AssertionParser.parseAssertion assertionTexts
+        |> List.map (Result.map (fun expr -> { AssertionTypes.AST = expr, emptyPos }))
+    
+    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
     
     let resultFolder state result =
         match result with 
         | Ok expr -> (List.append [expr] <| fst state, snd state)
         | Error e -> (fst state, List.append [e] <| snd state)
 
-    let (assertionExprs, assertionErrors) = List.fold resultFolder ([], []) assertionParseResults
-
-    if assertionErrors.IsEmpty = false then
+    let (validASTs, astErrors) = List.fold resultFolder ([], []) allASTs
+    
+    if not astErrors.IsEmpty then
+        // TODO(jpnock): improve error output
         printf $"Not all assertions could be parsed:"
-        List.iter ( fun e -> printf $"{e}") assertionErrors
-
-    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
-    let assertionASTs = List.map (fun expr -> {AssertionTypes.AST = expr, emptyPos}) assertionExprs
-    let assertionTextASTs : AssertionTypes.Assertion list = assertionASTs
+        List.iter ( fun e -> printf $"{e}") astErrors
+   
+     
+    printf $"Got valid ASTs: {validASTs}"
     
-    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
-    
-    printf $"Got assertion ASTs {allASTs}"
-    
-    allASTs
+    validASTs
     |> List.map (fun el ->
         let pretty = AssertionParser.prettyPrintAST (fst el.AST) "" false
         printf $"Got AST:\n{pretty}")
     |> ignore
     
     let checkedASTs =
-        allASTs
+        validASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AST canvasComps)
-    
+        
     let goodASTs =
         checkedASTs
         |> List.choose (
@@ -315,8 +327,9 @@ let rec startCircuitSimulation
             | _ -> None)
     
     let finalAssertions =
-        if goodASTs.Length = checkedASTs.Length then allASTs
+        if goodASTs.Length = checkedASTs.Length then validASTs
         else
+            // TODO(jpnock): improve error output
             printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
             []
     

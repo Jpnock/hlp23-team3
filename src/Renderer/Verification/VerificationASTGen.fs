@@ -22,7 +22,7 @@ let getStateForInput (portToSource: Map<int, ComponentState>) inputNum =
 /// the AST is currently being built for.
 let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>) (state: ComponentState) : Expr =
     match state.IsInput with
-    | Some true -> Lit (Id state.Outputs[0].Name)
+    | Some true -> Lit (Id (state.Outputs[0].Name, 0))
     | _ ->
         printf $"Getting state for {state}"
         let componentPortMap = componentPortSources[state.InstanceID.Value]

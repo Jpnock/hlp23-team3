@@ -37,4 +37,4 @@ let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentState 
         state.Inputs
         |> Map.map (fun k _ -> getStateForInput componentPortMap k)
         |> Map.map (fun k cs -> generateAST componentPortSources (snd (componentPortSources[state.InstanceID.Value].[k])) cs)
-        |> componentBuilder.Build
+        |> componentBuilder.Build state 

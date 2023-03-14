@@ -357,7 +357,7 @@ let implementsVariableWidth (state : ComponentState) =
 let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput> =
     portIds
     |> List.zip widths 
-    |> List.mapi (fun i (width, name) -> (i, {IODefaults.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel}))
+     |> List.mapi (fun i (name, width) -> (i, {IODefaults.OutputX with Name = name; FixedWidth = None}))
     |> Map.ofList 
 
 /// Allows for components not registered in the library to be

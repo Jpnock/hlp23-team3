@@ -127,7 +127,9 @@ let getPortNumbers (sc: SimulationComponent) =
         | Custom ct -> ct.InputLabels.Length, ct.OutputLabels.Length
         | AsyncROM _ | RAM _ | ROM _ -> failwithf "legacy component type is not supported"
         | Input _ -> failwithf "Legacy Input component types should never occur"
-        | Plugin _ -> 0,0
+        | Plugin _ ->
+            // TODO(jpnock): maybe add support later for these
+            0,0
 
     ins, outs
 
@@ -461,9 +463,10 @@ let addComponentWaveDrivers (f:FastSimulation) (fc: FastComponent) (pType: PortT
     
     let ioLabelIsActive fc = f.FIOActive[ComponentLabel fc.FLabel, snd fc.fId].fId <> fc.fId
 
-    match pType with
-    | PortType.Output -> fc.Outputs
-    | PortType.Input -> fc.InputLinks
+    match pType, fc.FType with
+    | _, Plugin _ -> [||]
+    | PortType.Output, _ -> fc.Outputs
+    | PortType.Input, _ -> fc.InputLinks
     |> Array.mapi (fun pn stepA ->
         let index = stepA.Index
         let addDriver, addWave =

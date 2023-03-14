@@ -85,18 +85,13 @@ type Type =
     | UintType 
     | BoolType 
 
-// authored by ln220
-type Properties = {
-    Type: Type;
-    Size: int 
-}
 
 
 // TODO(jlsand): Might make sense to make this a result type, so that Result.bind can be used on it.
 // authored by ln220
 type CheckRes = 
     | ErrLst of CodeError list 
-    | Properties of Properties 
+    | TypeInfo of Type
 
 // TODO(jsand): This type is a (somewhat) duplicate of Expr.
 // However, there is not neccesarily a nice way of unifying the two types.

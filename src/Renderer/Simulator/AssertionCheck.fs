@@ -32,42 +32,26 @@ let (|IsBinExpr|_|) (expr: ExprInfo) =
     | Add(BinOp(l, r)), pos | Sub(BinOp(l, r)), pos | Mul(BinOp(l, r)), pos | Div(BinOp(l, r)), pos| Rem(BinOp(l, r)), pos -> Some(l, r, pos)
     | _ -> None
 
-let getLitMinSize lit = 
-    match lit with
-    | Int intN -> 
-        let n = float intN
-        (ceil >> int) (Math.Log (n, 2.) + 0.1) + 1
-    | Uint uint -> 
-        let n = float uint 
-        (ceil >> int) (Math.Log (n, 2.) + 0.1)
-    | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
-
-
-
 let getType value = 
     match value with 
     | Int _ -> IntType
     | Uint _ -> UintType 
     | Bool _ -> BoolType 
 
-
+// TODO ln220 move the check for the existance of the id somewhere else 
 /// get size of lit, if the id is not found in the schematics returns an error
-let getLitProperties (components: Component List) (lit: Lit) : Result<(AssertionTypes.Type * int), string> = 
+let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
-    | Value value -> Ok(getType value, getLitMinSize value)
+    | Value value -> Ok(getType value)
     | Id (id, _) -> 
         let isRightComponent (comp: Component) = 
-            match comp.Label, comp.Type with 
-            | idComp, Viewer width when idComp = id -> Some(width)
-            | idComp, Input1 (width,_) when idComp = id -> Some(width)
-            | idComp, Constant (width, _) when idComp = id -> Some(width)
-            | idComp, Constant1 (width, _, _) when idComp = id -> Some(width)
-            | idComp, _ when idComp = id -> Some(1) // TODO(jpnock): fix width
-            | _ -> None 
+            match comp.Label with 
+            | idComp when idComp = id -> true
+            | _ -> false 
 
-        List.choose isRightComponent components 
+        List.filter isRightComponent components 
         |> function 
-            | width::[] -> Ok(UintType, int width) 
+            | [c] -> Ok(UintType) 
             | [] -> Error($"the ID {id} does not exist") 
             | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
 
@@ -77,13 +61,13 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     let propagateError (leftRes: CheckRes) (rightRes: CheckRes) =
         let toErr =
             function
-            | Properties _ -> []
+            | TypeInfo _ -> []
             | ErrLst e -> e
 
         toErr leftRes @ toErr rightRes
     
     let hetTypesErr () =
-        "This function can't be applied on value of different types"
+        "This function can't be applied on a bool variable and a non-bool variable"
 
     let invTypesErr () = "Types not supported by this function"
     
@@ -91,52 +75,30 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         let msg = errType () + ". left expr is of type: " + string leftType + if rightType.IsNone  then "" else (". Right expr is of type: " + string (Option.defaultValue UintType rightType))
         ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
 
-    let makeSizeError leftSize rightSize pos = 
-        let msg = "The buses have different widths. Left expr is of size: " + string leftSize + if rightSize = 0 then "" else (". Right expr is of size: " + string rightSize)
-        ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
-        
-
+    //let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
     let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
         let exprRes = checkAST castExpr components
         match exprRes with 
-        | Properties {Type = BoolType; Size = _} when castSize.IsSome -> 
+        | TypeInfo BoolType when castSize.IsSome -> 
             makeTypeError invTypesErr BoolType None pos
-        | Properties {Type = t ; Size = size} -> 
-            Properties {Type = Option.defaultValue t castType; Size = Option.defaultValue size castSize} 
+        | TypeInfo t -> 
+            TypeInfo (Option.defaultValue t castType)
         | _ -> exprRes //propagate error
 
-    let checkSize exprL exprR propertiesL propertiesR pos makesBool = 
-        let checkLit sizeLit sizeOther typeOther left= 
-            if sizeLit <= sizeOther 
-            then Properties{Type = (if makesBool then BoolType else typeOther); Size = sizeOther}
-            else 
-                if left
-                then makeSizeError sizeLit sizeOther pos //make this better (with a general function that also prints the sizes on the left and on the right)
-                else makeSizeError sizeOther sizeLit pos
-    
-        match propertiesL, propertiesR with 
-        | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
-            match exprL, exprR with 
-            | (Lit (Value valL), _), (Lit (Value valR), _) -> Properties{Type = typeL; Size = max sizeL sizeR}
-            | (Lit (Value valL), _), _ -> checkLit sizeL sizeR typeR true
-            | _, (Lit (Value valR), _) -> checkLit sizeR sizeL typeL false
-            | _, _ -> 
-                printfn "creating error potentially"
-                if sizeL = sizeR then propertiesL else makeSizeError sizeL sizeR pos
-        | _ -> ErrLst (propagateError propertiesL propertiesR)
 
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  
         match leftChecked, rightChecked with
-        | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
+        | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = typeR && typeL = BoolType
             then
                 if supportsBool 
                 then leftChecked
                 else makeTypeError invTypesErr typeL (Some typeR) pos
-            elif typeL = typeR 
-            then checkSize l r leftChecked rightChecked pos makesBool
+            elif typeL <> BoolType && typeR <> BoolType 
+            //then checkSize l r leftChecked rightChecked pos makesBool
+            then leftChecked 
             else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
@@ -144,13 +106,13 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | IsUnary op -> 
         let opRes = checkAST op components
         match opRes with 
-        | Properties _ -> opRes 
+        | TypeInfo _ -> opRes 
         | _ -> failwithf "should not happen" 
     | RequiresBool (l, r, pos) -> // check that operand(s) are bool 
         let leftRes = checkAST l components
         let rightRes = checkAST r components 
         match leftRes, rightRes with 
-        | Properties {Type = typeL; Size = _}, Properties {Type = typeR; Size =_} -> 
+        | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = BoolType && typeL = typeR 
             then leftRes // it's not important what is passed, it's enough to pass type and size information 
             else makeTypeError invTypesErr typeL (Some typeR) pos
@@ -158,8 +120,8 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
     | IsBinExpr (l, r, pos) -> checkBin l r pos false false
     | Lit lit, pos -> 
-        match getLitProperties components lit with 
-            | Ok(litType, size) -> Properties {Type = litType; Size = size}
+        match checkLitExistance components lit with 
+            | Ok(litType) -> TypeInfo litType
             | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
     | Cast cast, pos -> 
         match cast with

@@ -123,8 +123,8 @@ let testCheck2 (): Result<string, string> =
     let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16} 
     let compile = checkAST tree [comp]
     match compile with
-    | Properties {Type = t; Size = s} when t = BoolType && s = 1 -> Ok($"The expr: {print tree} was successfully compiled. It has type {t} and size {s}")
-    | Properties {Type = t; Size = s} -> Error($"Wrong evaluation of the following expression: {print tree}. It was expected to have type Bool and size 1, but it has type {t} and size {s} instead ")
+    | TypeInfo t  when t = BoolType -> Ok($"The expr: {print tree} was successfully compiled. It has type {t}")
+    | TypeInfo  t -> Error($"Wrong evaluation of the following expression: {print tree}. It was expected to have type Bool and size 1, but it has type {t} instead ")
     | ErrLst e -> Error($"the compilation of {print tree} failed and it wrongly detected the following errors: {e}")  
 
 
@@ -141,7 +141,7 @@ let testCheck3 (): Result<string, string> =
 
     let compile = checkAST eqExpr [compA; compB]
     match compile with
-    | Properties {Type = t; Size = s}-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
+    | TypeInfo  t-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
         if e.Head = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 5"; Pos = {Line = 0; Col = 7; Length = 5}; ExtraErrors = None} 
         then Ok($"the expression: {print eqExpr} does not compile as it is trying to add buses of different widths")
@@ -160,7 +160,7 @@ let testCheck4 (): Result<string, string> =
 
     let compile = checkAST eqExpr [compA; compB]
     match compile with
-    | Properties {Type = t; Size = s}-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
+    |  TypeInfo t -> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
         if e.Head = {Msg = "This function can't be applied on value of different types. left expr is of type: UintType. Right expr is of type: BoolType"; Pos = {Line = 0; Col = 7; Length = 8}; ExtraErrors = None} 
         then Ok($"the expression: {print eqExpr} does not compile as it is trying to add buses of different widths")

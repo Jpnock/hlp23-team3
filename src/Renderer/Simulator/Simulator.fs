@@ -299,7 +299,7 @@ let rec startCircuitSimulation
         checkedASTs
         |> List.choose (
             function
-            | AssertionTypes.Properties properties -> Some properties
+            | AssertionTypes.TypeInfo typeInfo-> Some typeInfo 
             | _ -> None)
     
     let finalAssertions =

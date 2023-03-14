@@ -52,79 +52,76 @@ let getFComponentId label components =
             | _ -> failwithf "should not happen"
     compId
 
-let getLitProperties (components: FastComponent List) lit = 
+let getLitType (components: FastComponent List) lit = 
     match lit with
-    | Value value -> getType value, getLitMinSize value 
-    | Id (id, _) -> 
-        let width = 
-            let isRightComponent (comp: FastComponent) = 
-                match comp.FLabel, comp.FType with 
-                | idComp, Viewer width when idComp = id -> Some(width)
-                | idComp, Input1 (width,_) when idComp = id -> Some(width)
-                | idComp, Constant (width, _) when idComp = id -> Some(width)
-                | idComp, Constant1 (width, _, _) when idComp = id -> Some(width)
-                | idComp, _ when idComp = id -> Some(1) // TODO(jpnock): fix width
-                | _ -> None
-            List.choose isRightComponent components 
-            |> function 
-                | [id] -> id 
-                | [] -> failwithf "the component is not in the list" // TODO make an actual error message as this is a user error
-                | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
-        UintType, int width
+    | Value value -> getType value
+    | Id _ -> UintType // the existance of the id has been checked in the compilation
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
-let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size= 
+let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string> =
     let resizeRes (size: Size) res = 
         match res, size with 
-        | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1))))), size
-        | Int pos, Size s -> Int (min pos (int (2. ** float (s- 1)) - 1)), size
-        | Uint v, Size s -> Uint (min v (uint (2. ** float s) - 1u)), size  
-        | _ -> res, size 
+        | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1)))))
+        | Int pos, Size s -> Int (min pos (int (2. ** float (s- 1)) - 1))
+        | Uint v, Size s -> Uint (min v (uint (2. ** float s) - 1u))
+        | _ -> res
 
     // can definitely be improved and abstracted more (maybe put together unOp and binOp)
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
-            let leftRes, sizeL = evaluate l fs step
-            let rightRes, sizeR = evaluate r fs step
+            let leftRes = evaluate l fs step
+            let rightRes= evaluate r fs step
             printf "evaluated %A %A" leftRes rightRes
             printf "from %A %A" l r
 
             let value = 
                 match leftRes, rightRes with
-                | Int op1, Int op2 ->
+                // all this repeated code is required as type inference does not allow to put the different conditions as the same one 
+                | Ok(Int op1), Ok(Int op2) -> 
                     match fInt with
-                    | Some(ItB f) -> Bool(f op1 op2)
-                    | Some(ItI f) -> Int(f op1 op2)
-                    // here I can have both operands being int but maybe the function one that can only be applied to bools or stuff like this
-                    | _ -> failwithf "should not happen"
-                | Uint op1, Uint op2 ->
+                    | Some(ItB f) -> Ok(Bool(f  op1 op2))
+                    | Some(ItI f) -> Ok(Int(f op1 op2))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Int op1), Ok(Uint op2) -> 
+                    match fInt with
+                    | Some(ItB f) -> Ok(Bool(f op1 (int op2)))
+                    | Some(ItI f) -> Ok(Int(f op1 (int op2)))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Uint op1), Ok(Int op2) ->
+                    match fInt with
+                    | Some(ItB f) -> Ok(Bool(f (int op1) op2))
+                    | Some(ItI f) -> Ok(Int(f (int op1) op2))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Uint op1), Ok(Uint op2) ->
                     match fUint with
-                    | Some(UtB f) -> Bool(f op1 op2)
-                    | Some(UtU f) -> Uint(f op1 op2)
-                    | _ -> failwithf "should not happen" 
-                | Bool op1, Bool op2 ->
+                    | Some(UtB f) -> Ok(Bool(f op1 op2))
+                    | Some(UtU f) -> Ok(Uint(f op1 op2))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Bool op1), Ok(Bool op2) ->
                     match fBool with
-                    | Some(BtB f) -> Bool(f op1 op2)
-                    | _ -> failwithf "should not happen" 
-                | _ -> failwithf "should not happen" 
-            resizeRes sizeL value 
+                    | Some(BtB f) -> Ok(Bool(f op1 op2))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Error(e1), Error(e2) -> Error(e1+e2)
+                | Error(e1), _ -> Error(e1)
+                | _, Error(e2)  -> Error(e2)
+            value 
         | UnOp op ->
-            let opEvald, size = evaluate op fs step
+            let opEvald = evaluate op fs step
 
             match opEvald with
-            | Int op ->
+            | Ok(Int op) ->
                 match fInt with
-                | Some(ItIUn f) -> Int(f op), size
-                | _ -> failwithf "should not happen" 
-            | Uint op ->
+                | Some(ItIUn f) -> Ok(Int(f op))
+                | _ -> Error("should not happen")
+            | Ok(Uint op) ->
                 match fUint with
-                | Some(UtUUn f) -> Uint(f op), size
-                | _ -> failwithf "should not happen" 
-            | Bool op->
+                | Some(UtUUn f) -> Ok(Uint(f op))
+                | _ ->Error("should not happen" )
+            | Ok(Bool op)->
                 match fBool with
-                | Some(BtBUn f) -> Bool(f op), size
-                | _ -> failwithf "should not happen" 
+                | Some(BtBUn f) -> Ok(Bool(f op))
+                | _ -> Error("should not happen")
     
     match tree with
     | Lit lit, _ ->
@@ -142,8 +139,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
                     | Word w -> Uint w
                     | _ -> failwithf "not supported yet"
                 | _ -> failwithf "should not happen"
-        let _, size = getLitProperties (List.ofSeq fs.FComps.Values) lit
-        value, Size size
+        Ok(value)
 
     | Cast c, _ ->
         match c with
@@ -152,13 +148,21 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
         | ToBool e -> cast e "bool" fs step
 
     | BusCast (destSize, e), _-> 
-        let value, _ = evaluate e fs step
-        resizeRes (Size destSize) value
+        let value= evaluate e fs step
+        value
 
     | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
     | Sub ops, _ -> ExprEval (Some(ItI (-))) (Some(UtU (-))) None ops  
     | Mul ops, _ -> ExprEval (Some(ItI (*))) (Some(UtU (*))) None ops  
-    | Div ops, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) None ops  
+    | Div ops, _ -> 
+        match ops with 
+        | BinOp (l, r) -> 
+            let left = evaluate l fs step 
+            let right = evaluate r fs step 
+            match left, right with 
+            | _, Ok(Int 0) -> Error("division by 0 attempted")
+            | _, Ok(Uint 0u) -> Error("division by 0 attempted")
+            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) None ops  
     | Rem ops, _ -> ExprEval (Some(ItI (%))) (Some(UtU (%))) None ops  
     | BitAnd ops, _ -> ExprEval (Some(ItI (&&&))) (Some(UtU (&&&))) None ops 
     | BitOr ops, _ -> ExprEval (Some(ItI (|||))) (Some(UtU (|||))) None ops 
@@ -180,17 +184,17 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Value * Size=
     // i think that it's better probably to do and (for efficiency reasons i wonder)
 and cast expr castType fs step=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
-    let castExprEvaluated, size= evaluate expr fs step
+    let castExprEvaluated= evaluate expr fs step
     let value = 
         match castExprEvaluated, castType with
-        | Int int, "uint" -> Uint(uint int)
-        | Int int, "bool" -> Bool(intToBool int)
-        | Bool bool, "uint" -> Uint(boolToUint bool)
-        | Bool bool, "int" -> Int(boolToInt bool)
-        | Uint uint, "int" -> Int(int uint)
-        | Uint uint, "bool" -> Bool(uintToBool uint)
+        | Ok(Int int), "uint" -> Ok(Uint(uint int))
+        | Ok(Int int), "bool" -> Ok(Bool(intToBool int))
+        | Ok(Bool bool), "uint" -> Ok(Uint(boolToUint bool))
+        | Ok(Bool bool), "int" -> Ok(Int(boolToInt bool))
+        | Ok(Uint uint), "int" -> Ok(Int(int uint))
+        | Ok(Uint uint), "bool" -> Ok(Bool(uintToBool uint))
         | _, _ -> castExprEvaluated
-    value, size
+    value
 //maybe make r an option to reduce the code? if it's present do binary else unary
 
 
@@ -208,13 +212,18 @@ type FailedAssertion = {
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
     let evalTree step (assertion:Assertion) = 
-        let value, size = evaluate assertion.AssertExpr fs step
+        let value= evaluate assertion.AssertExpr fs step
         match value with 
-        | Bool true -> None 
-        | Bool false ->
+        | Ok(Bool true) -> None 
+        | Ok(Bool false) ->
             let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
             Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
-        | _ -> failwithf "the top level expression should return a bool"
+        | Ok(e) -> 
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
+            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return a bool but it returned: {e}s\n"; Sheet = "Not implemented"} 
+        | Error(e) -> 
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
+            Some {Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = "Not implemented"} 
     let evalAllAssertions assertions n = 
         assertions
         |> List.choose (evalTree n)

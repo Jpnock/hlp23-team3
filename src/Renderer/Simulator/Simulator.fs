@@ -195,7 +195,11 @@ let rec startCircuitSimulation
     
     let makeState =
         VerificationComponents.makeStateFromExternalInputComponent
-        
+
+    let getPortNames comp : string List = 
+        comp.OutputPorts 
+        |> List.map (fun oP -> oP.Id) 
+
     let getSourceComponentState componentId =
         let source = componentMap[componentId]
         match source.Type with

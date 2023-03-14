@@ -93,10 +93,11 @@ type CodeEditorReactStatefulComponent (props) =
     inherit Component<CERSCProps, CERSCState> (props)
     
     do base.setInitState(
+        printfn "Setting init state"
         let codeType = Option.get <| Optic.get code_type_ props.DialogData 
         match codeType with 
-        | VerilogCode _ -> { code = "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" }
-        | AssertionCode -> { code = props.CurrentCode }
+        | VerilogCode _ -> { code = "modul NAM1(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" }
+        | AssertionCode -> { code = "// Get started by writing your assertions below! Here's a few examples: \n\n // signed(5'b) >= (a - 25) * 2 \n\n" }
     )
 
     // override this.shouldComponentUpdate (nextProps,nextState) =

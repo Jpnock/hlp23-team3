@@ -94,29 +94,31 @@ type CheckRes =
 // at all. 
 type TokenType = 
     | TLit of Lit
-    | TAdd       // +
-    | TSub       // -
-    | TMul       // *
-    | TDiv       // /
-    | TRem       // %
-    | TBitAnd    // &
-    | TBitNot    // ~
-    | TBitOr     // |
-    | TEq        // ==
-    | TNeq       // !=
-    | TLt        // <
-    | TGt        // >
-    | TGte       // >=
-    | TLte       // <=
-    | TLogAnd    // &&
-    | TLogNot    // ! 
-    | TLogOr     // ||
-    | TLParen    // (
-    | TRParen    // )
-    | TSigned    // signed
-    | TUnsigned  // unsigned
-    | TBool      // bool
-    | TBusCast of int // '
+    | TAdd              // +
+    | TSub              // -
+    | TMul              // *
+    | TDiv              // /
+    | TRem              // %
+    | TBitAnd           // &
+    | TBitNot           // ~
+    | TBitOr            // |
+    | TEq               // ==
+    | TNeq              // !=
+    | TLt               // <
+    | TGt               // >
+    | TGte              // >=
+    | TLte              // <=
+    | TLogAnd           // &&
+    | TLogNot           // ! 
+    | TLogOr            // ||
+    | TLParen           // (
+    | TRParen           // )
+    | TSigned           // signed
+    | TUnsigned         // unsigned
+    | TBool             // bool
+    | TAssertTrue       // assertTrue
+    | TAssertFalse      // assertFalse
+    | TBusCast of int   // '
 
 type Token = {
     Type: TokenType

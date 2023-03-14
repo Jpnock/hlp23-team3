@@ -34,6 +34,9 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern "( |\t)+" m -> 
             // Similar concept for white space
             lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
+        | RegexPattern "\/\/[^\n\r]+" m -> 
+            // Single line comment
+            lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
         | RegexPattern "[1-9]\d*'" m ->
             let matchedStr = m.Value;
             let width = System.Int32.Parse <| matchedStr.Remove (matchedStr.Length - 1)
@@ -43,13 +46,15 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
                 Pos = {Line = curLine; Col = curCol; Length = m.Length}
                 Msg = "Remember to specify a width for the bus cast"
             }
-        | RegexPattern "[1-9]\d*" m -> 
+        | RegexPattern "([1-9]\d*|0x([0-9]|[A-F])+|0b(0|1)+)" m -> 
             // integer literals
             let intTok = System.Int32.Parse m.Value |> Int |> Value |> TLit 
             addToken intTok m.Length
         | RegexPattern "signed" m -> addToken TSigned m.Length 
         | RegexPattern "unsigned" m -> addToken TUnsigned m.Length 
         | RegexPattern "bool" m -> addToken TBool m.Length 
+        | RegexPattern "assertTrue" m -> addToken TAssertTrue m.Length 
+        | RegexPattern "assertFalse" m -> addToken TAssertFalse m.Length 
         | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
             // identifiers
             let idTok = Id m.Value |> TLit
@@ -162,7 +167,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                     Ok {parenExpr with RemainingTokens = popToken parenExpr.RemainingTokens}
             Result.bind handleEndOfParen parenthisedExpr
 
-        let handleCast castType =
+        let handleFunctionCall functionType =
             if List.isEmpty tokens' then
                 Error { Msg = "Expected a subsequent left-parenthesis"; Pos = token.Pos }
             else 
@@ -171,7 +176,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                 | TLParen -> 
                     handleParens lParenToken <| popToken tokens' 
                     |> Result.bind (fun parenExpr ->
-                        let castExpr = Cast (castType (parenExpr.Expr, token.Pos))
+                        let castExpr = Cast (functionType (parenExpr.Expr, token.Pos))
                         Ok {parenExpr with Expr = castExpr}
                     )
                 | _ -> 
@@ -190,9 +195,10 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
             let litExpr = Expr.Lit l
             Ok {Expr = litExpr ; RemainingTokens = tokens'}
         | TLParen -> handleParens token tokens'
-        | TSigned -> handleCast ToSigned
-        | TUnsigned -> handleCast ToUnsigned
-        | TBool -> handleCast ToBool
+        | TSigned -> handleFunctionCall ToSigned
+        | TUnsigned -> handleFunctionCall ToUnsigned
+        | TBool -> handleFunctionCall ToBool
+        //| TAssertTrue -> handleFunctionCall  
         | TAdd -> handleUnaryOp Add
         | TSub -> handleUnaryOp Sub
         | TBusCast width ->

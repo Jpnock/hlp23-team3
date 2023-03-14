@@ -198,6 +198,7 @@ and cast expr castType fs step=
 /// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
 /// Authored by djj120
 type FailedAssertion = {
+    Name: string
     Cycle: int
     FailureMessage: string
     Sheet: string
@@ -219,11 +220,11 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
     //     |> List.choose (evalTree n)
     // [startCycle..endCycle]
     // |> List.collect (evalAllAssertions fs.Assertions)
-    let failedAssertion0 = { Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
-    let failedAssertion1 = { Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
-    let failedAssertion2 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
-    let failedAssertion3 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...2"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
-    let failedAssertion4 = { Cycle = 7; FailureMessage = "Comp blah balh failed blah...3"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
+    let failedAssertion0 = { Name = "test1"; Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
+    let failedAssertion1 = { Name = "test2"; Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
+    let failedAssertion2 = { Name = "test3"; Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
+    let failedAssertion3 = { Name = "test4"; Cycle = 7; FailureMessage = "Comp blah balh failed blah...2"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
+    let failedAssertion4 = { Name = "test5"; Cycle = 7; FailureMessage = "Comp blah balh failed blah...3"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
     [failedAssertion0; failedAssertion1; failedAssertion2; failedAssertion3; failedAssertion4]
 
 /// return the integers of the cycles with failed assertions given a list of failed assertions

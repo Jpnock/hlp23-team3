@@ -474,16 +474,17 @@ let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Mode
                         Color "#363636"
                         Border "1px solid"
                         BorderColor "#dbdbdb"
-                        Width "50%"
+                        Width "100%"
                     ]
                 ]
             ] [
-
+            
+            let selectedDisplay = faList[protectedDisplayedIndex].Sheet + " - " + faList[protectedDisplayedIndex].Name
             Navbar.Link.a [
                 Navbar.Link.Option.Props [
                     Style [Width "100%"]
                 ]
-            ] [ str faList[protectedDisplayedIndex].Name ]
+            ] [ selectedDisplay |> str ]
             Dropdown.menu [Props [Style [Width "100%"]]] [
                 Dropdown.content [Props [Style [ZIndex 1000]]] [
                     Dropdown.Item.div [] [

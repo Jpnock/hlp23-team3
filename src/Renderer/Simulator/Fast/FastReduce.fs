@@ -234,8 +234,7 @@ let fastReduce (maxArraySize: int) (numStep: int) (isClockedReduction: bool) (co
 
     // reduce the component in this match
     match componentType with
-    | Plugin _ ->
-        failwithf "Verification is performed outside of simulation"
+    | Plugin _ -> ()
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->

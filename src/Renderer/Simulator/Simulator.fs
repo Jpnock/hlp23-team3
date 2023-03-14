@@ -181,28 +181,62 @@ let rec startCircuitSimulation
     // as this logic is performed outside of the simulator.
     let canvasComps, canvasConnections = fullCanvasState 
     
-    let isTypeVerificationComp =
-        function
-        | Plugin _ -> true
-        | _ -> false
+    let componentMap =
+        canvasComps
+        |> List.map (fun el -> el.Id, el)
+        |> Map.ofList
+    
+    let isTypeVerificationComp = function | Plugin _ -> true | _ -> false
     
     let verificationCompMap =
         canvasComps
         |> List.map (fun comp -> comp.Id, isTypeVerificationComp comp.Type)
         |> Map.ofList
     
+    let isAssertionComponent (comp:Component) =
+        match comp.Type with
+        | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
+            Some (comp.Id, state)
+        | _ -> None
+    
+    let assertionCompsAndIDs =
+        List.choose isAssertionComponent canvasComps
+    
+    let assertionComps = List.map snd assertionCompsAndIDs
+    let assertionCompIDs = Map.ofList assertionCompsAndIDs
+    
+    let printAndReturn msg p =
+        printf $"{p} {msg}"
+        p
+    
+    let isConnectedToVerificationComponent (outputPort: Port) =
+        canvasConnections
+        |> List.tryFind (fun el -> el.Source.Id = outputPort.Id)
+        |> Option.map (fun el -> printf $"found connection in list {el}"; el)
+        |> Option.map (fun conn ->
+            verificationCompMap.TryFind conn.Target.HostId |> Option.defaultValue false)
+        |> Option.defaultValue false
+    
+    let shouldRemoveNormalComp (comp: Component) =
+        printf $"Looking at {comp.Label}"
+        match comp.Type with
+        | Input _
+        | Input1 _
+        | Constant1 _
+        | IOLabel -> List.forall isConnectedToVerificationComponent comp.OutputPorts
+        | _ -> false
+        |> printAndReturn $"?removing {comp}"
+    
     // TODO(jpnock): we might also want to remove constants that are solely 
     // connected to verification components, otherwise these will error.
     let canvasNonVerificationComps =
         canvasComps
         |> List.filter (fun comp -> not (isTypeVerificationComp comp.Type))
-    
+        |> List.filter (fun comp -> not (shouldRemoveNormalComp comp))
+         
     let isVerificationComp compId = verificationCompMap[compId]
     
-    let componentMap =
-        canvasComps
-        |> List.map (fun el -> el.Id, el)
-        |> Map.ofList
+
     
     let textAssertions =
         canvasComps
@@ -234,9 +268,9 @@ let rec startCircuitSimulation
         |> Map.ofList
     
     let targetIDtoPortNum id =
-        printf $"Looking up {id}"
+        // printf $"Looking up {id}"
         inputPortIDToNumber[id]
-    
+        
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
@@ -252,13 +286,7 @@ let rec startCircuitSimulation
             k, Map.ofList inputMap)
         |> Map.ofList
 
-    let assertionComps =
-        canvasComps
-        |> List.choose (fun el ->
-            match el.Type with
-            | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
-                Some state
-            | _ -> None)
+
     
     let assertionTexts =
         canvasComps
@@ -339,8 +367,9 @@ let rec startCircuitSimulation
         canvasConnections
         |> List.filter (fun conn ->
             (not (isVerificationComp conn.Source.HostId)) && (not (isVerificationComp conn.Target.HostId)))
+        |> List.filter (fun conn -> not (shouldRemoveNormalComp componentMap[conn.Source.HostId]))
     
-    let canvasState = canvasNonVerificationComps, canvasNonVerificationConns
+    let canvasState = canvasComps, canvasConnections
     
     /// Tune for performance of initial zero-length simulation versus longer run.
     /// Probably this is not critical.

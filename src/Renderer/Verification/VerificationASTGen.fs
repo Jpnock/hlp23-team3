@@ -28,7 +28,9 @@ let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentState 
         Lit (Id (state.Outputs[sourcePortN].HostLabel, sourcePortN))
     | _ ->
         printf $"Getting state for {state}"
-        let componentPortMap = componentPortSources[state.InstanceID.Value]
+        let componentPortMap = 
+            componentPortSources[state.InstanceID.Value]
+            |> Map.map (fun _ (state, _) -> state)
         let componentBuilder = library.Components[state.LibraryID]
         printf $"Looking up state {state}"
         

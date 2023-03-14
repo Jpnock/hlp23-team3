@@ -53,6 +53,8 @@ type ComponentOutput =
       FixedWidth: int option
       // Optional field for whether the output is signed or unsigned.
       Signed: bool option
+      // Used in evaluation 
+      HostLabel: string
     }
 
 /// Represents the ID of a component in the Component Library.
@@ -157,7 +159,7 @@ module IODefaults =
         Map [ (0, {InputA with FixedWidth = Some width}) ]
 
     /// A single output named X, with no initialised fixed width.
-    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; Signed = None; }
+    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; Signed = None; HostLabel = ""}
     
     /// A single output named X at port 0, with no initialised fixed width.
     let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
@@ -351,16 +353,21 @@ let implementsVariableWidth (state : ComponentState) =
     | Some input when input.FixedWidth.IsSome -> input.FixedWidth
     | _ -> None
 
+let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput> =
+    portIds
+    |> List.zip widths 
+    |> List.mapi (fun i (width, name) -> (i, {IODefaults.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel}))
+    |> Map.ofList 
+
 /// Allows for components not registered in the library to be
 /// represented as Plugin components (useful for simulation)
 /// TODO(jpnock): refactor this such that these components are
 /// supported by natively.
-let makeStateFromExternalInputComponent id inputName width : ComponentState =
+// TODO ln220 make it so that it actually holds the component outputs 
+let makeStateFromExternalInputComponent id widths portsIds hostLabel: ComponentState =
     {
         ComponentState.Default with
             InstanceID = Some id
-            Outputs = Map [
-                (0, {IODefaults.OutputX with Name = inputName; FixedWidth = width})
-            ]
+            Outputs = makeOutputs portsIds widths hostLabel
             IsInput = Some true
     }

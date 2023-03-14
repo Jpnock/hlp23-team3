@@ -20,9 +20,12 @@ let getStateForInput (portToSource: Map<int, ComponentState>) inputNum =
 /// to be looked up and the state returned for any component connected to
 /// its input ports. The `state` arg represents the state of the component
 /// the AST is currently being built for.
-let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>) (state: ComponentState) : Expr =
+let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentState * int)>>) sourcePortN (state: ComponentState) : Expr =
     match state.IsInput with
-    | Some true -> Lit (Id state.Outputs[0].Name)
+    | Some true -> 
+        printf $"making lit : {state}"
+
+        Lit (Id (state.Outputs[sourcePortN].HostLabel, sourcePortN))
     | _ ->
         printf $"Getting state for {state}"
         let componentPortMap = componentPortSources[state.InstanceID.Value]
@@ -31,5 +34,5 @@ let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>
         
         state.Inputs
         |> Map.map (fun k _ -> getStateForInput componentPortMap k)
-        |> Map.map (fun _ -> generateAST componentPortSources)
-        |> componentBuilder.Build state
+        |> Map.map (fun k cs -> generateAST componentPortSources (snd (componentPortSources[state.InstanceID.Value].[k])) cs)
+        |> componentBuilder.Build

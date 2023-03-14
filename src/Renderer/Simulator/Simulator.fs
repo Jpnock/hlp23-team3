@@ -200,18 +200,18 @@ let rec startCircuitSimulation
         let source = componentMap[componentId]
         match source.Type with
         | Plugin state -> state
-        | Input1 (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
-        | IOLabel -> makeState source.Id source.Label None
-        | Viewer busWidth -> makeState source.Id source.Label (Some busWidth)
-        | Constant (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
-        | _ -> makeState source.Id source.Label None
+        | Input1 (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
+        | IOLabel -> makeState source.Id [None] [source.OutputPorts.Head.Id] source.Label
+        | Viewer busWidth -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
+        | Constant (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
+        | _ -> makeState source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source) source.Label
         
     // Problem : port number is None on components
     // Solution : make a mapping between port Id and number
     let inputPortIDToNumber =
         canvasComps
-        |> List.map (fun comp -> comp.InputPorts)
-        |> List.concat
+        |> List.map (fun comp -> [comp.InputPorts; comp.OutputPorts])
+        |> List.concat |> List.concat
         |> List.map (fun port -> (port.Id, port.PortNumber))
         |> Map.ofList
     
@@ -222,15 +222,15 @@ let rec startCircuitSimulation
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
-        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, getSourceComponentState conn.Source.HostId))
+        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, (getSourceComponentState conn.Source.HostId, targetIDtoPortNum conn.Source.Id)))
         |> List.groupBy (fun (hostId, _, _) -> hostId)
         |> List.map (fun (k, v) ->
             let inputMap =
                 v |> List.choose (
-                        fun (_, inputNumber, state) ->
-                        match inputNumber.IsSome with
-                        | true -> Some (inputNumber.Value, state)
-                        | false -> None )
+                        fun (_, inputNumber, (state, sourceNumber)) ->
+                        match inputNumber.IsSome, sourceNumber.IsSome with
+                        | true, true -> Some (inputNumber.Value, (state, sourceNumber.Value))
+                        | _ -> None )
             k, Map.ofList inputMap)
         |> Map.ofList
     
@@ -252,8 +252,8 @@ let rec startCircuitSimulation
                 Length = 0
                 ExtraErrors = None }
             | Some connectedTo ->               
-                let assertionInput = connectedTo[0]
-                let ast = VerificationASTGen.generateAST componentIDToInputPortState assertionInput
+                let assertionInput = fst (connectedTo[0])
+                let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 assertionInput
                 let assertion = ast, emptyPos
                 Ok {AST = assertion})
     

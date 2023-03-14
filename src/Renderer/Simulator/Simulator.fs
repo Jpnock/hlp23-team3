@@ -217,18 +217,15 @@ let rec startCircuitSimulation
         comp.OutputPorts 
         |> List.map (fun oP -> oP.Id) 
 
-    let getnWidths n = 
-        [0..n]
-        |
     let getSourceComponentState componentId =
         let source = componentMap[componentId]
         match source.Type with
         | Plugin state -> state
-        | Input1 (busWidth, _) -> makeState source.Id source.Label [(Some busWidth)] [source.OutputPorts.Head.Id]
-        | IOLabel -> makeState source.Id source.Label [None] [source.OutputPorts.Head.Id]
-        | Viewer busWidth -> makeState source.Id source.Label [(Some busWidth)] [source.OutputPorts.Head.Id]
-        | Constant (busWidth, _) -> makeState source.Id source.Label [(Some busWidth)] [source.OutputPorts.Head.Id]
-        | _ -> makeState source.Id source.Label ([0.]) (getPortNames source)
+        | Input1 (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+        | IOLabel -> makeState source.Id [None] [source.OutputPorts.Head.Id]
+        | Viewer busWidth -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+        | Constant (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+        | _ -> makeState source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source)
         
     // Problem : port number is None on components
     // Solution : make a mapping between port Id and number

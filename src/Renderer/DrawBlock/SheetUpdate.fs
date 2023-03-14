@@ -788,6 +788,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<Msg> =
         let results = []
         results @ [testCheck1 (); testCheck2 (); testCheck3 (); testCheck4 ()]
         |> List.mapi printRes
+        |> ignore
         model, Cmd.none
     | ToggleNet _ | DoNothing | _ -> model, Cmd.none
     |> Optic.map fst_ postUpdateChecks

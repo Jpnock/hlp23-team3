@@ -20,14 +20,16 @@ let getStateForInput (portToSource: Map<int, ComponentState>) inputNum =
 /// to be looked up and the state returned for any component connected to
 /// its input ports. The `state` arg represents the state of the component
 /// the AST is currently being built for.
-let rec generateAST (componentPortSources: Map<string, Map<int, ComponentState>>) (state: ComponentState) : Expr =
+let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentState * string)>>) (state: ComponentState) : Expr =
     match state.IsInput with
     | Some true -> 
         printf $"making lit : {state}"
         Lit (Id (state.Outputs[0].Name, 0))
     | _ ->
         printf $"Getting state for {state}"
-        let componentPortMap = componentPortSources[state.InstanceID.Value]
+        let componentPortMap = 
+            componentPortSources[state.InstanceID.Value]
+            |> Map.map (fun _ (state, _) -> state)
         let componentBuilder = library.Components[state.LibraryID]
         printf $"Looking up state {state}"
         

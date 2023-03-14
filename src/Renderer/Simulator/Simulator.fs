@@ -243,7 +243,7 @@ let rec startCircuitSimulation
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
-        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, getSourceComponentState conn.Source.HostId))
+        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, (getSourceComponentState conn.Source.HostId, conn.Source.Id)))
         |> List.groupBy (fun (hostId, _, _) -> hostId)
         |> List.map (fun (k, v) ->
             let inputMap =
@@ -274,7 +274,7 @@ let rec startCircuitSimulation
         assertionComps
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
-            let compConnectedToAssert = componentIDToInputPortState[el.InstanceID.Value][0]
+            let compConnectedToAssert = fst (componentIDToInputPortState[el.InstanceID.Value][0])
             let ast = VerificationASTGen.generateAST componentIDToInputPortState compConnectedToAssert
             let exprPos = {Line = 0; Col = 0; Length = 0} : AssertionTypes.Pos
             let assertion = ast, exprPos

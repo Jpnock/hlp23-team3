@@ -449,10 +449,9 @@ let update (msg : Msg) (model : Model): Model*Cmd<Msg> =
         {model with FailedAssertionsHighlighted = compIds},
         symbolCmd (SymbolT.ColorSymbols (compIds, HighLightColor.Orange))
     | RemoveFailedAssertionHighlights ->
-        let currentHighlightedAssertions = model.FailedAssertionsHighlighted
         {model with FailedAssertionsHighlighted = []},
         // TODO:(djj120) change to unhighlight or to highlight same colour as assertion
-        symbolCmd (SymbolT.ColorSymbols (currentHighlightedAssertions, HighLightColor.SkyBlue))
+        symbolCmd (SymbolT.SelectSymbols model.SelectedComponents)
     | SetDisplayedAssertionIndex idx ->
         {model with DisplayedAssertionIndex = idx}, Cmd.none
     | SetSpinner isOn ->

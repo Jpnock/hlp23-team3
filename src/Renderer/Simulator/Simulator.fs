@@ -212,16 +212,23 @@ let rec startCircuitSimulation
         
     let makeState =
         VerificationComponents.makeStateFromExternalInputComponent
-        
+
+    let getPortNames comp : string List = 
+        comp.OutputPorts 
+        |> List.map (fun oP -> oP.Id) 
+
+    let getnWidths n = 
+        [0..n]
+        |
     let getSourceComponentState componentId =
         let source = componentMap[componentId]
         match source.Type with
         | Plugin state -> state
-        | Input1 (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
-        | IOLabel -> makeState source.Id source.Label None
-        | Viewer busWidth -> makeState source.Id source.Label (Some busWidth)
-        | Constant (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
-        | _ -> makeState source.Id source.Label None
+        | Input1 (busWidth, _) -> makeState source.Id source.Label [(Some busWidth)] [source.OutputPorts.Head.Id]
+        | IOLabel -> makeState source.Id source.Label [None] [source.OutputPorts.Head.Id]
+        | Viewer busWidth -> makeState source.Id source.Label [(Some busWidth)] [source.OutputPorts.Head.Id]
+        | Constant (busWidth, _) -> makeState source.Id source.Label [(Some busWidth)] [source.OutputPorts.Head.Id]
+        | _ -> makeState source.Id source.Label ([0.]) (getPortNames source)
         
     // Problem : port number is None on components
     // Solution : make a mapping between port Id and number

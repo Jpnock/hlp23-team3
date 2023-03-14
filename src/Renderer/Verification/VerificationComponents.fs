@@ -293,16 +293,21 @@ let implementsVariableWidth (state : ComponentState) =
     | Some input when input.FixedWidth.IsSome -> input.FixedWidth
     | _ -> None
 
+let makeOutputs portIds widths : Map<OutputPortNumber, ComponentOutput> =
+    destPortIds
+    |> List.zip widths 
+    |> List.mapi (fun i (name, width) -> (i, {IODefaults.OutputX with Name = name; FixedWidth = None}))
+    |> Map.ofList 
+
 /// Allows for components not registered in the library to be
 /// represented as Plugin components (useful for simulation)
 /// TODO(jpnock): refactor this such that these components are
 /// supported by natively.
-let makeStateFromExternalInputComponent id inputName width : ComponentState =
+// TODO ln220 make it so that it actually holds the component outputs 
+let makeStateFromExternalInputComponent id inputName widths portsIds: ComponentState =
     {
         ComponentState.Default with
             InstanceID = Some id
-            Outputs = Map [
-                (0, {IODefaults.OutputX with Name = inputName; FixedWidth = width})
-            ]
+            Outputs = makeOutputs portsIds widths
             IsInput = Some true
     }

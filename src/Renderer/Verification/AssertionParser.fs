@@ -233,7 +233,7 @@ let rec parseOperand expectParen (inputs: string Set) (stream: TokenStream) : Pa
             let litExpr = Expr.Lit lit
             let res = Ok {Expr = litExpr ; Stream = stream'}
             match lit with
-            | Id (name,_) -> 
+            | Id (name,_,_) -> 
                 if Set.contains name inputs then
                     res
                 else 

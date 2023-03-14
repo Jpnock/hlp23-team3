@@ -105,8 +105,12 @@ let partitionResults results =
 /// Fills in internal connections between any two selected components.
 /// This makes a contiguous circuit. This allows truth tables to be selected via comnponents only.
 let addInternalConnections 
-    ((comps, conns): CanvasState) 
+    ((allComps, conns): CanvasState) 
     ((wholeCanvasComps,wholeCanvasConns): CanvasState) =
+    
+    // Verification comps aren't supported
+    let comps = allComps |> List.filter (fun el -> match el.Type with | Plugin _ -> false | _ -> true)
+    
     let circuitPorts =
         comps
         |> List.collect (fun comp -> comp.InputPorts @ comp.OutputPorts)
@@ -341,6 +345,7 @@ let correctCanvasState (selectedCanvasState: CanvasState) (wholeCanvasState: Can
     // Find any dangling connections and add an IO component to the side not
     // connected to any components.
     let addExtraIOs (comps: Component list,conns: Connection list) =
+        
         let compsOk : Result<Component,SimulationError> list = List.map (fun c -> Ok c) comps
         let result = 
             (compsOk,conns)
@@ -513,15 +518,32 @@ let makeSimDataSelected (model:Model) : (Result<SimulationData,SimulationError> 
             ComponentsAffected = []
             ConnectionsAffected = affected },  (selComponents,selConnections))
     | selComps,selConns,Some project ->
+        let compsContainsPlugin =
+            selComps
+            |> List.exists (fun comp -> match comp.Type with | Plugin _ -> true | _ -> false)
         let state = (selComponents,selConnections)
         // Check if selected components have changed
         if stateIsEqual state selCache.UncorrectedCanvas then
             Some (selCache.StoredResult, selCache.CorrectedCanvas)
+        else if compsContainsPlugin then
+            let errMsg = {
+                Msg = "It is not possible to generate a truth table containing verification logic blocks"
+                InDependency = None
+                ConnectionsAffected = []
+                ComponentsAffected = [] }
+            selCache <- {
+                UncorrectedCanvas = state
+                CorrectedCanvas = (selComponents, selConnections)
+                StoredResult = Error errMsg
+            }
+            Some (Error errMsg, (selComps, selConns))
         else
             let selLoadedComponents =
                 project.LoadedComponents
                 |> List.filter (fun comp ->
                     comp.Name <> project.OpenFileName)
+            
+           
             match correctCanvasState (selComps,selConns) wholeCanvas with
             | Error e -> 
                 selCache <- {

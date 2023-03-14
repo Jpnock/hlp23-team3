@@ -176,21 +176,12 @@ let rec startCircuitSimulation
         (fullCanvasState : CanvasState)
         (loadedDependencies : LoadedComponent list)
         : Result<SimulationData, SimulationError> =
-
-    // Remove all verification components from the simulation
-    // as this logic is performed outside of the simulator.
+    
     let canvasComps, canvasConnections = fullCanvasState 
     
     let componentMap =
         canvasComps
         |> List.map (fun el -> el.Id, el)
-        |> Map.ofList
-    
-    let isTypeVerificationComp = function | Plugin _ -> true | _ -> false
-    
-    let verificationCompMap =
-        canvasComps
-        |> List.map (fun comp -> comp.Id, isTypeVerificationComp comp.Type)
         |> Map.ofList
     
     let isAssertionComponent (comp:Component) =
@@ -202,49 +193,6 @@ let rec startCircuitSimulation
     let assertionCompsAndIDs =
         List.choose isAssertionComponent canvasComps
     
-    let assertionComps = List.map snd assertionCompsAndIDs
-    let assertionCompIDs = Map.ofList assertionCompsAndIDs
-    
-    let printAndReturn msg p =
-        printf $"{p} {msg}"
-        p
-    
-    let isConnectedToVerificationComponent (outputPort: Port) =
-        canvasConnections
-        |> List.tryFind (fun el -> el.Source.Id = outputPort.Id)
-        |> Option.map (fun el -> printf $"found connection in list {el}"; el)
-        |> Option.map (fun conn ->
-            verificationCompMap.TryFind conn.Target.HostId |> Option.defaultValue false)
-        |> Option.defaultValue false
-    
-    let shouldRemoveNormalComp (comp: Component) =
-        printf $"Looking at {comp.Label}"
-        match comp.Type with
-        | Input _
-        | Input1 _
-        | Constant1 _
-        | IOLabel -> List.forall isConnectedToVerificationComponent comp.OutputPorts
-        | _ -> false
-        |> printAndReturn $"?removing {comp}"
-    
-    // TODO(jpnock): we might also want to remove constants that are solely 
-    // connected to verification components, otherwise these will error.
-    let canvasNonVerificationComps =
-        canvasComps
-        |> List.filter (fun comp -> not (isTypeVerificationComp comp.Type))
-        |> List.filter (fun comp -> not (shouldRemoveNormalComp comp))
-         
-    let isVerificationComp compId = verificationCompMap[compId]
-    
-
-    
-    let textAssertions =
-        canvasComps
-        |> List.filter (fun c ->
-            match c.Type with
-            | Plugin state when state.AssertionText.IsSome -> true
-            | _ -> false)
-        
     let makeState =
         VerificationComponents.makeStateFromExternalInputComponent
         
@@ -285,18 +233,11 @@ let rec startCircuitSimulation
                         | false -> None )
             k, Map.ofList inputMap)
         |> Map.ofList
-
-
-    
-    let assertionTexts =
-        canvasComps
-        |> List.choose (fun el ->
-            match el.Type with
-            | Plugin state -> state.AssertionText
-            | _ -> None)
     
     // TODO(jpnock): Fix uses of this
     let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
+    
+    let assertionComps = List.map snd assertionCompsAndIDs
     
     let assertionCompASTs : Result<AssertionTypes.Assertion, ErrorInfo> list =
         assertionComps
@@ -316,6 +257,13 @@ let rec startCircuitSimulation
                 let assertion = ast, emptyPos
                 Ok {AST = assertion})
     
+    let isAssertionTextComp (comp:Component) =
+        match comp.Type with
+        | Plugin state -> state.AssertionText
+        | _ -> None
+    
+    let assertionTexts = canvasComps |> List.choose isAssertionTextComp
+    
     let assertionTextASTs =
         List.map AssertionParser.parseAssertion assertionTexts
         |> List.map (Result.map (fun expr -> { AssertionTypes.AST = expr, emptyPos }))
@@ -334,7 +282,6 @@ let rec startCircuitSimulation
         printf $"Not all assertions could be parsed:"
         List.iter ( fun e -> printf $"{e}") astErrors
    
-     
     printf $"Got valid ASTs: {validASTs}"
     
     validASTs
@@ -360,14 +307,6 @@ let rec startCircuitSimulation
             // TODO(jpnock): improve error output
             printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
             []
-    
-    // Remove all connections that are connected to verification components
-    // at either end.
-    let canvasNonVerificationConns =
-        canvasConnections
-        |> List.filter (fun conn ->
-            (not (isVerificationComp conn.Source.HostId)) && (not (isVerificationComp conn.Target.HostId)))
-        |> List.filter (fun conn -> not (shouldRemoveNormalComp componentMap[conn.Source.HostId]))
     
     let canvasState = canvasComps, canvasConnections
     

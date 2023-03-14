@@ -499,6 +499,7 @@ module SheetT =
         | ColourSelection of compIds : ComponentId list * connIds : ConnectionId list * colour : HighLightColor
         | HighlightFailedAssertions of compIds : ComponentId list
         | RemoveFailedAssertionHighlights
+        | SetDisplayedAssertionIndex of int
         | PortMovementStart
         | PortMovementEnd
         | ResetSelection
@@ -554,6 +555,7 @@ module SheetT =
         SelectedComponents: CommonTypes.ComponentId List
         SelectedWires: CommonTypes.ConnectionId list
         FailedAssertionsHighlighted : ComponentId list
+        DisplayedAssertionIndex : int
         NearbyComponents: CommonTypes.ComponentId list
         ErrorComponents: CommonTypes.ComponentId list
         DragToSelectBox: BoundingBox

@@ -48,7 +48,7 @@ let getFComponentId label components =
     let compId = 
         List.choose isRightComponent components 
         |> function 
-            | a::[] -> a
+            | [a] -> a
             | _ -> failwithf "should not happen"
     compId
 
@@ -61,11 +61,13 @@ let getLitProperties (components: FastComponent List) lit =
                 match comp.FLabel, comp.FType with 
                 | idComp, Viewer width when idComp = id -> Some(width)
                 | idComp, Input1 (width,_) when idComp = id -> Some(width)
-                | idComp, _ when idComp= id -> Some(1)
-                | _ -> None 
+                | idComp, Constant (width, _) when idComp = id -> Some(width)
+                | idComp, Constant1 (width, _, _) when idComp = id -> Some(width)
+                | idComp, _ when idComp = id -> Some(1) // TODO(jpnock): fix width
+                | _ -> None
             List.choose isRightComponent components 
             |> function 
-                | id::[] -> id 
+                | [id] -> id 
                 | [] -> failwithf "the component is not in the list" // TODO make an actual error message as this is a user error
                 | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
         UintType, int width

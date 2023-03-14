@@ -450,29 +450,60 @@ let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Mode
         | Some p -> p
         | None -> failwith "What - Project shouldn't be empty here"
     
-    // let mutable currentAssertionIndex = 0
+    let protectedDisplayedIndex = 
+        match model.Sheet.DisplayedAssertionIndex < failedAssertions.Length && model.Sheet.DisplayedAssertionIndex >= 0 with
+        | true -> model.Sheet.DisplayedAssertionIndex
+        | false -> 0
     
-    let failedAssertionElements = 
-        List.map (fun fa -> viewFailedAssertion fa project dispatch) failedAssertions 
-    
-    // let onClickPrev = fun _ ->
-    //     printf "%d" (List.length failedAssertionElements)
-    //     currentAssertionIndex <- (currentAssertionIndex - 1 + List.length failedAssertionElements) % List.length failedAssertionElements
-    
-    // let onClickNext = fun _ ->
-    //     currentAssertionIndex <- (currentAssertionIndex + 1) % List.length failedAssertionElements
-    
-    let assertionExpander =
-        details [Open false] [
-            summary [Style [FontSize "20px"]] [ b [] [ str "Assertion Failures!" ] ]
-            Menu.list [] failedAssertionElements
-            // Button.button [Button.OnClick onClickPrev] [ str "◀" ]
-            // Button.button [Button.OnClick onClickNext] [ str "▶" ]
+    let menuItem idx fa =
+        Menu.Item.li [
+            Menu.Item.IsActive (failedAssertions[protectedDisplayedIndex] = fa)
+            Menu.Item.OnClick (fun _ ->
+                    dispatch <| Sheet (SheetT.SetDisplayedAssertionIndex idx)
+                )
+            ] [fa.Name |> str]
+
+    let creatDropdown (faList : FailedAssertion List)  =
+        Dropdown.dropdown [
+                Dropdown.IsHoverable
+                Dropdown.Option.Props [
+                    Style [
+                        BorderRadius "4px"
+                        BoxShadow "inset 0 0.0625em 0.125em rgba(10, 10, 10, 0.05)"
+                        BackgroundColor "white"
+                        Color "#363636"
+                        Border "1px solid"
+                        BorderColor "#dbdbdb"
+                        Width "50%"
+                    ]
+                ]
+            ] [
+
+            Navbar.Link.a [
+                Navbar.Link.Option.Props [
+                    Style [Width "100%"]
+                ]
+            ] [ str faList[protectedDisplayedIndex].Name ]
+            Dropdown.menu [Props [Style [Width "100%"]]] [
+                Dropdown.content [Props [Style [ZIndex 1000]]] [
+                    Dropdown.Item.div [] [
+                        Menu.menu [Props [Style [OverflowY OverflowOptions.Scroll]]] [
+                            Menu.list [] (
+                                faList
+                                |> Seq.mapi menuItem
+                                |> List.ofSeq)
+                        ]]]]]
+
+
+    match failedAssertions with
+    | [] -> div [] []
+    | _ -> div [] [
+            Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
+            creatDropdown failedAssertions
+            viewFailedAssertion failedAssertions[protectedDisplayedIndex] project dispatch
         ]
 
-    div [] [
-        assertionExpander
-    ]
+    
 
 let private simulationClockChangePopup (simData: SimulationData) (dispatch: Msg -> Unit) (dialog:PopupDialogData) =
     let step = simData.ClockTickNumber

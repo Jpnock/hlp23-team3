@@ -70,8 +70,7 @@ let getLitProperties (components: Component List) (lit: Lit) : Result<(Assertion
             | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
 
 
-// for unary expressions type checks are not needed, it's enough to return the type of the variable (tricky because it needs to take into account casts)
-// maybe do an active matching to check if it's a unary operator, in that case only evaluate the type and size
+/// check that the verification AST obeys the type system 
 let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes = 
     let propagateError (leftRes: CheckRes) (rightRes: CheckRes) =
         let toErr =

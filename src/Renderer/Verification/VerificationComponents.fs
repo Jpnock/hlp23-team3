@@ -242,6 +242,7 @@ type SimpleComponent =
                 | _ -> maxInputWidth)
         member this.Build state exprPortMap =
             let built = this.AssertionBuilder exprPortMap
+            printfn "verification port name %A" this.DefaultState.Outputs
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for {this.Name}"

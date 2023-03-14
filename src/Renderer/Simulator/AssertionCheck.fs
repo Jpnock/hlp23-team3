@@ -60,7 +60,9 @@ let getLitProperties (components: Component List) (lit: Lit) : Result<(Assertion
             match comp.Label, comp.Type with 
             | idComp, Viewer width when idComp = id -> Some(width)
             | idComp, Input1 (width,_) when idComp = id -> Some(width)
-            | idComp, _ when idComp = id -> Some(1)
+            | idComp, Constant (width, _) when idComp = id -> Some(width)
+            | idComp, Constant1 (width, _, _) when idComp = id -> Some(width)
+            | idComp, _ when idComp = id -> Some(1) // TODO(jpnock): fix width
             | _ -> None 
 
         List.choose isRightComponent components 

@@ -77,16 +77,11 @@ type Type =
     | UintType 
     | BoolType 
 
-// authored by ln220
-type Properties = {
-    Type: Type;
-    Size: int 
-}
 
 // authored by ln220
 type CheckRes = 
     | ErrLst of Error list 
-    | Properties of Properties 
+    | TypeInfo of Type
 
 // TODO(jsand): This type is a (somewhat) duplicate of Expr.
 // However, there is not neccesarily a nice way of unifying the two types.

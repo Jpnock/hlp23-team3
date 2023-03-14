@@ -1023,8 +1023,7 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
         div [ errorMessageStyle ]
             [ SimulationView.viewSimulationError e ]
     
-    let assertionFaliersElement =
-        SimulationView.viewFailedAssertions (getCurrAssertionFailuresWaveSim(wsModel)) model dispatch
+    
 
     div [] [
         div [ viewWaveSimStyle ]
@@ -1062,6 +1061,10 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                         reactChildren
                     | assertionList -> 
                         highlightFailedAssertionComps model assertionList dispatch
+                        
+                        let assertionFaliersElement =
+                            SimulationView.viewFailedAssertions (getCurrAssertionFailuresWaveSim(wsModel)) model dispatch
+                        
                         [assertionFaliersElement] @ [hr []] @ reactChildren
                     |> div [showWaveformsAndRamStyle] 
                         

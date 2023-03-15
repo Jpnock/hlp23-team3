@@ -83,6 +83,8 @@ type Properties = {
     Size: int 
 }
 
+
+// TODO(jlsand): Might make sense to make this a result type, so that Result.bind can be used on it.
 // authored by ln220
 type CheckRes = 
     | ErrLst of Error list 

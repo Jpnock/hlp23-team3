@@ -259,6 +259,9 @@ and parseExpr (minPrecedence:int) expectParen (prevToken:Token) (tokens: Token l
     |> Result.bind (parseBinaryOp minPrecedence expectParen)
 
 
+//let rec parseInputs (tokens:Token list) : ParseResult =
+
+
 
 /// Generate a pretty print string for the generated AST. 
 let rec prettyPrintAST expr prevPrefix isLast:string =
@@ -311,8 +314,13 @@ let rec prettyPrintAST expr prevPrefix isLast:string =
     // Print the current AST node and its children
     sprintf "%A %A %A\n %A" curPrefix (printTypeName expr) operandInfo childLines
 
+// TODO(jlsand): Get rid of this horror
+let mapErrorToErrorInfo e =
+    {Message = e.Msg; Line = e.Pos.Line; Col = e.Pos.Col; Length = e.Pos.Length; ExtraErrors = None}
+
+
 /// Returns either the resulting AST or an Error 
-let parseAssertion code: Result<Expr, ErrorInfo>=
+let parseAssertion code: Result<Expr, ErrorInfo list>=
 
     lexAssertion code 1 1 []
     |> Result.bind (fun tokens ->
@@ -325,7 +333,7 @@ let parseAssertion code: Result<Expr, ErrorInfo>=
         printfn "%A" <| prettyPrintAST parseData.Expr "" true
         parseData.Expr
     )
-    |> Result.mapError (fun e -> {Message = e.Msg; Line = e.Pos.Line; Col = e.Pos.Col; Length = e.Pos.Length; ExtraErrors = None})
+    |> Result.mapError (fun e -> [mapErrorToErrorInfo e])
     
     // TODO(jsand): In the above we have to map from our own error type to the error type used by the Verilog code editor.
     // These types should be unified in the group stage.

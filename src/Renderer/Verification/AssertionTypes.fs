@@ -25,7 +25,7 @@ type Value =
 type Lit = 
     | Value of Value
     //| Id of string // for now, later make it of BusLabel of whatever type there is 
-    | Id of (string * int)// for now, later make it of BusLabel of whatever type there is 
+    | Id of (string * int * string)// for now, later make it of BusLabel of whatever type there is 
 
 // authored by ln220
 type Cast = 

@@ -5,6 +5,7 @@ open AssertionTypes
 open AssertionCheck
 open CommonTypes 
 open SimulatorTypes
+open BusWidthInferer
 
 // these types are here because they concern evaluation, not assertions in general
 type IntToBool = int -> int -> bool
@@ -57,8 +58,9 @@ let getLitType (components: FastComponent List) lit =
     | Value value -> getType value
     | Id _ -> UintType // the existance of the id has been checked in the compilation
 
+
 // assume that the AST is correct (as it will be checked upon creation of the component)
-let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string> =
+let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step connectionsWidth: Result<Value, string> =
     let resizeRes (size: Size) res = 
         match res, size with 
         | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1)))))
@@ -70,11 +72,11 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
-            let leftRes = evaluate l fs step
-            let rightRes= evaluate r fs step
+            let leftRes = evaluate l fs step connectionsWidth 
+            let rightRes= evaluate r fs step connectionsWidth
             printf "evaluated %A %A" leftRes rightRes
             printf "from %A %A" l r
-
+// get size for both left and right, determine which one is the biggest, cast the other one 
             let value = 
                 match leftRes, rightRes with
                 // all this repeated code is required as type inference does not allow to put the different conditions as the same one 
@@ -105,9 +107,10 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string
                 | Error(e1), Error(e2) -> Error(e1+e2)
                 | Error(e1), _ -> Error(e1)
                 | _, Error(e2)  -> Error(e2)
+                | _ -> Error("Dev error")
             value 
         | UnOp op ->
-            let opEvald = evaluate op fs step
+            let opEvald = evaluate op fs step connectionsWidth
 
             match opEvald with
             | Ok(Int op) ->
@@ -130,7 +133,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string
             | Value (Int int)->  Int int
             | Value (Uint uint) -> Uint uint
             | Value (Bool bool) -> Bool bool
-            | Id (id, portNumber) -> 
+            | Id (id, portNumber, _) -> 
                 let fCompId = getFComponentId id (List.ofSeq fs.FComps.Values)
                 let data = fs.getSimulationData step fCompId (OutputPortNumber portNumber)
                 match data with 
@@ -143,12 +146,12 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string
 
     | Cast c, _ ->
         match c with
-        | ToSigned e -> cast e "int" fs step// this might require some sort of manipulation? or will it be done automatically
-        | ToUnsigned e -> cast e "uint" fs step
-        | ToBool e -> cast e "bool" fs step
+        | ToSigned e -> cast e "int" fs step connectionsWidth// this might require some sort of manipulation? or will it be done automatically
+        | ToUnsigned e -> cast e "uint" fs step connectionsWidth
+        | ToBool e -> cast e "bool" fs step connectionsWidth
 
     | BusCast (destSize, e), _-> 
-        let value= evaluate e fs step
+        let value= evaluate e fs step connectionsWidth
         value
 
     | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
@@ -157,8 +160,8 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string
     | Div ops, _ -> 
         match ops with 
         | BinOp (l, r) -> 
-            let left = evaluate l fs step 
-            let right = evaluate r fs step 
+            let left = evaluate l fs step connectionsWidth
+            let right = evaluate r fs step connectionsWidth 
             match left, right with 
             | _, Ok(Int 0) -> Error("division by 0 attempted")
             | _, Ok(Uint 0u) -> Error("division by 0 attempted")
@@ -182,9 +185,9 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step: Result<Value, string
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)
-and cast expr castType fs step=
+and cast expr castType fs step connectionsWidth=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
-    let castExprEvaluated= evaluate expr fs step
+    let castExprEvaluated= evaluate expr fs step connectionsWidth
     let value = 
         match castExprEvaluated, castType with
         | Ok(Int int), "uint" -> Ok(Uint(uint int))
@@ -211,8 +214,15 @@ type FailedAssertion = {
 
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
+    let connectionsWidth: ConnectionsWidth list  = 
+        fs.SimulatedCanvasState
+        |> List.map (fun lC -> inferConnectionsWidth lC.CanvasState)
+        |> List.collect (function 
+            | Ok cw -> [cw] 
+            | Error _ -> []) 
+
     let evalTree step assertion = 
-        let value= evaluate assertion.AST fs step
+        let value= evaluate assertion.AST fs step connectionsWidth 
         match value with 
         | Ok(Bool true) -> None 
         | Ok(Bool false) ->

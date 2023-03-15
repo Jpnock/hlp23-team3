@@ -6,12 +6,15 @@ open CommonTypes
 open SimulatorTypes
 open System
 
+/// Facilitates accessing expressions with similar characteristics under a type-system 
+/// point of view to facilitate compiler checks
 let (|RequiresBool|_|) (expr: ExprInfo) = 
     match expr with 
     | (BoolExpr (LogAnd(BinOp(l, r)))), pos| BoolExpr(LogOr (BinOp(l, r))), pos -> Some(l, r, pos)
     | _ -> None 
 
 // no checks needed, return the type of the expression
+/// Allows to match on all unary expressions
 let (|IsUnary|_|) (expr: ExprInfo) =
     match expr with 
     | BitNot(UnOp(op)), _ | BoolExpr(LogNot(UnOp(op))), _ -> Some(op)
@@ -19,6 +22,7 @@ let (|IsUnary|_|) (expr: ExprInfo) =
 
 // this is useful as it allows to neatly extract the expressions from the wrappers and check those directly 
 // without having to match and repeat code in the main function 
+/// Allows to match on all expressions that return a bool
 let (|IsBoolExpr|_|) (expr: ExprInfo) = 
     match expr with 
     | BoolExpr(boolExpr), pos ->
@@ -27,6 +31,7 @@ let (|IsBoolExpr|_|) (expr: ExprInfo) =
         | _ -> None 
     | _ -> None
 
+/// Allows to match on all binary expression 
 let (|IsBinExpr|_|) (expr: ExprInfo) = 
     match expr with 
     | Add(BinOp(l, r)), pos | Sub(BinOp(l, r)), pos | Mul(BinOp(l, r)), pos | Div(BinOp(l, r)), pos| Rem(BinOp(l, r)), pos -> Some(l, r, pos)
@@ -38,8 +43,8 @@ let getType value =
     | Uint _ -> UintType 
     | Bool _ -> BoolType 
 
-// TODO ln220 move the check for the existance of the id somewhere else 
-/// get size of lit, if the id is not found in the schematics returns an error
+/// Check if the lit name that is being used refers to an existing component.
+/// Mainly relevant for text based assertions
 let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
     | Value value -> Ok(getType value)
@@ -58,6 +63,7 @@ let checkLitExistance (components: Component List) (lit: Lit) : Result<Assertion
 
 /// check that the verification AST obeys the type system 
 let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes = 
+    /// Create one error from errors retunred by the evaluation of two operands 
     let propagateError (leftRes: CheckRes) (rightRes: CheckRes) =
         let toErr =
             function
@@ -66,16 +72,19 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
 
         toErr leftRes @ toErr rightRes
     
+    /// creates an error caused by argument types being not compatible in the same function
     let hetTypesErr () =
         "This function can't be applied on a bool variable and a non-bool variable"
 
+    /// Creates error caused by function being applied to argument of unsupported type
     let invTypesErr () = "Types not supported by this function"
     
+    /// Create a type error
     let makeTypeError errType leftType (rightType: Option<AssertionTypes.Type>) pos =
         let msg = errType () + ". left expr is of type: " + string leftType + if rightType.IsNone  then "" else (". Right expr is of type: " + string (Option.defaultValue UintType rightType))
         ErrLst [ { Msg = msg; Pos = pos } ]
 
-    //let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
+    /// Check that cast function is applied appropriately
     let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
         let exprRes = checkAST castExpr components
         match exprRes with 
@@ -86,6 +95,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         | _ -> exprRes //propagate error
 
 
+    /// Check adherence of binary expressions to the type system
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  

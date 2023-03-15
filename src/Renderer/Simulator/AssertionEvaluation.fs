@@ -8,14 +8,13 @@ open SimulatorTypes
 open BusWidthInferer
 open System
 
-// these types are here because they concern evaluation, not assertions in general
-type IntToBool = int -> int -> bool
-type IntToInt = int -> int -> int
-type UintToBool = uint -> uint -> bool
-type UintToUint = uint -> uint -> uint
+type IntToBool = int64 -> int64 -> bool
+type IntToInt = int64 -> int64 -> int64
+type UintToBool = uint64 -> uint64 -> bool
+type UintToUint = uint64 -> uint64 -> uint64
 type BoolToBool = bool -> bool -> bool
-type IntToIntUn = int -> int
-type UintToUintUn = uint -> uint
+type IntToIntUn = int64 -> int64
+type UintToUintUn = uint64 -> uint64
 type BoolToBoolUn = bool -> bool
 
 type Functions =
@@ -35,12 +34,14 @@ let boolToInt =
 
 let boolToUint =
     function
-    | true -> 1u
-    | false -> 0u
+    | true -> 1UL
+    | false -> 0UL
 
-let intToBool n = if n = 0 then false else true
-let uintToBool n = if n = uint 0 then false else true
+let intToBool n = if n = 0L then false else true
+let uintToBool n = if n = 0UL then false else true
 
+/// get the smallest possible number of bits that a lit would need, 
+/// this provides the width for literals that are not buses
 let getLitMinSize lit = 
     match lit with
     | Int intN -> 
@@ -65,22 +66,39 @@ let getFComponentId label components =
             | _ -> failwithf "should not happen"
     compId
 
+/// extract type information from Lit 
 let getLitType (components: FastComponent List) lit = 
     match lit with
     | Value value -> getType value
     | Id _ -> UintType // the existance of the id has been checked in the compilation
 
+///create bitwise mask of size n
+let mask n : uint64 = 
+    uint64 ((Math.Pow (2.0, float n)) - 1.0)
+
+/// given a width, sign extend the number so that it can be held in an int64 while maintaining the correct value.
+/// This function is invoked before returning a result to ensure operands have a value coherent with their width and 
+/// signedness before being used in the evaluation of the driven block
+let resizeSigned (n: int64) width = 
+    let masked = n &&& -1L
+    let maxUnsigned = Math.Pow (2.0, float (width - 1)) |> int64
+    if masked >= maxUnsigned 
+    then -(masked - (maxUnsigned * 2L))
+    else  masked
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
+/// evaluate an assertion in a given cycle. Uses simulation data and up to date width inference information
 let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: ConnectionsWidth): Result<Value * Size, string> =
     let resizeRes (size: Size) res = 
         match res, size with 
         | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1)))))
-        | Int pos, Size s -> Int (min pos (int (2. ** float (s- 1)) - 1))
-        | Uint v, Size s -> Uint (min v (uint (2. ** float s) - 1u))
+        | Int pos, Size s -> Int (min pos (int64 (2. ** float (s- 1)) - 1L))
+        | Uint v, Size s -> Uint (min v (uint64 (2. ** float s) - 1UL))
         | _ -> res
 
-    // can definitely be improved and abstracted more (maybe put together unOp and binOp)
+
+
+    /// evaluate a binary or unary expression
     let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
@@ -88,29 +106,29 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             let rightRes= evaluate r fs step connectionsWidth
             printf "evaluated %A %A" leftRes rightRes
             printf "from %A %A" l r
-// get size for both left and right, determine which one is the biggest, cast the other one 
+            
             let value = 
                 match leftRes, rightRes with
                 // all this repeated code is required as type inference does not allow to put the different conditions as the same one 
                 | Ok(Int op1, Size sizeL), Ok(Int op2, Size sizeR) -> 
                     match fInt with
                     | Some(ItB f) -> Ok(Bool(f  op1 op2), Size 1)
-                    | Some(ItI f) -> Ok(Int(f op1 op2), Size(max sizeL sizeR))
+                    | Some(ItI f) -> Ok(Int(resizeSigned (f op1 op2) (max sizeL sizeR)), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Int op1, Size sizeL), Ok(Uint op2, Size sizeR) -> 
                     match fInt with
                     | Some(ItB f) -> Ok(Bool(f op1 (int op2)), Size 1)
-                    | Some(ItI f) -> Ok(Int(f op1 (int op2)), Size(max sizeL sizeR))
+                    | Some(ItI f) -> Ok(Int( resizeSigned (f op1 (int op2)) (max sizeL sizeR)), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Uint op1, Size sizeL), Ok(Int op2, Size sizeR) ->
                     match fInt with
                     | Some(ItB f) -> Ok(Bool(f (int op1) op2), Size(1))
-                    | Some(ItI f) -> Ok(Int(f (int op1) op2), Size(max sizeL sizeR))
+                    | Some(ItI f) -> Ok(Int( resizeSigned (f (int op1) op2) (max sizeL sizeR)), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Uint op1, Size sizeL), Ok(Uint op2, Size sizeR) ->
                     match fUint with
                     | Some(UtB f) -> Ok(Bool(f op1 op2), Size(1))
-                    | Some(UtU f) -> Ok(Uint(f op1 op2), Size(max sizeL sizeR))
+                    | Some(UtU f) -> Ok(Uint(f op1 op2 &&& (mask (max sizeL sizeR))), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Bool op1, Size sizeL), Ok(Bool op2, Size sizeR) ->
                     match fBool with
@@ -137,6 +155,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                 match fBool with
                 | Some(BtBUn f) -> Ok(Bool(f op), Size 1)
                 | _ -> Error("should not happen")
+            | _ -> Error("should not happen")
     
     match tree with
     | Lit lit, _ ->
@@ -152,7 +171,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                 match data, size with 
                 | Data{Dat = fb; Width = _}, Some(width) ->  
                     match fb with 
-                    | Word w -> Ok(Uint w, Size width)
+                    | Word w -> Ok(Uint (uint64 w), Size width)
                     | _ -> Error("failed to retrieve width or value of literal")
                 | _ -> Error("dev error")
         value
@@ -176,9 +195,10 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             let left = evaluate l fs step connectionsWidth
             let right = evaluate r fs step connectionsWidth 
             match left, right with 
-            | _, Ok(Int 0, _) -> Error("division by 0 attempted")
-            | _, Ok(Uint 0u, _) -> Error("division by 0 attempted")
-            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) None ops  
+            | _, Ok(Int 0L, _) -> Error("division by 0 attempted")
+            | _, Ok(Uint 0UL, _) -> Error("division by 0 attempted")
+            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) None ops 
+        | UnOp _ -> Error("should not be a unary operator") 
     | Rem ops, _ -> ExprEval (Some(ItI (%))) (Some(UtU (%))) None ops  
     | BitAnd ops, _ -> ExprEval (Some(ItI (&&&))) (Some(UtU (&&&))) None ops 
     | BitOr ops, _ -> ExprEval (Some(ItI (|||))) (Some(UtU (|||))) None ops 
@@ -198,16 +218,17 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)
+/// evaluates results of type casting functions 
 and cast expr castType fs step connectionsWidth=
     // cast per se can't fail, but the expression it's called on might, so we need to be able to propagate the error
     let castExprEvaluated= evaluate expr fs step connectionsWidth
     let value = 
         match castExprEvaluated, castType with
-        | Ok(Int int, size ), "uint" -> Ok(Uint(uint int), size)
+        | Ok(Int int, size ), "uint" -> Ok(Uint(uint64 (int &&& -1L)), size)
         | Ok(Int int, size), "bool" -> Ok(Bool(intToBool int), size)
         | Ok(Bool bool, size), "uint" -> Ok(Uint(boolToUint bool), size)
-        | Ok(Bool bool, size), "int" -> Ok(Int(boolToInt bool), size)
-        | Ok(Uint uint, size), "int" -> Ok(Int(int uint), size)
+        | Ok(Bool bool, Size size), "int" -> Ok(Int(resizeSigned (boolToInt bool) size), Size size)
+        | Ok(Uint uint, Size size), "int" -> Ok(Int(resizeSigned (int uint) size), Size size)
         | Ok(Uint uint, size), "bool" -> Ok(Bool(uintToBool uint), size)
         | _, _ -> castExprEvaluated
     value
@@ -226,6 +247,7 @@ type FailedAssertion = {
 }
 
 //function created by Lu for now will have place holder of fake data
+/// evaluates all assertions in a certain clock cycles window
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
     let connectionsWidth: ConnectionsWidth= 
         fs.SimulatedCanvasState

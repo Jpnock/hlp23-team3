@@ -622,9 +622,7 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                         let checkRes = AssertionCheck.checkAST assertion.AssertExpr components
                         match checkRes with
                         | AssertionTypes.ErrLst eLst -> eLst
-                        | AssertionTypes.Properties _ -> []
-
-                //AssertionCheck.checkAST
+                        | AssertionTypes.TypeInfo _ -> []
 
                 let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
                 match assertComponent.Type with

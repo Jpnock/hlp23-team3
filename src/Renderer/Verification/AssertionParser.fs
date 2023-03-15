@@ -313,7 +313,7 @@ let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInpu
         match stream'.CurToken.Type with
         | TLit l ->
             match l with
-            | Id (name, _) -> 
+            | Id (name, _,_) -> 
                 advanceIfNotEmpty "semicolon" stream'
                 |> Result.bind (advanceIfCorrectToken "semicolon" TSemicolon)
                 |> Result.bind ( fun stream ->
@@ -331,6 +331,9 @@ let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInpu
         | _ -> Error <| createExpectError "identifier" false token
         )
         
+
+
+//let rec parseInputs (tokens:Token list) : ParseResult =
 
 
 

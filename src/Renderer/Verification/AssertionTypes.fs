@@ -1,6 +1,8 @@
 module AssertionTypes
 
 // authored by ln220
+/// Position of token in the input string
+/// Used to localise error messages
 type Pos = {
     Line : int
     Col : int
@@ -8,6 +10,8 @@ type Pos = {
 }
 
 // authored by ln220
+/// Error returned by compiler
+/// Used to display errors directly in the text editor
 type Error = {
     Msg: string; 
     Pos: Pos
@@ -16,24 +20,29 @@ type Error = {
 // this type was created to wrap the results of the evaluate function, otherwise 
 // it would have tried to return different types causing errors 
 // authored by ln220
+/// Wraps possible results that evaluation can return 
 type Value = 
-    | Int of int 
+    | Int of int64
     | Bool of bool 
-    | Uint of uint 
+    | Uint of uint64
 
 // authored by ln220
+/// Wraps two smallest blocks of an expression
+/// relevant only for Text assertions as block assertions don't have value tokens
 type Lit = 
     | Value of Value
     //| Id of string // for now, later make it of BusLabel of whatever type there is 
     | Id of (string * int * string)// for now, later make it of BusLabel of whatever type there is 
 
 // authored by ln220
+/// Different kinds of type casting supported
 type Cast = 
     | ToSigned of ExprInfo
     | ToUnsigned of ExprInfo 
     | ToBool of ExprInfo 
 
 // authored by ln220
+/// outermost level for AST 
 and Expr = 
     | BoolExpr of BoolExpr 
     | Add of Op 
@@ -49,6 +58,7 @@ and Expr =
     | BusCast of int * ExprInfo 
 
 // authored by ln220
+/// Expressions that retunr a boolean
 and BoolExpr = 
     | Eq of Op//eval 
     | Neq of Op//eval 
@@ -61,17 +71,21 @@ and BoolExpr =
     | Lte of Op//eval
 
 // authored by ln220
+/// Operand, differentiates between unary and binary operations
 and Op = 
     | BinOp of left: ExprInfo * right: ExprInfo
     | UnOp of ExprInfo
 
 // authored by ln220
+/// Attaches position information to an expression to make it easy to know what exactly gave an error
 and ExprInfo = Expr * Pos 
 
 // authored by ln220
+/// Bus width
 and Size = Size of int
 
 // authored by ln220
+/// Type of Value
 type Type = 
     | IntType
     | UintType 
@@ -79,6 +93,7 @@ type Type =
 
 
 // authored by ln220
+/// Returned by the compiler
 type CheckRes = 
     | ErrLst of Error list 
     | TypeInfo of Type

@@ -45,7 +45,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
             }
         | RegexPattern "[1-9]\d*" m -> 
             // integer literals
-            let intTok = System.Int32.Parse m.Value |> Int |> Value |> TLit 
+            let intTok = System.Int64.Parse m.Value |> Int |> Value |> TLit 
             addToken intTok m.Length
         | RegexPattern "signed" m -> addToken TSigned m.Length 
         | RegexPattern "unsigned" m -> addToken TUnsigned m.Length 

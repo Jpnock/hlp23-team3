@@ -130,7 +130,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
     | IsBinExpr (l, r, pos) -> checkBin l r pos false false
     | Lit lit, pos -> 
-        match checkLitExistance components lit with 
+        match getLitProperties components lit with 
             | Ok(litType) -> TypeInfo litType
             | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
     | Cast cast, pos -> 

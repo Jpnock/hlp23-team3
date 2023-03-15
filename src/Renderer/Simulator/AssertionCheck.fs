@@ -43,7 +43,7 @@ let getType value =
 let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
     | Value value -> Ok(getType value)
-    | Id (id, _) -> 
+    | Id (id, _, _) -> 
         let isRightComponent (comp: Component) = 
             match comp.Label with 
             | idComp when idComp = id -> true

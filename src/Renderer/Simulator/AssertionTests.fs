@@ -20,7 +20,7 @@ let rec print(tree: ExprInfo) : string=
             | Uint uint -> string uint
             | Bool bool -> string bool  
 
-        | Id (id, _) -> id
+        | Id (id, _, _) -> id
 
     | Cast c, pos ->
 
@@ -114,7 +114,7 @@ let testCheck1 () : Result<string, string>=
 let testCheck2 (): Result<string, string> = 
     // true < ((3+4)>5)
     let lit3u = Lit(Value(Uint(3u))), {Line = 0; Col = 10; Length = 1}
-    let litA = Lit(Id("a", 0)), {Line = 0; Col = 8; Length = 1}
+    let litA = Lit(Id("a", 0, "")), {Line = 0; Col = 8; Length = 1}
     let lit5u = Lit(Value(Uint(5u))), {Line = 0; Col = 13; Length = 1}
     let addExpr = Add(BinOp(lit3u, litA)), {Line = 0; Col = 7; Length = 5}
     let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5u))), {Line = 0; Col = 7; Length = 8}
@@ -131,8 +131,8 @@ let testCheck2 (): Result<string, string> =
 let testCheck3 (): Result<string, string> = 
     // (a + b) == 0 (with a and b being of different widths)
     let lit0u = Lit(Value(Uint(0u))), {Line = 0; Col = 10; Length = 1}
-    let litA = Lit(Id("a", 0)), {Line = 0; Col = 1; Length = 1}
-    let litB = Lit(Id("b", 0)), {Line = 0; Col = 3; Length = 1}
+    let litA = Lit(Id("a", 0, "")), {Line = 0; Col = 1; Length = 1}
+    let litB = Lit(Id("b", 0, "")), {Line = 0; Col = 3; Length = 1}
     let addExpr = Add(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5}
     let eqExpr = BoolExpr(Eq(BinOp(addExpr, lit0u))), {Line = 0; Col = 7; Length = 8}
 
@@ -150,8 +150,8 @@ let testCheck3 (): Result<string, string> =
 let testCheck4 (): Result<string, string> = 
     // (a + b) == true (with a and b being of different widths)
     let litTrue = Lit(Value(Bool(true))), {Line = 0; Col = 10; Length = 1}
-    let litA = Lit(Id("a", 0)), {Line = 0; Col = 1; Length = 1}
-    let litB = Lit(Id("b", 0)), {Line = 0; Col = 3; Length = 1}
+    let litA = Lit(Id("a", 0, "")), {Line = 0; Col = 1; Length = 1}
+    let litB = Lit(Id("b", 0, "")), {Line = 0; Col = 3; Length = 1}
     let mulExpr = Mul(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5}
     let eqExpr = BoolExpr(Eq(BinOp(mulExpr, litTrue))), {Line = 0; Col = 7; Length = 8}
 

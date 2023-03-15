@@ -60,7 +60,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
             // identifiers
             // ln220: added 0 as a temporary fix to the fact that now output port number is fixed
-            let idTok = Id (m.Value, 0) |> TLit
+            let idTok = Id (m.Value, 0, "") |> TLit
             addToken idTok m.Length
         | RegexPattern "," m ->    addToken TComma m.Length 
         | RegexPattern ";" m ->    addToken TSemicolon m.Length 

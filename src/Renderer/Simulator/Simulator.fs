@@ -222,18 +222,18 @@ let rec startCircuitSimulation
     let targetIDtoPortNum id =
         // printf $"Looking up {id}"
         inputPortIDToNumber[id]
-        
+    
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
-        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, (getSourceComponentState conn.Source.HostId, targetIDtoPortNum conn.Source.Id)))
+        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, (getSourceComponentState conn.Source.HostId, targetIDtoPortNum conn.Source.Id, conn.Id)))
         |> List.groupBy (fun (hostId, _, _) -> hostId)
         |> List.map (fun (k, v) ->
             let inputMap =
                 v |> List.choose (
-                        fun (_, inputNumber, (state, sourceNumber)) ->
+                        fun (_, inputNumber, (state, sourceNumber, connId)) ->
                         match inputNumber.IsSome, sourceNumber.IsSome with
-                        | true, true -> Some (inputNumber.Value, (state, sourceNumber.Value))
+                        | true, true -> Some (inputNumber.Value, (state, sourceNumber.Value, connId))
                         | _ -> None )
             k, Map.ofList inputMap)
         |> Map.ofList
@@ -254,8 +254,8 @@ let rec startCircuitSimulation
                 Pos = emptyPos
                 ExtraErrors = None }
             | Some connectedTo ->               
-                let assertionInput = fst (connectedTo[0])
-                let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 assertionInput
+                let (assertionInput, _, _) = connectedTo[0]
+                let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
                 let assertion = ast, emptyPos
                 Ok {AssertExpr = assertion; InputNames = Set.empty})
     

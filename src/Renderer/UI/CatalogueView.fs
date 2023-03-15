@@ -617,13 +617,13 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                 
                 let errorList = 
                     match parseAssertion code with
-                    | Error e -> e
+                    | Error e -> [e]
                     | Ok expr ->
                         // TODO: Fix this
                         let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
                         let checkRes = AssertionCheck.checkAST (expr, emptyPos) components
                         match checkRes with
-                        | AssertionTypes.ErrLst eLst -> List.map mapErrorToErrorInfo eLst
+                        | AssertionTypes.ErrLst eLst -> eLst
                         | AssertionTypes.Properties _ -> []
 
                 //AssertionCheck.checkAST

@@ -103,7 +103,7 @@ let testCheck1 () : Result<string, string>=
     | ErrLst eLst -> 
         match eLst with 
         | e::_ -> 
-            if (e = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 4"; Pos = {Line = 0; Col = 7; Length = 8}})
+            if (e = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 4"; Pos = {Line = 0; Col = 7; Length = 8}; ExtraErrors = None})
             then Ok($"The following expr: {print tree}, should not compile because {e.Msg}")
             else Error($"wrong error returned for the following expr: {print tree}: {e}")
         | lst -> Error($"too many errors: {lst}")
@@ -143,7 +143,7 @@ let testCheck3 (): Result<string, string> =
     match compile with
     | Properties {Type = t; Size = s}-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
-        if e.Head = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 5"; Pos = {Line = 0; Col = 7; Length = 5}} 
+        if e.Head = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 5"; Pos = {Line = 0; Col = 7; Length = 5}; ExtraErrors = None} 
         then Ok($"the expression: {print eqExpr} does not compile as it is trying to add buses of different widths")
         else Error($"wrong error message {e} for the expression {print eqExpr}")
 
@@ -162,7 +162,7 @@ let testCheck4 (): Result<string, string> =
     match compile with
     | Properties {Type = t; Size = s}-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
-        if e.Head = {Msg = "This function can't be applied on value of different types. left expr is of type: UintType. Right expr is of type: BoolType"; Pos = {Line = 0; Col = 7; Length = 8}} 
+        if e.Head = {Msg = "This function can't be applied on value of different types. left expr is of type: UintType. Right expr is of type: BoolType"; Pos = {Line = 0; Col = 7; Length = 8}; ExtraErrors = None} 
         then Ok($"the expression: {print eqExpr} does not compile as it is trying to add buses of different widths")
         else Error($"wrong error message {e} for the expression {print eqExpr}")
 

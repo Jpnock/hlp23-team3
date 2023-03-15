@@ -76,4 +76,4 @@ type PortAssignmentError =
 
 type OneUnary = {Name:string;ResultWidth:int;Head:OneUnary option;Tail:OneUnary option;Elements:OneUnary list} 
 
-type ParserOutput = {Result: string option; Error: ErrorInfo option; NewLinesIndex: int array option}
+type ParserOutput = {Result: string option; Error: CodeError option; NewLinesIndex: int array option}

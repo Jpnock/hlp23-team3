@@ -243,17 +243,15 @@ let rec startCircuitSimulation
     
     let assertionComps = List.map snd assertionCompsAndIDs
     
-    let assertionCompASTs : Result<AssertionTypes.Assertion, ErrorInfo> list =
+    let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
             let connectedToPort = componentIDToInputPortState.TryFind el.InstanceID.Value
             match connectedToPort with
             | None -> Error {
-                Message = "An assertion component was not driven by any inputs"
-                Line = 0
-                Col = 0
-                Length = 0
+                Msg = "An assertion component was not driven by any inputs"
+                Pos = emptyPos
                 ExtraErrors = None }
             | Some connectedTo ->               
                 let assertionInput = fst (connectedTo[0])

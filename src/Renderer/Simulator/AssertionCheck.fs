@@ -89,11 +89,11 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     
     let makeTypeError errType leftType (rightType: Option<AssertionTypes.Type>) pos =
         let msg = errType () + ". left expr is of type: " + string leftType + if rightType.IsNone  then "" else (". Right expr is of type: " + string (Option.defaultValue UintType rightType))
-        ErrLst [ { Msg = msg; Pos = pos } ]
+        ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
 
     let makeSizeError leftSize rightSize pos = 
         let msg = "The buses have different widths. Left expr is of size: " + string leftSize + if rightSize = 0 then "" else (". Right expr is of size: " + string rightSize)
-        ErrLst [ { Msg = msg; Pos = pos } ]
+        ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
         
 
     let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
@@ -160,7 +160,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | Lit lit, pos -> 
         match getLitProperties components lit with 
             | Ok(litType, size) -> Properties {Type = litType; Size = size}
-            | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos } ]
+            | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
     | Cast cast, pos -> 
         match cast with
         | ToSigned expr -> checkCast expr (Some IntType) None pos

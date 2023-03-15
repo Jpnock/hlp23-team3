@@ -1,16 +1,24 @@
 module AssertionTypes
 
-// authored by ln220
-type Pos = {
+type ReplaceType =
+    |IODeclaration
+    |Assignment
+    |Variable of string
+    |NoReplace
+
+
+type CodePos = {
     Line : int
     Col : int
     Length : int
 }
 
-// authored by ln220
-type Error = {
+type CodeExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
+
+type CodeError = {
     Msg: string; 
-    Pos: Pos
+    Pos: CodePos
+    ExtraErrors : CodeExtraErrorInfo array option
 }
 
 // this type was created to wrap the results of the evaluate function, otherwise 
@@ -66,7 +74,7 @@ and Op =
     | UnOp of ExprInfo
 
 // authored by ln220
-and ExprInfo = Expr * Pos 
+and ExprInfo = Expr * CodePos 
 
 // authored by ln220
 and Size = Size of int
@@ -87,7 +95,7 @@ type Properties = {
 // TODO(jlsand): Might make sense to make this a result type, so that Result.bind can be used on it.
 // authored by ln220
 type CheckRes = 
-    | ErrLst of Error list 
+    | ErrLst of CodeError list 
     | Properties of Properties 
 
 // TODO(jsand): This type is a (somewhat) duplicate of Expr.
@@ -122,10 +130,45 @@ type TokenType =
     | TAssertTrue       // assertTrue
     | TAssertFalse      // assertFalse
     | TBusCast of int   // '
+    | TInput            // input
+    | TComma            // ,
+    | TSemicolon        // ;
+
+let tokenSymbol tok =
+    match tok with
+    | TLit lit          -> sprintf "%A" lit
+    | TAdd              -> "+"
+    | TSub              -> "-"
+    | TMul              -> "*"
+    | TDiv              -> "/"
+    | TRem              -> "%" 
+    | TBitAnd           -> "&"
+    | TBitNot           -> "~"
+    | TBitOr            -> "|"
+    | TEq               -> "=="
+    | TNeq              -> "!="
+    | TLt               -> "<"
+    | TGt               -> ">"
+    | TGte              -> ">="
+    | TLte              -> "<="
+    | TLogAnd           -> "&&"
+    | TLogNot           -> "!"
+    | TLogOr            -> "||"
+    | TLParen           -> "("
+    | TRParen           -> ")"
+    | TSigned           -> "signed"
+    | TUnsigned         -> "unsigned"
+    | TBool             -> "bool"
+    | TAssertTrue       -> "assertTrue"
+    | TAssertFalse      -> "assertFalse"
+    | TBusCast width    -> sprintf "%A'" width 
+    | TInput            -> "input"
+    | TComma            -> ","
+    | TSemicolon        -> ";"
 
 type Token = {
     Type: TokenType
-    Pos: Pos
+    Pos: CodePos
 }
 
 type ParseData = {
@@ -133,19 +176,12 @@ type ParseData = {
     RemainingTokens : Token list
 }
 
-type ParseResult = Result<ParseData, Error>
+type ParseResult = Result<ParseData, CodeError>
 
 type Precedence = Precedence of int option 
 
-type ReplaceType =
-    |IODeclaration
-    |Assignment
-    |Variable of string
-    |NoReplace
-
-type ExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
-
-type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: ExtraErrorInfo array option}
+//type ExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
+//type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: ExtraErrorInfo array option}
 
 type Assertion = {
     AST: ExprInfo;

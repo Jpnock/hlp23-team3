@@ -17,7 +17,7 @@ let (|RegexPattern|_|) regex str =
 /// Lex an assertion expression into a series of tokens.
 /// Will supply errors messages pointing to the piece of text
 /// which cannot be correctly tokenized.
-let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<Token list, Error> =
+let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<Token list, CodeError> =
     if code.Length = 0 then
         Ok tokens
     else
@@ -45,6 +45,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
             Error { 
                 Pos = {Line = curLine; Col = curCol; Length = m.Length}
                 Msg = "Remember to specify a width for the bus cast"
+                ExtraErrors = None
             }
         | RegexPattern "([1-9]\d*|0x([0-9]|[A-F])+|0b(0|1)+)" m -> 
             // integer literals
@@ -55,11 +56,14 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern "bool" m -> addToken TBool m.Length 
         | RegexPattern "assertTrue" m -> addToken TAssertTrue m.Length 
         | RegexPattern "assertFalse" m -> addToken TAssertFalse m.Length 
+        | RegexPattern "input" m -> addToken TInput m.Length
         | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
             // identifiers
             // ln220: added 0 as a temporary fix to the fact that now output port number is fixed
             let idTok = Id (m.Value, 0) |> TLit
             addToken idTok m.Length
+        | RegexPattern "," m ->    addToken TComma m.Length 
+        | RegexPattern ";" m ->    addToken TComma m.Length 
         | RegexPattern "\(" m ->   addToken TLParen m.Length
         | RegexPattern "\)" m ->   addToken TRParen m.Length
         | RegexPattern "\+" m ->   addToken TAdd m.Length
@@ -84,6 +88,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
             Error {
                 Pos = {Line = curLine; Col = curCol; Length = m.Length}; 
                 Msg = "Unrecognized token: " + m.Value; 
+                ExtraErrors = None
             }
         | _ ->
             failwithf "What? Should not be possible for code not to be matched to token in assertion lexer"
@@ -150,11 +155,18 @@ let nextToken (tokens: Token list): Token =
 let popToken (tokens: Token list): Token list = 
     List.tail tokens
 
+let createExpectError (expected:string) (token: Token) (tokenIsPrevious:bool) =
+    match tokenIsPrevious with
+    | true ->
+        Error { Msg = sprintf "Expected a %A after %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
+    | false ->
+        Error { Msg = sprintf "Expected a %A, got %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
+
 /// Parse an operand, potentially being prefixed by unary operations (e.g. casts)
 /// or contained in a set of parentheses.
 let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseResult =
     if List.isEmpty tokens then
-        Error { Msg = "Missing operand!"; Pos = prevToken.Pos}
+        Error { Msg = "Missing operand!"; Pos = prevToken.Pos; ExtraErrors = None}
     else 
         let token = nextToken tokens
         let tokens' = popToken tokens
@@ -163,14 +175,14 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
             let parenthisedExpr = parseExpr 0 true prevToken remainingTokens
             let handleEndOfParen parenExpr =
                 if List.isEmpty parenExpr.RemainingTokens then
-                    Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos }
+                    Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos; ExtraErrors = None }
                 else 
                     Ok {parenExpr with RemainingTokens = popToken parenExpr.RemainingTokens}
             Result.bind handleEndOfParen parenthisedExpr
 
         let handleFunctionCall functionType =
             if List.isEmpty tokens' then
-                Error { Msg = "Expected a subsequent left-parenthesis"; Pos = token.Pos }
+                createExpectError "subsequent left-parenthesis" token true
             else 
                 let lParenToken = nextToken tokens'
                 match lParenToken.Type with
@@ -181,7 +193,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                         Ok {parenExpr with Expr = castExpr}
                     )
                 | _ -> 
-                    Error { Msg = sprintf "Expected a left-parenthesis, got %A" lParenToken.Type; Pos = lParenToken.Pos }
+                    createExpectError "left-parenthesis" lParenToken false
 
 
         let handleUnaryOp unaryType =
@@ -209,7 +221,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                 Ok {Expr = castExpr; RemainingTokens = castOperand.RemainingTokens}
             )
         | _ ->
-            Error {Msg = sprintf "%A is not a valid operand!" token.Type; Pos = token.Pos }
+            Error {Msg = sprintf "%A is not a valid operand!" <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
 
 and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
 
@@ -225,18 +237,9 @@ and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
             // Peek token is not a binary operator. The only allowed token here is a right-paren
             // given that we are actually expecting one.
             match expectParen, token.Type with
-            | true, TRParen ->
-                Ok {lhs with RemainingTokens = lhs.RemainingTokens}
-            | true, _ ->
-                Error { 
-                    Msg = sprintf "Expected a right parenthesis or binary operation, got %A" token.Type;
-                    Pos = token.Pos;        
-                }
-            | _ -> 
-                Error { 
-                    Msg = sprintf "Expected a binary operation, got %A" token.Type;
-                    Pos = token.Pos;        
-                }
+            | true, TRParen -> Ok {lhs with RemainingTokens = lhs.RemainingTokens}
+            | true, _ -> createExpectError "right-parenthesis or binary operation" token false
+            | _ -> createExpectError "binary operation" token false
 
         | Some precedence when precedence < minPrecedence -> Ok lhs  // Peek token does not have a high enough precedence or 
         | Some precedence ->
@@ -259,7 +262,12 @@ and parseExpr (minPrecedence:int) expectParen (prevToken:Token) (tokens: Token l
     |> Result.bind (parseBinaryOp minPrecedence expectParen)
 
 
-//let rec parseInputs (tokens:Token list) : ParseResult =
+let rec parseInputs (prevToken:Token) (tokens:Token list) : ParseResult =
+    if List.isEmpty tokens then
+        createExpectError "\";\" or \",\"" prevToken true
+    else
+        failwith "Not yet implemented"
+        
 
 
 
@@ -314,18 +322,14 @@ let rec prettyPrintAST expr prevPrefix isLast:string =
     // Print the current AST node and its children
     sprintf "%A %A %A\n %A" curPrefix (printTypeName expr) operandInfo childLines
 
-// TODO(jlsand): Get rid of this horror
-let mapErrorToErrorInfo e =
-    {Message = e.Msg; Line = e.Pos.Line; Col = e.Pos.Col; Length = e.Pos.Length; ExtraErrors = None}
-
 
 /// Returns either the resulting AST or an Error 
-let parseAssertion code: Result<Expr, ErrorInfo list>=
+let parseAssertion code: Result<Expr, CodeError>=
 
     lexAssertion code 1 1 []
     |> Result.bind (fun tokens ->
         if List.isEmpty tokens then
-            Error { Msg = "Missing assertion expression!"; Pos = {Line = 1; Col = 1; Length = 1} }
+            Error { Msg = "Missing assertion expression!"; Pos = {Line = 1; Col = 1; Length = 1}; ExtraErrors = None }
         else 
             parseExpr 0 false (List.head tokens) tokens
     )
@@ -333,7 +337,6 @@ let parseAssertion code: Result<Expr, ErrorInfo list>=
         printfn "%A" <| prettyPrintAST parseData.Expr "" true
         parseData.Expr
     )
-    |> Result.mapError (fun e -> [mapErrorToErrorInfo e])
     
     // TODO(jsand): In the above we have to map from our own error type to the error type used by the Verilog code editor.
     // These types should be unified in the group stage.

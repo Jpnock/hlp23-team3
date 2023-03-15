@@ -85,7 +85,7 @@ type CodeType =
 type CodeData = {
     Type : CodeType
     Contents : string option
-    Errors : ErrorInfo list
+    Errors : CodeError list
     ShowErrors : bool
 }
 

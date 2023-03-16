@@ -63,7 +63,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
             let idTok = Id (m.Value, 0) |> TLit
             addToken idTok m.Length
         | RegexPattern "," m ->    addToken TComma m.Length 
-        | RegexPattern ";" m ->    addToken TComma m.Length 
+        | RegexPattern ";" m ->    addToken TSemicolon m.Length 
         | RegexPattern "\(" m ->   addToken TLParen m.Length
         | RegexPattern "\)" m ->   addToken TRParen m.Length
         | RegexPattern "\+" m ->   addToken TAdd m.Length
@@ -147,13 +147,6 @@ let operatorPrecedence (tokType:TokenType):Precedence =
     | TLogOr ->                 Precedence <| Some 10
     | _ ->                      Precedence None
 
-/// Small "helper" functions which give a better
-/// semantical understand of the parser code.
-let nextToken (tokens: Token list): Token = 
-    List.head tokens
-
-let popToken (tokens: Token list): Token list = 
-    List.tail tokens
 
 let createExpectError (expected:string) (tokenIsPrevious:bool) (token: Token)  =
     match tokenIsPrevious with
@@ -162,34 +155,66 @@ let createExpectError (expected:string) (tokenIsPrevious:bool) (token: Token)  =
     | false ->
         { Msg = sprintf "Expected a %A, got %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
 
+/// Small "helper" functions which give a better
+/// semantical understand of the parser code.
+let nextToken (tokens: Token list): Token = 
+    List.head tokens
+
+let popToken (tokens: Token list): Token list = 
+    List.tail tokens
+
+/// Go to the next token unconditionally in the token stream.
+/// Since this has no check for whether there are any remaining tokens,
+/// this should only be called after advanceIfNotEmpty or a similar check.
+let advanceStream (stream:TokenStream) =
+    {
+        CurToken = nextToken stream.RemainingTokens; 
+        RemainingTokens = popToken stream.RemainingTokens
+    }
+
+let advanceIfNotEmpty (expected:string) (stream: TokenStream) =
+    if List.isEmpty stream.RemainingTokens then
+        Error <| createExpectError expected true stream.CurToken
+    else
+        Ok stream
+
+let advanceIfCorrectToken (expectedMsg:string) (expectedType: TokenType) (stream:TokenStream) =
+    let stream' = advanceStream stream
+    let token = stream'.CurToken 
+
+    if token.Type = expectedType then
+        Ok stream'
+    else 
+        Error <|createExpectError expectedMsg false token
+
 /// Parse an operand, potentially being prefixed by unary operations (e.g. casts)
 /// or contained in a set of parentheses.
-let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseResult =
-    if List.isEmpty tokens then
-        Error { Msg = "Missing operand!"; Pos = prevToken.Pos; ExtraErrors = None}
-    else 
-        let token = nextToken tokens
-        let tokens' = popToken tokens
+let rec parseOperand expectParen (stream: TokenStream) : ParseResult =
+    if List.isEmpty stream.RemainingTokens then
+        Error { Msg = "Missing operand!"; Pos = stream.CurToken.Pos; ExtraErrors = None}
+    else
+        let stream' = advanceStream stream
+        let curToken = stream'.CurToken
 
-        let handleParens lParenToken remainingTokens =
-            let parenthisedExpr = parseExpr 0 true prevToken remainingTokens
+        let handleParens lParenToken newStream =
+            let parenthisedExpr = parseExpr 0 true newStream
             let handleEndOfParen parenExpr =
-                if List.isEmpty parenExpr.RemainingTokens then
+                if List.isEmpty parenExpr.Stream.RemainingTokens then
                     Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos; ExtraErrors = None }
                 else 
-                    Ok {parenExpr with RemainingTokens = popToken parenExpr.RemainingTokens}
+                    Ok {parenExpr with Stream = advanceStream parenExpr.Stream}
             Result.bind handleEndOfParen parenthisedExpr
 
         let handleFunctionCall functionType =
-            if List.isEmpty tokens' then
-                Error <| createExpectError "subsequent left-parenthesis" true token
+            if List.isEmpty stream'.RemainingTokens then
+                Error <| createExpectError "subsequent left-parenthesis" true curToken
             else 
-                let lParenToken = nextToken tokens'
+                let lParenToken = nextToken stream'.RemainingTokens
                 match lParenToken.Type with
                 | TLParen -> 
-                    handleParens lParenToken <| popToken tokens' 
+                    handleParens lParenToken <| advanceStream stream' 
                     |> Result.bind (fun parenExpr ->
-                        let castExpr = Cast (functionType (parenExpr.Expr, token.Pos))
+                        let castExpr = Cast (functionType (parenExpr.Expr, curToken.Pos))
                         Ok {parenExpr with Expr = castExpr}
                     )
                 | _ -> 
@@ -197,17 +222,17 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
 
 
         let handleUnaryOp unaryType =
-            parseOperand expectParen prevToken tokens'
+            parseOperand expectParen stream'
             |> Result.bind (fun exprData ->
-                let addExpr = unaryType (UnOp (exprData.Expr, token.Pos))
-                Ok {Expr = addExpr; RemainingTokens = exprData.RemainingTokens}
+                let addExpr = unaryType (UnOp (exprData.Expr, curToken.Pos))
+                Ok {Expr = addExpr; Stream = exprData.Stream}
             )
 
-        match token.Type with
+        match stream'.CurToken.Type with
         | TLit l -> 
             let litExpr = Expr.Lit l
-            Ok {Expr = litExpr ; RemainingTokens = tokens'}
-        | TLParen -> handleParens token tokens'
+            Ok {Expr = litExpr ; Stream = stream'}
+        | TLParen -> handleParens curToken stream'
         | TSigned -> handleFunctionCall ToSigned
         | TUnsigned -> handleFunctionCall ToUnsigned
         | TBool -> handleFunctionCall ToBool
@@ -215,21 +240,21 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
         | TAdd -> handleUnaryOp Add
         | TSub -> handleUnaryOp Sub
         | TBusCast width ->
-            parseOperand expectParen prevToken tokens'
+            parseOperand expectParen stream'
             |> Result.bind (fun castOperand ->
-                let castExpr = BusCast (width, (castOperand.Expr, token.Pos))
-                Ok {Expr = castExpr; RemainingTokens = castOperand.RemainingTokens}
+                let castExpr = BusCast (width, (castOperand.Expr, curToken.Pos))
+                Ok {Expr = castExpr; Stream = castOperand.Stream}
             )
         | _ ->
-            Error {Msg = sprintf "%A is not a valid operand!" <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
+            Error {Msg = sprintf "%A is not a valid operand!" <| tokenSymbol curToken.Type; Pos = curToken.Pos; ExtraErrors = None }
 
-and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
+and parseBinaryOp minPrecedence expectParen (lhs:ParsedExpr) :ParseResult =
 
-    if List.isEmpty lhs.RemainingTokens then
+    if List.isEmpty lhs.Stream.RemainingTokens then
         // No more tokens 
         Ok lhs
     else 
-        let token = nextToken lhs.RemainingTokens
+        let token = nextToken lhs.Stream.RemainingTokens
 
         let (Precedence prec) = operatorPrecedence token.Type
         match prec with
@@ -237,7 +262,7 @@ and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
             // Peek token is not a binary operator. The only allowed token here is a right-paren
             // given that we are actually expecting one.
             match expectParen, token.Type with
-            | true, TRParen -> Ok {lhs with RemainingTokens = lhs.RemainingTokens}
+            | true, TRParen -> Ok lhs
             | true, _ -> Error <| createExpectError "right-parenthesis or binary operation" false token 
             | _ -> Error <| createExpectError "binary operation" false token
 
@@ -246,67 +271,56 @@ and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
             // Token is valid binary operator and has high enough precedence to continue
 
             // Parse the RHS operand of the binary operation
-            let rhsRes = parseExpr (precedence + 1) expectParen token <| popToken lhs.RemainingTokens 
+            let rhsRes = parseExpr (precedence + 1) expectParen <| advanceStream lhs.Stream
             
             let createBinaryExpr rhs =
                 let binaryOperands = BinOp ((lhs.Expr, token.Pos), (rhs.Expr, token.Pos))
                 let binaryExpr = mapBinaryOpToExpr token.Type binaryOperands
 
                 // The resulting Expr of the binary operation becomes the lhs for the next call!
-                parseBinaryOp minPrecedence expectParen <| {Expr = binaryExpr; RemainingTokens = rhs.RemainingTokens}
+                parseBinaryOp minPrecedence expectParen <| {Expr = binaryExpr; Stream = rhs.Stream}
 
             Result.bind createBinaryExpr rhsRes
 
-and parseExpr (minPrecedence:int) expectParen (prevToken:Token) (tokens: Token list): ParseResult =
-    parseOperand expectParen prevToken tokens
+and parseExpr (minPrecedence:int) expectParen (stream: TokenStream): ParseResult =
+    parseOperand expectParen stream
     |> Result.bind (parseBinaryOp minPrecedence expectParen)
 
 
-let advanceIfNotEmpty (expected:string) (prevToken: Token, tokens: Token list)  =
-    if List.isEmpty tokens then
-        Error <| createExpectError expected true prevToken
-    else
-        Ok (prevToken, tokens)
-
-let advanceIfCorrectToken (expected:string) (expectedToken: TokenType) (_, tokens: Token list) =
-    let curToken = nextToken tokens
-    let tokens' = popToken tokens
-    if curToken.Type = expectedToken then
-        Ok (curToken, tokens')
-    else 
-        Error <|createExpectError expected false curToken
 
 
 
-let rec parseInputs (inputs:string list) (prevToken:Token) (tokens:Token list) : Result<string list, CodeError> =
-    advanceIfNotEmpty "input" (prevToken, tokens)
+
+
+let rec parseInputs (inputs:string list) (stream:TokenStream) : Result<ParsedInputs, CodeError> =
+    advanceIfNotEmpty "input" stream 
     |> Result.bind (advanceIfCorrectToken "input" TInput)
     |> Result.bind (advanceIfNotEmpty "identifier")
-    |> Result.bind ( fun (_, tokens) ->
+    |> Result.bind ( fun stream ->
         // We have successfully parsed an input token and confirmed that
         // there exists a subsequent token. Now make sure it is an identifier:
 
-        let curToken = nextToken tokens
-        let tokens' = popToken tokens
-        match curToken.Type with
+        let stream' = advanceStream stream
+        let token = stream'.CurToken
+        match stream'.CurToken.Type with
         | TLit l ->
             match l with
             | Id (name, _) -> 
-                advanceIfNotEmpty "semicolon" (curToken, tokens')
+                advanceIfNotEmpty "semicolon" stream'
                 |> Result.bind (advanceIfCorrectToken "semicolon" TSemicolon)
-                |> Result.bind ( fun (colonToken, tokens'') ->
+                |> Result.bind ( fun stream ->
                     let inputs' = List.append inputs [name]
 
-                    if List.isEmpty tokens'' then
-                        Ok inputs'
+                    if List.isEmpty stream.RemainingTokens then
+                        Ok {InputNames = inputs'; Stream = stream}
                     else
-                        let postInputToken = nextToken tokens
+                        let postInputToken = nextToken stream.RemainingTokens
                         match postInputToken.Type with 
-                        | TInput -> parseInputs inputs' colonToken tokens'' 
-                        | _ -> Ok inputs'
+                        | TInput -> parseInputs inputs' <| advanceStream stream'
+                        | _ -> Ok {InputNames = inputs'; Stream = stream}
                 )
-            | _ -> Error <| createExpectError "identifier" false curToken
-        | _ -> Error <| createExpectError "identifier" false curToken
+            | _ -> Error <| createExpectError "identifier" false token
+        | _ -> Error <| createExpectError "identifier" false token
         )
         
 
@@ -372,14 +386,14 @@ let parseAssertion code: Result<Expr, CodeError>=
         if List.isEmpty tokens then
             Error { Msg = "Missing definition of inputs!"; Pos = {Line = 1; Col = 1; Length = 1}; ExtraErrors = None }
         else 
-            parseInputs [] (List.head tokens) tokens 
+            parseInputs [] {CurToken = nextToken tokens; RemainingTokens = tokens}
     )
-    |> Result.bind (fun parseData ->
-        let tokens = parseData.RemainingTokens
+    |> Result.bind (fun parsedInputs ->
+        let tokens = parsedInputs.Stream.RemainingTokens
         if List.isEmpty tokens then
-            Error { Msg = "Missing assertion expression!"; Pos = {Line = 1; Col = 1; Length = 1}; ExtraErrors = None }
+            Error { Msg = "Missing assertion expression!"; Pos = parsedInputs.Stream.CurToken.Pos; ExtraErrors = None }
         else 
-            parseExpr 0 false (List.head tokens) tokens
+            parseExpr 0 false parsedInputs.Stream
     )
     |> Result.map (fun parseData -> 
         printfn "%A" <| prettyPrintAST parseData.Expr "" true

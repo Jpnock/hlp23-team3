@@ -171,12 +171,22 @@ type Token = {
     Pos: CodePos
 }
 
-type ParseData = {
-    Expr: Expr
-    RemainingTokens : Token list
+type TokenStream = {
+    CurToken: Token 
+    RemainingTokens: Token list
 }
 
-type ParseResult = Result<ParseData, CodeError>
+type ParsedInputs = {
+    InputNames: string list
+    Stream: TokenStream
+}
+
+type ParsedExpr = {
+    Expr: Expr
+    Stream : TokenStream
+}
+
+type ParseResult = Result<ParsedExpr, CodeError>
 
 type Precedence = Precedence of int option 
 

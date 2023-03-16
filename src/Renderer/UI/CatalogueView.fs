@@ -618,10 +618,8 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                 let errorList = 
                     match parseAssertion code with
                     | Error e -> [e]
-                    | Ok expr ->
-                        // TODO: Fix this
-                        let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
-                        let checkRes = AssertionCheck.checkAST (expr, emptyPos) components
+                    | Ok assertion ->
+                        let checkRes = AssertionCheck.checkAST assertion.AssertExpr components
                         match checkRes with
                         | AssertionTypes.ErrLst eLst -> eLst
                         | AssertionTypes.Properties _ -> []

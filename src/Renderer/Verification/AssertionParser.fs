@@ -189,15 +189,15 @@ let advanceIfCorrectToken (expectedMsg:string) (expectedType: TokenType) (stream
 
 /// Parse an operand, potentially being prefixed by unary operations (e.g. casts)
 /// or contained in a set of parentheses.
-let rec parseOperand expectParen (stream: TokenStream) : ParseResult =
+let rec parseOperand expectParen (inputs: string Set) (stream: TokenStream) : ParseExprResult =
     if List.isEmpty stream.RemainingTokens then
         Error { Msg = "Missing operand!"; Pos = stream.CurToken.Pos; ExtraErrors = None}
     else
         let stream' = advanceStream stream
         let curToken = stream'.CurToken
 
-        let handleParens lParenToken newStream =
-            let parenthisedExpr = parseExpr 0 true newStream
+        let handleParens lParenToken (newStream:TokenStream) =
+            let parenthisedExpr = parseExpr 0 true inputs newStream
             let handleEndOfParen parenExpr =
                 if List.isEmpty parenExpr.Stream.RemainingTokens then
                     Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos; ExtraErrors = None }
@@ -222,16 +222,24 @@ let rec parseOperand expectParen (stream: TokenStream) : ParseResult =
 
 
         let handleUnaryOp unaryType =
-            parseOperand expectParen stream'
+            parseOperand expectParen inputs stream'
             |> Result.bind (fun exprData ->
                 let addExpr = unaryType (UnOp (exprData.Expr, curToken.Pos))
                 Ok {Expr = addExpr; Stream = exprData.Stream}
             )
 
         match stream'.CurToken.Type with
-        | TLit l -> 
-            let litExpr = Expr.Lit l
-            Ok {Expr = litExpr ; Stream = stream'}
+        | TLit lit ->
+            let litExpr = Expr.Lit lit
+            let res = Ok {Expr = litExpr ; Stream = stream'}
+            match lit with
+            | Id (name,_) -> 
+                if Set.contains name inputs then
+                    res
+                else 
+                    Error { Msg = "This identifier is not defined as an input."; Pos = curToken.Pos; ExtraErrors = None }
+            | _ ->
+                res
         | TLParen -> handleParens curToken stream'
         | TSigned -> handleFunctionCall ToSigned
         | TUnsigned -> handleFunctionCall ToUnsigned
@@ -240,7 +248,7 @@ let rec parseOperand expectParen (stream: TokenStream) : ParseResult =
         | TAdd -> handleUnaryOp Add
         | TSub -> handleUnaryOp Sub
         | TBusCast width ->
-            parseOperand expectParen stream'
+            parseOperand expectParen inputs stream'
             |> Result.bind (fun castOperand ->
                 let castExpr = BusCast (width, (castOperand.Expr, curToken.Pos))
                 Ok {Expr = castExpr; Stream = castOperand.Stream}
@@ -248,7 +256,7 @@ let rec parseOperand expectParen (stream: TokenStream) : ParseResult =
         | _ ->
             Error {Msg = sprintf "%A is not a valid operand!" <| tokenSymbol curToken.Type; Pos = curToken.Pos; ExtraErrors = None }
 
-and parseBinaryOp minPrecedence expectParen (lhs:ParsedExpr) :ParseResult =
+and parseBinaryOp minPrecedence expectParen (inputs: string Set) (lhs:ParsedExpr) :ParseExprResult =
 
     if List.isEmpty lhs.Stream.RemainingTokens then
         // No more tokens 
@@ -271,28 +279,28 @@ and parseBinaryOp minPrecedence expectParen (lhs:ParsedExpr) :ParseResult =
             // Token is valid binary operator and has high enough precedence to continue
 
             // Parse the RHS operand of the binary operation
-            let rhsRes = parseExpr (precedence + 1) expectParen <| advanceStream lhs.Stream
+            let rhsRes = parseExpr (precedence + 1) expectParen inputs <| advanceStream lhs.Stream
             
             let createBinaryExpr rhs =
                 let binaryOperands = BinOp ((lhs.Expr, token.Pos), (rhs.Expr, token.Pos))
                 let binaryExpr = mapBinaryOpToExpr token.Type binaryOperands
 
                 // The resulting Expr of the binary operation becomes the lhs for the next call!
-                parseBinaryOp minPrecedence expectParen <| {Expr = binaryExpr; Stream = rhs.Stream}
+                parseBinaryOp minPrecedence expectParen inputs <| {Expr = binaryExpr; Stream = rhs.Stream}
 
             Result.bind createBinaryExpr rhsRes
 
-and parseExpr (minPrecedence:int) expectParen (stream: TokenStream): ParseResult =
-    parseOperand expectParen stream
-    |> Result.bind (parseBinaryOp minPrecedence expectParen)
+and parseExpr (minPrecedence:int) expectParen (inputs: string Set) (stream: TokenStream): ParseExprResult =
+    parseOperand expectParen inputs stream
+    |> Result.bind (parseBinaryOp minPrecedence expectParen inputs)
 
+let startParseExpr (parsedInputs: ParsedInputs): Result<Assertion, CodeError> =
+    parseExpr 0 false parsedInputs.InputNames parsedInputs.Stream
+    |> Result.bind ( fun pExpr -> 
+        Ok {AssertExpr = pExpr.Expr,pExpr.Stream.CurToken.Pos; InputNames = parsedInputs.InputNames}
+    )
 
-
-
-
-
-
-let rec parseInputs (inputs:string list) (stream:TokenStream) : Result<ParsedInputs, CodeError> =
+let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInputs, CodeError> =
     advanceIfNotEmpty "input" stream 
     |> Result.bind (advanceIfCorrectToken "input" TInput)
     |> Result.bind (advanceIfNotEmpty "identifier")
@@ -309,7 +317,7 @@ let rec parseInputs (inputs:string list) (stream:TokenStream) : Result<ParsedInp
                 advanceIfNotEmpty "semicolon" stream'
                 |> Result.bind (advanceIfCorrectToken "semicolon" TSemicolon)
                 |> Result.bind ( fun stream ->
-                    let inputs' = List.append inputs [name]
+                    let inputs' = Set.add name inputs
 
                     if List.isEmpty stream.RemainingTokens then
                         Ok {InputNames = inputs'; Stream = stream}
@@ -377,28 +385,33 @@ let rec prettyPrintAST expr prevPrefix isLast:string =
     // Print the current AST node and its children
     sprintf "%A %A %A\n %A" curPrefix (printTypeName expr) operandInfo childLines
 
+let prettyPrintAssertion assertion =
+    printfn "Defined inputs: %A" assertion.InputNames
+    printfn "%A" <| prettyPrintAST (fst assertion.AssertExpr) "" true
+    assertion
+
 
 /// Returns either the resulting AST or an Error 
-let parseAssertion code: Result<Expr, CodeError>=
+let parseAssertion code: Result<Assertion, CodeError>=
 
+    let checkIfMissing (missingMsg:string) (stream: TokenStream) =
+        if List.isEmpty stream.RemainingTokens then
+            Error { Msg = missingMsg; Pos = stream.CurToken.Pos; ExtraErrors = None }
+        else
+            Ok stream
+
+    let dummyToken = {Type = TComma; Pos = {Line = 1; Col = 1; Length = 1}}
+
+    // Parse the inputs list followed by the actual assertion expression.
+    // Before each parse check if there are any tokens left and if not
+    // return a relevant error.
     lexAssertion code 1 1 []
-    |> Result.bind (fun tokens -> 
-        if List.isEmpty tokens then
-            Error { Msg = "Missing definition of inputs!"; Pos = {Line = 1; Col = 1; Length = 1}; ExtraErrors = None }
-        else 
-            parseInputs [] {CurToken = nextToken tokens; RemainingTokens = tokens}
-    )
+    |> Result.bind (fun tokens -> Ok {CurToken = dummyToken; RemainingTokens = tokens})
+    |> Result.bind (checkIfMissing "Missing definition of inputs!")
+    |> Result.bind (parseInputs Set.empty)
     |> Result.bind (fun parsedInputs ->
-        let tokens = parsedInputs.Stream.RemainingTokens
-        if List.isEmpty tokens then
-            Error { Msg = "Missing assertion expression!"; Pos = parsedInputs.Stream.CurToken.Pos; ExtraErrors = None }
-        else 
-            parseExpr 0 false parsedInputs.Stream
+        checkIfMissing "Missing assertion expression!" parsedInputs.Stream
+        |> Result.bind (fun _ -> Ok parsedInputs)
     )
-    |> Result.map (fun parseData -> 
-        printfn "%A" <| prettyPrintAST parseData.Expr "" true
-        parseData.Expr
-    )
-    
-    // TODO(jsand): In the above we have to map from our own error type to the error type used by the Verilog code editor.
-    // These types should be unified in the group stage.
+    |> Result.bind (startParseExpr)
+    |> Result.map prettyPrintAssertion

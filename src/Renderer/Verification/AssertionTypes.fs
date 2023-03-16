@@ -33,7 +33,7 @@ type Value =
 type Lit = 
     | Value of Value
     //| Id of string // for now, later make it of BusLabel of whatever type there is 
-    | Id of (string * int)// for now, later make it of BusLabel of whatever type there is 
+    | Id of (string * int)// TODO: for now, later make it of BusLabel of whatever type there is 
 
 // authored by ln220
 type Cast = 
@@ -177,7 +177,7 @@ type TokenStream = {
 }
 
 type ParsedInputs = {
-    InputNames: string list
+    InputNames: string Set
     Stream: TokenStream
 }
 
@@ -186,11 +186,11 @@ type ParsedExpr = {
     Stream : TokenStream
 }
 
-type ParseResult = Result<ParsedExpr, CodeError>
+type ParseExprResult = Result<ParsedExpr, CodeError>
 
 type Precedence = Precedence of int option 
 
 type Assertion = {
-    Inputs: string list;
+    InputNames: string Set;
     AssertExpr: ExprInfo;
 }

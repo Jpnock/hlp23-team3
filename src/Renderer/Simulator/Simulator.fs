@@ -257,7 +257,7 @@ let rec startCircuitSimulation
                 let assertionInput = fst (connectedTo[0])
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 assertionInput
                 let assertion = ast, emptyPos
-                Ok {AssertExpr = assertion; Inputs = []})
+                Ok {AssertExpr = assertion; InputNames = Set.empty})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with
@@ -268,7 +268,6 @@ let rec startCircuitSimulation
     
     let assertionTextASTs =
         List.map AssertionParser.parseAssertion assertionTexts
-        |> List.map (Result.map (fun expr -> { AssertionTypes.AssertExpr = expr, emptyPos; Inputs = [] }))
     
     let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
     

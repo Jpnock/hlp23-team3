@@ -74,13 +74,23 @@ let private textFormFieldSimple name defaultValue onChange =
     Field.div [] [
         Label.label [] [ str name ]
         Input.text [
-            Input.Props [ OnPaste preventDefault; SpellCheck false; Name name; AutoFocus true; Style [ Width "200px"]]
+            Input.Props [ Rows 20; Wrap "wrap"; OnPaste preventDefault; SpellCheck false; Name name; AutoFocus true; Style [ Width "100%"; Height "300px"]]
             Input.DefaultValue defaultValue
             Input.Type Input.Text
             Input.OnChange (getTextEventValue >> onChange)
         ] 
     ]
 
+let private textAreaFormFieldSimple name defaultValue rows onChange =
+    Field.div [] [
+        Label.label [] [ str name ]
+        Textarea.textarea [
+            Textarea.Props [ Rows rows; Wrap "wrap"; SpellCheck false; Name name; AutoFocus true; Style [ Width "100%" ]]
+            Textarea.DefaultValue defaultValue
+            Textarea.Placeholder "Enter a description of what your assertion does here. This will be displayed when an assertion is raised."
+            Textarea.OnChange (getTextEventValue >> onChange)
+        ] [] 
+    ]
 
 let private intFormField name (width:string) defaultValue minValue onChange =
     Field.div [] [
@@ -950,6 +960,17 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             | Some _ -> Some (makeComparatorDropdown model dispatch comp p)
             | _ -> None
         
+        let assertionDescription =
+            match p.AssertionDescription with
+            | Some desc ->
+                textAreaFormFieldSimple "Assertion Description" desc 4 (
+                    fun newText ->
+                        model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId comp.Id) (
+                            fun oldState -> {oldState with AssertionDescription = Some newText})
+                )
+                |> Some
+            | _ -> None
+        
         let reactElementForSign portName portNum currentVal =
             div [] [
             Checkbox.checkbox [] [
@@ -975,7 +996,7 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             |> List.map (fun (port, input) -> reactElementForSign input.Name port input.Signed.Value)
             |> makeSection "Input configuration"
             
-        let all = [inputsWithSign; varWidth; comparator]
+        let all = [inputsWithSign; varWidth; comparator; assertionDescription]
         div [] (
            Seq.choose id all
            |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])

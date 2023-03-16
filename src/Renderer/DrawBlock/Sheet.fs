@@ -96,6 +96,9 @@ module SheetInterface =
         member this.ChangeInputSignedness (dispatch: Dispatch<Msg>) (compId: ComponentId) (portNum : AssertionASTMap.InputPortNumber) (signed : bool) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeInputSignedness (compId, portNum, signed) ) ) )
         
+        member this.ChangeComponentState (dispatch: Dispatch<Msg>) (compId: ComponentId) (stateMapper : VerificationComponents.ComponentState -> VerificationComponents.ComponentState) =
+            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeComponentState (compId, stateMapper) ) ) )
+        
         member this.ChangeComparatorType (dispatch: Dispatch<Msg>) (compId: ComponentId) typ =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeComparatorType (compId, typ) ) ) )
         

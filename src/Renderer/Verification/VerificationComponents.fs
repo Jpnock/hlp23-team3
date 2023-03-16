@@ -207,6 +207,21 @@ let inputPortLabels (state:ComponentState) =
             | Some port -> Some port.Name
             | None -> None)
 
+let emptyExprInfo expr =
+    expr, { Line = 0; Col = 0; Length = 0 }
+
+let addSignInfoToAST (state : ComponentState) (exprPortMap : PortExprs) =
+    let addSignInfoToPort inputPortNum expr =
+        match state.Inputs.TryFind inputPortNum with
+        | Some inputPort ->
+            match inputPort.Signed with
+            | Some signed when signed -> Cast (ToSigned (emptyExprInfo expr))
+            | _ -> expr
+        | _ -> failwith $"what? could not find port #{inputPortNum} for {state.LibraryID} : {state.InstanceID}"
+    
+    exprPortMap
+    |> Map.map addSignInfoToPort
+    
 /// Represents a generic component that implements all features required for
 /// Assertion components. Implements IComponent.
 type SimpleComponent =
@@ -241,7 +256,8 @@ type SimpleComponent =
                 | Some w -> w
                 | _ -> maxInputWidth)
         member this.Build state exprPortMap =
-            let built = this.AssertionBuilder exprPortMap
+            let signedExprPortMap = addSignInfoToAST state exprPortMap
+            let built = this.AssertionBuilder signedExprPortMap
             printfn "verification port name %A" this.DefaultState.Outputs
             match built with
             | Some b -> b
@@ -278,16 +294,17 @@ type ComparatorComponent =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
         member this.GetOutputWidths state inputPortWidths = Map.map (fun _ _ -> 1) state.Outputs
         member this.Build state exprPortMap =
+            let signedExprPortMap = addSignInfoToAST state exprPortMap
             let built =
                 match state.ComparatorType with
                 | None -> failwith "Tried to build assertion AST for comparator without state set"
                 | Some typ ->
                     match typ with
-                    | Eq -> astMapper TEq exprPortMap
-                    | Lt -> astMapper TLt exprPortMap
-                    | Gt -> astMapper TGt exprPortMap
-                    | Lte -> astMapper TLte exprPortMap
-                    | Gte -> astMapper TGte exprPortMap
+                    | Eq -> astMapper TEq signedExprPortMap
+                    | Lt -> astMapper TLt signedExprPortMap
+                    | Gt -> astMapper TGt signedExprPortMap
+                    | Lte -> astMapper TLte signedExprPortMap
+                    | Gte -> astMapper TGte signedExprPortMap
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for comparator {state.ComparatorType}"

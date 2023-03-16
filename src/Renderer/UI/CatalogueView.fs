@@ -613,15 +613,28 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             | None -> failwithf "What? current project cannot be None at this point in compiling an Assertion Component"
             | Some _ ->
                 let code = getCodeContents dialogData
-                let parserOutput = parseAssertion code
-
-                let errors = 
-                    match parserOutput with
-                    | Ok _ -> []
+                let components = fst model.LastDetailedSavedState
+                
+                let errorList = 
+                    match parseAssertion code with
                     | Error e -> [e]
+                    | Ok assertion ->
+                        let checkRes = AssertionCheck.checkAST assertion.AssertExpr components
+                        match checkRes with
+                        | AssertionTypes.ErrLst eLst -> eLst
+                        | AssertionTypes.TypeInfo _ -> []
 
-                let dialogData' = Optic.set code_errors_ errors dialogData
+                let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
+                match assertComponent.Type with
+                | Plugin state -> printf "%A" state.Inputs
+                // TODO(jlsand): Not currently possible, although certainly possible in the future that someone may pass in an invalid component ID.
+                // Might make sense to return a result? Not sure.
+                | _ -> failwithf "What? Not possible for a text assertion component not to be a verification component."
+
+
+                let dialogData' = Optic.set code_errors_ errorList dialogData
                 dispatch <| SetPopupDialogCode dialogData'.Code
+                //model.Sheet
 
     let addAction =
         fun (dialogData : PopupDialogData) ->

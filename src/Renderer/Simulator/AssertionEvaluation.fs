@@ -258,17 +258,17 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         // need to collect the maps in one map
 
     let evalTree step assertion = 
-        let value= evaluate assertion.AST fs step connectionsWidth 
+        let value = evaluate assertion.AssertExpr fs step connectionsWidth 
         match value with 
         | Ok(Bool true, _) -> None 
         | Ok(Bool false, _) ->
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
             Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
         | Ok(e, _) -> 
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
             Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return a bool but it returned: {e}s\n"; Sheet = "Not implemented"} 
         | Error(e) -> 
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
             Some {Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = "Not implemented"} 
     let evalAllAssertions assertions n = 
         assertions

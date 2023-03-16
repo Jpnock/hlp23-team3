@@ -82,7 +82,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     /// Create a type error
     let makeTypeError errType leftType (rightType: Option<AssertionTypes.Type>) pos =
         let msg = errType () + ". left expr is of type: " + string leftType + if rightType.IsNone  then "" else (". Right expr is of type: " + string (Option.defaultValue UintType rightType))
-        ErrLst [ { Msg = msg; Pos = pos } ]
+        ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
 
     /// Check that cast function is applied appropriately
     let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
@@ -132,7 +132,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | Lit lit, pos -> 
         match checkLitExistance components lit with 
             | Ok(litType) -> TypeInfo litType
-            | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos } ]
+            | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
     | Cast cast, pos -> 
         match cast with
         | ToSigned expr -> checkCast expr (Some IntType) None pos

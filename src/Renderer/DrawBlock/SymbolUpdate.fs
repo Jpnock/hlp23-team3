@@ -834,6 +834,10 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     
     | ChangeAssertionText (compId, newText) ->
         updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
+
+    | ChangeAssertionInputs (compId, newInputs) ->
+        printfn "new inputs: %A" newInputs
+        updatePluginState (fun state -> {state with Inputs = newInputs}) model compId
     
     | ChangeInputDataType (compId, portNum, dataType) ->
         updatePluginState (fun state ->

@@ -7,6 +7,7 @@
 module CatalogueView
 
 open AssertionTypes
+open AssertionASTMap
 open EEExtensions
 open VerilogTypes
 open Fulma
@@ -580,6 +581,8 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
     let title = "Create assertions to verify your sheet" 
     
     let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
+    // TODO: Fix init contents being overwritten
+    printfn "init contents: %A" initContents
     let assertionCode = {
         Type = AssertionCode
         Contents = initContents 
@@ -603,6 +606,7 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             
             let code = getCodeContents dialogData
             model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
+            //model.Sheet.ChangeAssertionInputs (Sheet >> dispatch) (ComponentId compId) (Map [ (0, VerificationComponents.IODefaults.InputA)])
             
             dispatch FinishUICmd     
             dispatch <| Sheet(SheetT.DoNothing)
@@ -623,6 +627,7 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                         match checkRes with
                         | AssertionTypes.ErrLst eLst -> eLst
                         | AssertionTypes.TypeInfo _ -> []
+
 
                 let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
                 match assertComponent.Type with

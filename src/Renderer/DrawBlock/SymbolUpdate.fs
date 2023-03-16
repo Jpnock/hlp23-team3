@@ -841,6 +841,9 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
             let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
             {state with Inputs = newInputs}) model compId
     
+    | ChangeComponentState (compId, stateMapper) ->
+        updatePluginState stateMapper model compId
+    
     | ChangeComparatorType (compId, typ) ->
         updatePluginState (fun state -> {state with ComparatorType = Some typ}) model compId
     

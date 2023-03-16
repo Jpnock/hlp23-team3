@@ -207,12 +207,12 @@ type FailedAssertion = {
 
 //function created by Lu for now will have place holder of fake data
 let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimulation): FailedAssertion list =
-    let evalTree step assertion = 
-        let value, size = evaluate assertion.AST fs step
+    let evalTree step (assertion:Assertion) = 
+        let value, size = evaluate assertion.AssertExpr fs step
         match value with 
         | Bool true -> None 
         | Bool false ->
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AST) "" false
+            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
             Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
         | _ -> failwithf "the top level expression should return a bool"
     let evalAllAssertions assertions n = 

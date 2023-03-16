@@ -180,9 +180,7 @@ type ParseResult = Result<ParseData, CodeError>
 
 type Precedence = Precedence of int option 
 
-//type ExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}
-//type ErrorInfo = {Line:int; Col:int; Length: int; Message: string; ExtraErrors: ExtraErrorInfo array option}
-
 type Assertion = {
-    AST: ExprInfo;
+    Inputs: string list;
+    AssertExpr: ExprInfo;
 }

@@ -257,7 +257,7 @@ let rec startCircuitSimulation
                 let assertionInput = fst (connectedTo[0])
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 assertionInput
                 let assertion = ast, emptyPos
-                Ok {AST = assertion})
+                Ok {AssertExpr = assertion; Inputs = []})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with
@@ -268,7 +268,7 @@ let rec startCircuitSimulation
     
     let assertionTextASTs =
         List.map AssertionParser.parseAssertion assertionTexts
-        |> List.map (Result.map (fun expr -> { AssertionTypes.AST = expr, emptyPos }))
+        |> List.map (Result.map (fun expr -> { AssertionTypes.AssertExpr = expr, emptyPos; Inputs = [] }))
     
     let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
     
@@ -288,13 +288,13 @@ let rec startCircuitSimulation
     
     validASTs
     |> List.map (fun el ->
-        let pretty = AssertionParser.prettyPrintAST (fst el.AST) "" false
+        let pretty = AssertionParser.prettyPrintAST (fst el.AssertExpr) "" false
         printf $"Got AST:\n{pretty}")
     |> ignore
     
     let checkedASTs =
         validASTs
-        |> List.map (fun el -> AssertionCheck.checkAST el.AST canvasComps)
+        |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr canvasComps)
         
     let goodASTs =
         checkedASTs

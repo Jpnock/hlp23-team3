@@ -155,12 +155,12 @@ let nextToken (tokens: Token list): Token =
 let popToken (tokens: Token list): Token list = 
     List.tail tokens
 
-let createExpectError (expected:string) (token: Token) (tokenIsPrevious:bool) =
+let createExpectError (expected:string) (tokenIsPrevious:bool) (token: Token)  =
     match tokenIsPrevious with
     | true ->
-        Error { Msg = sprintf "Expected a %A after %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
+        { Msg = sprintf "Expected a %A after %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
     | false ->
-        Error { Msg = sprintf "Expected a %A, got %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
+        { Msg = sprintf "Expected a %A, got %A" expected <| tokenSymbol token.Type; Pos = token.Pos; ExtraErrors = None }
 
 /// Parse an operand, potentially being prefixed by unary operations (e.g. casts)
 /// or contained in a set of parentheses.
@@ -182,7 +182,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
 
         let handleFunctionCall functionType =
             if List.isEmpty tokens' then
-                createExpectError "subsequent left-parenthesis" token true
+                Error <| createExpectError "subsequent left-parenthesis" true token
             else 
                 let lParenToken = nextToken tokens'
                 match lParenToken.Type with
@@ -193,7 +193,7 @@ let rec parseOperand expectParen (prevToken: Token) (tokens:Token list) : ParseR
                         Ok {parenExpr with Expr = castExpr}
                     )
                 | _ -> 
-                    createExpectError "left-parenthesis" lParenToken false
+                    Error <| createExpectError "left-parenthesis" false lParenToken
 
 
         let handleUnaryOp unaryType =
@@ -238,8 +238,8 @@ and parseBinaryOp minPrecedence expectParen (lhs:ParseData) :ParseResult =
             // given that we are actually expecting one.
             match expectParen, token.Type with
             | true, TRParen -> Ok {lhs with RemainingTokens = lhs.RemainingTokens}
-            | true, _ -> createExpectError "right-parenthesis or binary operation" token false
-            | _ -> createExpectError "binary operation" token false
+            | true, _ -> Error <| createExpectError "right-parenthesis or binary operation" false token 
+            | _ -> Error <| createExpectError "binary operation" false token
 
         | Some precedence when precedence < minPrecedence -> Ok lhs  // Peek token does not have a high enough precedence or 
         | Some precedence ->
@@ -262,11 +262,52 @@ and parseExpr (minPrecedence:int) expectParen (prevToken:Token) (tokens: Token l
     |> Result.bind (parseBinaryOp minPrecedence expectParen)
 
 
-let rec parseInputs (prevToken:Token) (tokens:Token list) : ParseResult =
+let advanceIfNotEmpty (expected:string) (prevToken: Token, tokens: Token list)  =
     if List.isEmpty tokens then
-        createExpectError "\";\" or \",\"" prevToken true
+        Error <| createExpectError expected true prevToken
     else
-        failwith "Not yet implemented"
+        Ok (prevToken, tokens)
+
+let advanceIfCorrectToken (expected:string) (expectedToken: TokenType) (_, tokens: Token list) =
+    let curToken = nextToken tokens
+    let tokens' = popToken tokens
+    if curToken.Type = expectedToken then
+        Ok (curToken, tokens')
+    else 
+        Error <|createExpectError expected false curToken
+
+
+
+let rec parseInputs (inputs:string list) (prevToken:Token) (tokens:Token list) : Result<string list, CodeError> =
+    advanceIfNotEmpty "input" (prevToken, tokens)
+    |> Result.bind (advanceIfCorrectToken "input" TInput)
+    |> Result.bind (advanceIfNotEmpty "identifier")
+    |> Result.bind ( fun (_, tokens) ->
+        // We have successfully parsed an input token and confirmed that
+        // there exists a subsequent token. Now make sure it is an identifier:
+
+        let curToken = nextToken tokens
+        let tokens' = popToken tokens
+        match curToken.Type with
+        | TLit l ->
+            match l with
+            | Id (name, _) -> 
+                advanceIfNotEmpty "semicolon" (curToken, tokens')
+                |> Result.bind (advanceIfCorrectToken "semicolon" TSemicolon)
+                |> Result.bind ( fun (colonToken, tokens'') ->
+                    let inputs' = List.append inputs [name]
+
+                    if List.isEmpty tokens'' then
+                        Ok inputs'
+                    else
+                        let postInputToken = nextToken tokens
+                        match postInputToken.Type with 
+                        | TInput -> parseInputs inputs' colonToken tokens'' 
+                        | _ -> Ok inputs'
+                )
+            | _ -> Error <| createExpectError "identifier" false curToken
+        | _ -> Error <| createExpectError "identifier" false curToken
+        )
         
 
 
@@ -327,7 +368,14 @@ let rec prettyPrintAST expr prevPrefix isLast:string =
 let parseAssertion code: Result<Expr, CodeError>=
 
     lexAssertion code 1 1 []
-    |> Result.bind (fun tokens ->
+    |> Result.bind (fun tokens -> 
+        if List.isEmpty tokens then
+            Error { Msg = "Missing definition of inputs!"; Pos = {Line = 1; Col = 1; Length = 1}; ExtraErrors = None }
+        else 
+            parseInputs [] (List.head tokens) tokens 
+    )
+    |> Result.bind (fun parseData ->
+        let tokens = parseData.RemainingTokens
         if List.isEmpty tokens then
             Error { Msg = "Missing assertion expression!"; Pos = {Line = 1; Col = 1; Length = 1}; ExtraErrors = None }
         else 

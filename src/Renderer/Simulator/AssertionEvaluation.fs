@@ -258,7 +258,7 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         // need to collect the maps in one map
 
     let evalTree step assertion = 
-        let value= evaluate assertion.AssertExpr fs step connectionsWidth 
+        let value = evaluate assertion.AssertExpr fs step connectionsWidth 
         match value with 
         | Ok(Bool true, _) -> None 
         | Ok(Bool false, _) ->

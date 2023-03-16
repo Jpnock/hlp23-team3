@@ -86,7 +86,7 @@ and Op =
 
 // authored by ln220
 /// Attaches position information to an expression to make it easy to know what exactly gave an error
-and ExprInfo = Expr * CodePos 
+and ExprInfo = Expr * CodePos
 
 // authored by ln220
 /// Bus width

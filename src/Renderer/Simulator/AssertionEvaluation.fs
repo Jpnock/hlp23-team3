@@ -79,12 +79,10 @@ let mask n : uint64 =
 /// given a width, sign extend the number so that it can be held in an int64 while maintaining the correct value.
 /// This function is invoked before returning a result to ensure operands have a value coherent with their width and 
 /// signedness before being used in the evaluation of the driven block
-let resizeSigned (n: int64) width = 
-    let masked = n &&& -1L
-    let maxUnsigned = Math.Pow (2.0, float (width - 1)) |> int64
-    if masked >= maxUnsigned 
-    then -(masked - (maxUnsigned * 2L))
-    else  masked
+let resizeSigned (n: int64) width =
+    let isNegative = ((n >>> (width-1)) &&& 0b1) = 1
+    let signExtended = if isNegative then (-1L <<< width) ||| n else n
+    signExtended
 
 // assume that the AST is correct (as it will be checked upon creation of the component)
 /// evaluate an assertion in a given cycle. Uses simulation data and up to date width inference information

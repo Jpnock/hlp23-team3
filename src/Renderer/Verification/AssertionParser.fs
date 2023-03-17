@@ -23,7 +23,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
     else
         let addToken tokType len= 
             let remainingCode = code.Substring len
-            let token = {Type = tokType; Pos = {Line = curLine; Col = curCol; Length = len}}
+            let token = {Type = tokType; Pos = {Line = curLine; Col = curCol; Length = len; CompId = "parser"}}
             let tokens' = List.append tokens [token]
             lexAssertion remainingCode curLine (curCol + len) tokens'
 
@@ -43,7 +43,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
             addToken (TBusCast width) m.Length
         | RegexPattern "'" m ->
             Error { 
-                Pos = {Line = curLine; Col = curCol; Length = m.Length}
+                Pos = {Line = curLine; Col = curCol; Length = m.Length; CompId = "textBased"}
                 Msg = "Remember to specify a width for the bus cast"
                 ExtraErrors = None
             }
@@ -86,7 +86,7 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
         | RegexPattern ".*(\n|$)" m ->
             // Catch all syntax to match any invalid input
             Error {
-                Pos = {Line = curLine; Col = curCol; Length = m.Length}; 
+                Pos = {Line = curLine; Col = curCol; Length = m.Length; CompId = ""}; 
                 Msg = "Unrecognized token: " + m.Value; 
                 ExtraErrors = None
             }
@@ -403,7 +403,7 @@ let parseAssertion code: Result<Assertion, CodeError>=
         else
             Ok stream
 
-    let dummyToken = {Type = TComma; Pos = {Line = 1; Col = 1; Length = 1}}
+    let dummyToken = {Type = TComma; Pos = {Line = 1; Col = 1; Length = 1; CompId = ""}}
 
     // Parse the inputs list followed by the actual assertion expression.
     // Before each parse check if there are any tokens left and if not

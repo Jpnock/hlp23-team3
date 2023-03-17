@@ -239,7 +239,7 @@ let rec startCircuitSimulation
         |> Map.ofList
     
     // TODO(jpnock): Fix uses of this
-    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
+    let emptyPos compId = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; CompId = compId}
     
     let assertionComps = List.map snd assertionCompsAndIDs
     
@@ -251,12 +251,12 @@ let rec startCircuitSimulation
             match connectedToPort with
             | None -> Error {
                 Msg = "An assertion component was not driven by any inputs"
-                Pos = emptyPos
+                Pos = emptyPos ""
                 ExtraErrors = None }
             | Some connectedTo ->               
                 let (assertionInput, _, _) = connectedTo[0]
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
-                let assertion = ast, emptyPos
+                let assertion = ast, emptyPos assertionInput.InstanceID.Value
                 Ok {AssertExpr = assertion; InputNames = Set.empty})
     
     let isAssertionTextComp (comp:Component) =
@@ -295,14 +295,14 @@ let rec startCircuitSimulation
         validASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr canvasComps)
     
-    printfn "failed asts %A" checkedASTs 
+    printfn "checked asts %A" checkedASTs 
     let checkedASTsWithSimErrors: Result<CheckRes, SimulationError> list = 
         checkedASTs
         |> List.mapi ( fun idx ast -> 
             match ast with 
             | ErrLst errors -> 
                 Error {
-                    ComponentsAffected = [ComponentId (assertionComps[idx].InstanceID.Value)]
+                    ComponentsAffected = errors |> List.map (fun err -> ComponentId err.Pos.CompId)
                     ConnectionsAffected = []
                     Msg = ("", errors) ||> List.fold (fun errMsg err -> errMsg + err.Msg)
                     InDependency = None

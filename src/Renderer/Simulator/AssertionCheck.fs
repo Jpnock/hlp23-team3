@@ -98,28 +98,26 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     /// Check adherence of binary expressions to the type system
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
-        printfn "left checked %A" leftChecked
         let rightChecked= checkAST r components  
         match leftChecked, rightChecked with
         | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = typeR && typeL = BoolType
             then
                 if supportsBool && makesBool
-                then 
-                    printfn "supports bool and makes bool"
-                    
-                    TypeInfo BoolType
+                then TypeInfo BoolType
                 elif supportsBool 
-                then 
-                    printfn "supports bool and makes bool"
-                    leftChecked
-                else makeTypeError invTypesErr typeL (Some typeR) pos
+                then leftChecked
+                else
+                    printfn "there was an error %A "(makeTypeError invTypesErr typeL (Some typeR) pos)
+                    makeTypeError invTypesErr typeL (Some typeR) pos
             elif typeL <> BoolType && typeR <> BoolType && makesBool 
             then TypeInfo BoolType
             elif typeL <> BoolType && typeR <> BoolType
             //then checkSize l r leftChecked rightChecked pos makesBool
             then leftChecked 
-            else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
+            else 
+                printfn "there was an error %A" (makeTypeError hetTypesErr typeL (Some typeR) pos) //not same type error
+                makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
     match tree with

@@ -30,7 +30,7 @@ let createErrorMessage
     let prevLineLocation = newLinesLocations[prevIndex]
     let length = String.length name
 
-    let pos = {Line = line; Col = currLocation-prevLineLocation+1; Length = length}
+    let pos = {Line = line; Col = currLocation-prevLineLocation+1; Length = length; CompId = ""}
     
     [{Pos = pos; Msg = message; ExtraErrors=Some extraMessages}]
 

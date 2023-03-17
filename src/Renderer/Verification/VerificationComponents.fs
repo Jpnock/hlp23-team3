@@ -207,15 +207,15 @@ let inputPortLabels (state:ComponentState) =
             | Some port -> Some port.Name
             | None -> None)
 
-let emptyExprInfo expr =
-    expr, { Line = 0; Col = 0; Length = 0 }
+let emptyExprInfo expr compId=
+    expr, { Line = 0; Col = 0; Length = 0; CompId = compId}
 
 let addSignInfoToAST (state : ComponentState) (exprPortMap : PortExprs) =
     let addSignInfoToPort inputPortNum expr =
         match state.Inputs.TryFind inputPortNum with
         | Some inputPort ->
             match inputPort.Signed with
-            | Some signed when signed -> Cast (ToSigned (emptyExprInfo expr))
+            | Some signed when signed -> Cast (ToSigned (emptyExprInfo expr state.InstanceID.Value))
             | _ -> expr
         | _ -> failwith $"what? could not find port #{inputPortNum} for {state.LibraryID} : {state.InstanceID}"
     
@@ -257,7 +257,8 @@ type SimpleComponent =
                 | _ -> maxInputWidth)
         member this.Build state exprPortMap =
             let signedExprPortMap = addSignInfoToAST state exprPortMap
-            let built = this.AssertionBuilder signedExprPortMap
+            // todo ln220 might need to change instance id to library id
+            let built = this.AssertionBuilder state.InstanceID.Value signedExprPortMap
             printfn "verification port name %A" this.DefaultState.Outputs
             match built with
             | Some b -> b
@@ -300,11 +301,11 @@ type ComparatorComponent =
                 | None -> failwith "Tried to build assertion AST for comparator without state set"
                 | Some typ ->
                     match typ with
-                    | Eq -> astMapper TEq signedExprPortMap
-                    | Lt -> astMapper TLt signedExprPortMap
-                    | Gt -> astMapper TGt signedExprPortMap
-                    | Lte -> astMapper TLte signedExprPortMap
-                    | Gte -> astMapper TGte signedExprPortMap
+                    | Eq -> astMapper TEq state.InstanceID.Value signedExprPortMap 
+                    | Lt -> astMapper TLt state.InstanceID.Value signedExprPortMap 
+                    | Gt -> astMapper TGt state.InstanceID.Value signedExprPortMap 
+                    | Lte -> astMapper TLte state.InstanceID.Value signedExprPortMap
+                    | Gte -> astMapper TGte state.InstanceID.Value signedExprPortMap
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for comparator {state.ComparatorType}"

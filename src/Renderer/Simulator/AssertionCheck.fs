@@ -98,15 +98,25 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     /// Check adherence of binary expressions to the type system
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
+        printfn "left checked %A" leftChecked
         let rightChecked= checkAST r components  
         match leftChecked, rightChecked with
         | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = typeR && typeL = BoolType
             then
-                if supportsBool 
-                then leftChecked
+                if supportsBool && makesBool
+                then 
+                    printfn "supports bool and makes bool"
+                    
+                    TypeInfo BoolType
+                elif supportsBool 
+                then 
+                    printfn "supports bool and makes bool"
+                    leftChecked
                 else makeTypeError invTypesErr typeL (Some typeR) pos
-            elif typeL <> BoolType && typeR <> BoolType 
+            elif typeL <> BoolType && typeR <> BoolType && makesBool 
+            then TypeInfo BoolType
+            elif typeL <> BoolType && typeR <> BoolType
             //then checkSize l r leftChecked rightChecked pos makesBool
             then leftChecked 
             else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
@@ -127,8 +137,12 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             then leftRes // it's not important what is passed, it's enough to pass type and size information 
             else makeTypeError invTypesErr typeL (Some typeR) pos
         | _ -> ErrLst (propagateError leftRes rightRes)
-    | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
-    | IsBinExpr (l, r, pos) -> checkBin l r pos false false
+    | IsBoolExpr (l, r, pos) -> 
+        printfn "is bool expr: %A" tree 
+        checkBin l r pos true true
+    | IsBinExpr (l, r, pos) -> 
+        printfn "ledt: %A right %A" l r
+        checkBin l r pos false false
     | Lit lit, pos -> 
         match checkLitExistance components lit with 
             | Ok(litType) -> TypeInfo litType

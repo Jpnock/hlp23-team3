@@ -203,6 +203,7 @@ let prepareSimulationMemoized
             diagramName = simCache.Name &&
             cacheIsEqual simCache ldcs
     if  isSame then
+        printfn "memoised"
         simCache.StoredResult, canvasState
     else
         printfn "New simulation"

@@ -294,7 +294,33 @@ let rec startCircuitSimulation
     let checkedASTs =
         validASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr canvasComps)
-        
+    
+    printfn "failed asts %A" checkedASTs 
+    let checkedASTsWithSimErrors: Result<CheckRes, SimulationError> list = 
+        checkedASTs
+        |> List.mapi ( fun idx ast -> 
+            match ast with 
+            | ErrLst errors -> 
+                Error {
+                    ComponentsAffected = [ComponentId (assertionComps[idx].InstanceID.Value)]
+                    ConnectionsAffected = []
+                    Msg = ("", errors) ||> List.fold (fun errMsg err -> errMsg + err.Msg)
+                    InDependency = None
+                }
+            | _ -> Ok ast 
+        )
+    
+    let failedASTs = 
+        checkedASTsWithSimErrors
+        |> List.choose (
+            function 
+            | Ok _ -> None 
+            | Error err -> Some (Error err)
+        )
+
+    printfn "failed asts %A" failedASTs
+
+    // TODO ln220: add something that, if any of the assertions don't compile, returns a simulation erro
     let goodASTs =
         checkedASTs
         |> List.choose (
@@ -313,9 +339,10 @@ let rec startCircuitSimulation
     
     /// Tune for performance of initial zero-length simulation versus longer run.
     /// Probably this is not critical.
-    match runCanvasStateChecksAndBuildGraph canvasState loadedDependencies with
-    | Error err -> Error err
-    | Ok graph ->
+    match runCanvasStateChecksAndBuildGraph canvasState loadedDependencies, failedASTs with
+    | Error err, _-> Error err
+    | _, err::_ -> err // only return first error from compilation of assertions
+    | Ok graph, [] ->
         match mergeDependencies diagramName graph
                                 canvasState loadedDependencies with
         | Error err -> Error err

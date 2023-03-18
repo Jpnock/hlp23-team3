@@ -580,9 +580,11 @@ let createCodeEditorPopup title preamble saveAction updateAction compileAction a
 let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch =
     let title = "Create assertions to verify your sheet" 
     
-    let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
-    // TODO: Fix init contents being overwritten
-    printfn "init contents: %A" initContents
+    let initContents = 
+        match origin with 
+        | NewCodeFile -> Some "// Get started by writing your assertions below! Here's a few examples: \n\n // signed(5'b) >= (a - 25) * 2 \n\n" 
+        | ExistingCodeFile data -> Some data.Code
+
     let assertionCode = {
         Type = AssertionCode
         Contents = initContents 
@@ -606,8 +608,11 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             
             let code = getCodeContents dialogData
             model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
-            //model.Sheet.ChangeAssertionInputs (Sheet >> dispatch) (ComponentId compId) (Map [ (0, VerificationComponents.IODefaults.InputA)])
-            
+            model.Sheet.ChangeAssertionInputs (Sheet >> dispatch) (ComponentId compId) VerificationComponents.IODefaults.OneInput
+
+            let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
+            printfn "assertComponent: %A" assertComponent
+
             dispatch FinishUICmd     
             dispatch <| Sheet(SheetT.DoNothing)
 
@@ -655,7 +660,10 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
 let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
     let title = sprintf "Create Combinational Logic Components using Verilog" 
     
-    let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
+    let initContents = 
+        match origin with 
+        | NewCodeFile -> Some "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" 
+        | ExistingCodeFile data -> Some data.Code
     let verilogCode = {
         Type = VerilogCode {ModuleName = "NAME"}
         Contents = initContents

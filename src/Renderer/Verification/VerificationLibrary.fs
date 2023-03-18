@@ -164,8 +164,9 @@ let private makeTextAssertion : IComponent =
             Builder = noAssertion
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]
+    let defaultText = "// Get started by writing your assertions below! Here's a few examples: \n\n // signed(5'b) >= (a - 25) * 2 \n\n"
     {
-        comp with DefaultConfig = { comp.DefaultConfig with AssertionText = Some ""; AssertionDescription = Some "" }
+        comp with DefaultConfig = { comp.DefaultConfig with AssertionText = Some defaultText ; AssertionDescription = Some "" }
     }
 
 let private comparatorComp : IComponent =

@@ -696,6 +696,7 @@ let private makeDescription (comp:Component) model dispatch =
                  br []
                 ]
             | _ -> []
+
         div [] ([
             str (VerificationLibrary.library.Components[p.LibraryID].GetDescription p)
         ]  @ assertionEditButton)

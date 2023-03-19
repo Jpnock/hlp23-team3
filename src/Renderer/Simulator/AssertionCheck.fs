@@ -99,25 +99,12 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  
-        match leftChecked, rightChecked with
-        | TypeInfo typeL, TypeInfo typeR -> 
-            if typeL = typeR && typeL = BoolType
-            then
-                if supportsBool && makesBool
-                then TypeInfo BoolType
-                elif supportsBool 
-                then leftChecked
-                else
-                    printfn "there was an error %A "(makeTypeError invTypesErr typeL (Some typeR) pos)
-                    makeTypeError invTypesErr typeL (Some typeR) pos
-            elif typeL <> BoolType && typeR <> BoolType && makesBool 
-            then TypeInfo BoolType
-            elif typeL <> BoolType && typeR <> BoolType
-            //then checkSize l r leftChecked rightChecked pos makesBool
-            then leftChecked 
-            else 
-                printfn "there was an error %A" (makeTypeError hetTypesErr typeL (Some typeR) pos) //not same type error
-                makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
+        match leftChecked, rightChecked, supportsBool, makesBool with
+        | TypeInfo _, TypeInfo _, _, true -> TypeInfo BoolType
+        | TypeInfo BoolType, TypeInfo BoolType, true, false -> leftChecked
+        | TypeInfo BoolType, TypeInfo BoolType, false, _ -> makeTypeError invTypesErr BoolType (Some BoolType) pos
+        | TypeInfo leftT,TypeInfo rightT, _, _ when leftT = BoolType || rightT = BoolType -> makeTypeError hetTypesErr leftT (Some rightT) pos //not same type error
+        | TypeInfo _, TypeInfo _, _, _ -> leftChecked
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
     match tree with

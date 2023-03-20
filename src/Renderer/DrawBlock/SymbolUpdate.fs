@@ -11,6 +11,7 @@ open DrawModelType.SymbolT
 open Symbol
 open SymbolUpdatePortHelpers
 open SymbolReplaceHelpers
+open VerificationComponents
 open Optics
 open Optic
 open Operators
@@ -835,9 +836,118 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     | ChangeAssertionText (compId, newText) ->
         updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
 
-    | ChangeAssertionInputs (compId, newInputs) ->
-        printfn "new inputs: %A" newInputs
-        updatePluginState (fun state -> {state with Inputs = newInputs}) model compId
+    | ChangeAssertionInputs (compId, newInputNames) ->
+
+        let symbol = Map.find compId model.Symbols
+        let comp = symbol.Component
+
+        let assertState = 
+            match comp.Type with
+            | Plugin p -> p
+            | _ -> failwithf "What? Can not change the inputs of a non-assertion component"
+        let curInputNames = 
+            assertState.Inputs.Values 
+            |> Set.ofSeq
+            |> Set.map (fun v -> v.Name)
+
+        let addedInputNames = Set.difference newInputNames curInputNames |> List.ofSeq
+        let removedInputNames = Set.difference curInputNames newInputNames |> List.ofSeq
+        printfn "addedInputNames: %A, removedInputNames: %A" addedInputNames removedInputNames
+
+        let newInputs = 
+            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) (List.ofSeq newInputNames)
+            |> Map.ofList
+
+        let newAssertState = {assertState with Inputs = newInputs}
+
+        let inputsToBeRemoved = 
+            Map.toList assertState.Inputs 
+            |> List.filter ( fun (pn, cin) -> List.contains cin.Name removedInputNames)
+            |> List.map ( fun (pn, _) -> pn)
+        printfn "inputsToBeRemoved %A" inputsToBeRemoved
+
+        let currentPorts = comp.InputPorts
+
+        let portShouldBeRemoved (port:Port) =
+            List.contains (Option.get port.PortNumber) inputsToBeRemoved
+
+        let portsToBeRemoved = List.filter portShouldBeRemoved currentPorts
+        printfn "portsToBeRemoved %A" portsToBeRemoved
+
+        let addNewPort index _ =
+            {
+                Id = JSHelpers.uuid ()
+                PortNumber = index + comp.InputPorts.Length |> Some
+                HostId = comp.Id
+                PortType = PortType.Input
+            }
+        let portsToBeAdded = 
+            List.mapi addNewPort addedInputNames
+
+        printfn "portsToBeAdded %A" portsToBeAdded
+
+        // remove all removed ports, add all new ports
+        let newPorts = 
+            List.filter (fun p -> portShouldBeRemoved p |> not) currentPorts
+            |> List.append portsToBeAdded
+
+        let newPortMaps = 
+            List.fold (fun maps (newPort:Port) -> addPortToMaps Edge.Left maps newPort.Id) symbol.PortMaps portsToBeAdded
+        let newPortMaps' =
+            List.fold (fun maps (newPort:Port) -> deletePortFromMaps newPort.Id maps ) newPortMaps portsToBeRemoved 
+
+        
+        printfn "new port maps %A" newPortMaps'
+
+
+        let newSymbolInfo = 
+            match comp.SymbolInfo with
+            | Some si -> {si with PortOrder = newPortMaps'.Order; PortOrientation = newPortMaps'.Orientation}
+            | None -> failwithf "What? Symbol info can not be none here."
+
+        let newComp = {comp with InputPorts = newPorts; Type = Plugin newAssertState; SymbolInfo = Some newSymbolInfo}
+
+        let newSymbol = {symbol with Component = newComp; PortMaps = newPortMaps'}
+        let newModel = {model with Ports = addToPortModel model newSymbol}
+
+        //printfn "NEW SYMBOL: %A" newSymbol
+        //printfn "Port ids: %A" model.Ports
+
+        (replaceSymbol newModel newSymbol compId), Cmd.none
+        (*
+        printfn "SYMBOL %A" symbol
+
+        let newPort:Port = 
+            {
+                Id = JSHelpers.uuid ()
+                PortNumber = Some comp.InputPorts.Length // next available number
+                HostId = comp.Id
+                PortType = PortType.Input
+            }
+        let newPorts = comp.InputPorts @ [newPort]
+
+
+
+        let newPortMaps = addPortToMaps Edge.Left symbol.PortMaps newPort.Id
+
+        let newSymbolInfo = 
+            match comp.SymbolInfo with
+            | Some si -> {si with PortOrder = newPortMaps.Order; PortOrientation = newPortMaps.Orientation}
+            | None -> failwithf "What? Symbol info can not be none here."
+
+        let newComp = {comp with InputPorts = newPorts; Type = Plugin newPluginType; SymbolInfo = Some newSymbolInfo}
+
+
+        let newSymbol = {symbol with Component = newComp; PortMaps = newPortMaps}
+        let newModel = {model with Ports = Map.add newPort.Id newPort model.Ports}
+        printfn "NEW SYMBOL: %A" newSymbol
+        printfn "Port ids: %A" newModel.Ports
+
+        (replaceSymbol newModel newSymbol compId), Cmd.none
+        *)
+
+
+
     
     | ChangeInputDataType (compId, portNum, dataType) ->
         updatePluginState (fun state ->

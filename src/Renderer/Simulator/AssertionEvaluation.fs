@@ -16,6 +16,8 @@ type BoolToBool = bool -> bool -> bool
 type IntToIntUn = int64 -> int64
 type UintToUintUn = uint64 -> uint64
 type BoolToBoolUn = bool -> bool
+type FloatToFloat = float->float->float
+type FloatToBool = float->float->bool
 
 type Functions =
     | ItB of IntToBool
@@ -26,6 +28,8 @@ type Functions =
     | ItIUn of IntToIntUn
     | UtUUn of UintToUintUn
     | BtBUn of BoolToBoolUn
+    | FtF of FloatToFloat 
+    | FtB of FloatToBool
 
 let boolToInt =
     function
@@ -40,6 +44,26 @@ let boolToUint =
 let intToBool n = if n = 0L then false else true
 let uintToBool n = if n = 0UL then false else true
 
+let conversion n signBit expShift expBits (mantissaBits: uint64) bias = 
+    let iSign = (n >>> signBit) &&& 1UL |> int 
+    let exponent = (n >>> expShift) &&& expBits |> int 
+    let mantissa =  n &&& mantissaBits |> int 
+    let fSign = if iSign = 0 then 1.0 else -1.0
+
+    match exponent, mantissa with 
+    | 0, 0 -> 0.
+    // TODO ln220 find the right constant that i need to divide by for doubles
+    | 0, _ -> fSign * (1.0 / float 0x800000) * Math.Pow (2.0, exponent - bias + 1 |> float)
+    | _ -> fSign * (1.0 + (float mantissa / float 0x800000)) * Math.Pow (2.0, exponent - bias |> float)
+
+/// performs conversion to double based on IEEE 754 conventions 
+/// (if the input is 32its it converts to float and upcasts to double to avoid operator redundancy)
+let nToDouble (n: uint64) size = 
+    match size with 
+    | Size s when s = 32 -> conversion n 31 23 0xffUL 0x7fffffUL 127
+    | Size s when s = 64 -> conversion n 63 52 0x7ffUL 0xfffffffffffffUL 1023
+    | _ -> 0. // error
+
 /// get the smallest possible number of bits that a lit would need, 
 /// this provides the width for literals that are not buses
 let getLitMinSize lit = 
@@ -47,7 +71,7 @@ let getLitMinSize lit =
     | Int intN -> 
         let n = float intN
         (ceil >> int) (Math.Log (n, 2.) + 0.1) + 1
-    | Uint uint -> 
+    | Uint uint | Float uint-> 
         let n = float uint 
         (ceil >> int) (Math.Log (n, 2.) + 0.1)
     | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
@@ -84,20 +108,19 @@ let resizeSigned (n: int64) width =
     let signExtended = if isNegative then (-1L <<< width) ||| n else n
     signExtended
 
+let handleFP op1 op2 operand = 
+    let fRes: float = operand op1 op2
+    let bytes = BitConverter.GetBytes(fRes)
+    if BitConverter.IsLittleEndian then Array.Reverse(bytes)
+    BitConverter.ToUInt64 bytes
+
+ // make it convert it back to uint64
 // assume that the AST is correct (as it will be checked upon creation of the component)
 /// evaluate an assertion in a given cycle. Uses simulation data and up to date width inference information
 let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: ConnectionsWidth): Result<Value * Size, string> =
-    let resizeRes (size: Size) res = 
-        match res, size with 
-        | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1)))))
-        | Int pos, Size s -> Int (min pos (int64 (2. ** float (s- 1)) - 1L))
-        | Uint v, Size s -> Uint (min v (uint64 (2. ** float s) - 1UL))
-        | _ -> res
-
-
-
+   
     /// evaluate a binary or unary expression
-    let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
+    let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fFloat: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
             let leftRes= evaluate l fs step connectionsWidth 
@@ -132,6 +155,21 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     match fBool with
                     | Some(BtB f) -> Ok(Bool(f op1 op2), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok (Float op1, Size sizeL), Ok (Float op2, Size sizeR) -> 
+                    match fFloat with 
+                    | Some(FtB f) -> Ok(Bool( f (nToDouble op1 (Size sizeL)) (nToDouble op2 (Size sizeR))), Size(max sizeL sizeR))
+                    | Some(FtF f) -> Ok(Uint(handleFP (nToDouble op1 (Size sizeL)) (nToDouble op2 (Size sizeR)) f), Size(max sizeL sizeR))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Float opF, sizeF), Ok(Uint opU, _) -> 
+                    match fFloat with 
+                    | Some (FtB f) -> Ok(Bool(f (nToDouble opF sizeF) (float opU)), sizeF)
+                    | Some(FtF f) -> Ok(Uint(handleFP (nToDouble opF sizeF) (float opU) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Uint opU, sizeU), Ok (Float opF, sizeF) -> 
+                    match fFloat with 
+                    | Some(FtB f) -> Ok(Bool(f (float opU) (nToDouble opF sizeF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint(handleFP (float opU) (nToDouble opF sizeF) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
                 | Error(e1), Error(e2) -> Error(e1+e2)
                 | Error(e1), _ -> Error(e1)
                 | _, Error(e2)  -> Error(e2)
@@ -162,6 +200,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             | Value (Int int)->  Ok(Int int, Size (getLitMinSize (Int int)))
             | Value (Uint uint) -> Ok(Uint uint, Size (getLitMinSize (Uint uint)))
             | Value (Bool bool) -> Ok(Bool bool, Size 1)
+            | Value (Float uint) -> Ok(Float uint, Size (getLitMinSize (Uint uint)))
             | Id (id, portNumber, connId) -> 
                 let fCompId = getFComponentId id (List.ofSeq fs.FComps.Values)
                 let data = fs.getSimulationData step fCompId (OutputPortNumber portNumber)
@@ -179,14 +218,22 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
         | ToSigned e -> cast e "int" fs step connectionsWidth// this might require some sort of manipulation? or will it be done automatically
         | ToUnsigned e -> cast e "uint" fs step connectionsWidth
         | ToBool e -> cast e "bool" fs step connectionsWidth
+        | ToFloat e -> 
+            match e with 
+            | Lit (Value (Uint _)), _ ->  
+                let value = evaluate e fs step connectionsWidth
+                match value with 
+                | Ok(Uint u, size) -> Ok(Float u, size)
+                | e -> e
+            | _ -> Error("invalid use of floatcast")
 
     | BusCast (destSize, e), _-> 
         let value= evaluate e fs step connectionsWidth
         value
 
-    | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
-    | Sub ops, _ -> ExprEval (Some(ItI (-))) (Some(UtU (-))) None ops  
-    | Mul ops, _ -> ExprEval (Some(ItI (*))) (Some(UtU (*))) None ops  
+    | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) (Some(FtF (+))) None ops  
+    | Sub ops, _ -> ExprEval (Some(ItI (-))) (Some(UtU (-))) (Some(FtF (-))) None ops  
+    | Mul ops, _ -> ExprEval (Some(ItI (*))) (Some(UtU (*))) (Some(FtF (*))) None ops  
     | Div ops, _ -> 
         match ops with 
         | BinOp (l, r) -> 
@@ -195,24 +242,24 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             match left, right with 
             | _, Ok(Int 0L, _) -> Error("division by 0 attempted")
             | _, Ok(Uint 0UL, _) -> Error("division by 0 attempted")
-            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) None ops 
+            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) (Some(FtF(/))) None ops 
         | UnOp _ -> Error("should not be a unary operator") 
-    | Rem ops, _ -> ExprEval (Some(ItI (%))) (Some(UtU (%))) None ops  
-    | BitAnd ops, _ -> ExprEval (Some(ItI (&&&))) (Some(UtU (&&&))) None ops 
-    | BitOr ops, _ -> ExprEval (Some(ItI (|||))) (Some(UtU (|||))) None ops 
-    | BitNot op, _ -> ExprEval (Some(ItIUn(~~~))) (Some(UtUUn(~~~))) None op 
+    | Rem ops, _ -> ExprEval (Some(ItI (%))) (Some(UtU (%)))(Some(FtF(%))) None ops  
+    | BitAnd ops, _ -> ExprEval (Some(ItI (&&&))) (Some(UtU (&&&))) None None ops 
+    | BitOr ops, _ -> ExprEval (Some(ItI (|||))) (Some(UtU (|||))) None None ops 
+    | BitNot op, _ -> ExprEval (Some(ItIUn(~~~))) (Some(UtUUn(~~~))) None None op 
 
     | BoolExpr boolExpr, _ ->
         match boolExpr with
-        | Eq(ops) -> ExprEval (Some(ItB (=))) (Some(UtB (=))) (Some(BtB (=))) ops 
-        | Neq(ops) -> ExprEval (Some(ItB (<>))) (Some(UtB (<>))) (Some(BtB (<>))) ops 
-        | LogAnd(ops) -> ExprEval None None (Some(BtB (&&))) ops 
-        | LogOr(ops) -> ExprEval None None (Some(BtB (||))) ops 
-        | Lt(ops) -> ExprEval (Some(ItB (<))) (Some(UtB (<))) (Some(BtB (<))) ops 
-        | Gt(ops) -> ExprEval (Some(ItB (>))) (Some(UtB (>))) (Some(BtB (>))) ops 
-        | Gte(ops) -> ExprEval (Some(ItB (>=))) (Some(UtB (>=))) (Some(BtB (>=))) ops 
-        | Lte(ops) -> ExprEval (Some(ItB (<=))) (Some(UtB (<=))) (Some(BtB (<=))) ops 
-        | LogNot(op) -> ExprEval None None (Some(BtBUn (not) )) op 
+        | Eq(ops) -> ExprEval (Some(ItB (=))) (Some(UtB (=))) (Some(FtB (=))) (Some(BtB (=))) ops 
+        | Neq(ops) -> ExprEval (Some(ItB (<>))) (Some(UtB (<>))) (Some(FtB (<>)))(Some(BtB (<>))) ops 
+        | LogAnd(ops) -> ExprEval None None None (Some(BtB (&&))) ops 
+        | LogOr(ops) -> ExprEval None None None (Some(BtB (||))) ops 
+        | Lt(ops) -> ExprEval (Some(ItB (<))) (Some(UtB (<))) (Some(FtB (<))) (Some(BtB (<))) ops 
+        | Gt(ops) -> ExprEval (Some(ItB (>))) (Some(UtB (>))) (Some(FtB(>))) (Some(BtB (>))) ops 
+        | Gte(ops) -> ExprEval (Some(ItB (>=))) (Some(UtB (>=))) (Some(FtB(>=))) (Some(BtB (>=))) ops 
+        | Lte(ops) -> ExprEval (Some(ItB (<=))) (Some(UtB (<=))) (Some(FtB(>=))) (Some(BtB (<=))) ops 
+        | LogNot(op) -> ExprEval None None None (Some(BtBUn (not) )) op 
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)

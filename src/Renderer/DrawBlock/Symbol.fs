@@ -641,6 +641,7 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | Plugin p -> (
         let comp = VerificationLibrary.library.Components[p.LibraryID]
         let symbolProps = comp.GetSymbolDetails p
+        printfn "sumbolprops%A" symbolProps
         p.Inputs.Count, p.Outputs.Count, symbolProps.Height, symbolProps.Width)
 
 /// make a completely new component

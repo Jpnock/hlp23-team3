@@ -582,7 +582,7 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
     
     let initContents = 
         match origin with 
-        | NewCodeFile -> Some "// Get started by writing your assertions below! Here's a few examples: \n\n // signed(5'b) >= (a - 25) * 2 \n\n" 
+        | NewCodeFile -> Some "// Get started by writing your assertions below! Here's a few examples: \n\n signed(5'b) >= (a - 25) * 2 \n\n" 
         | ExistingCodeFile data -> Some data.Code
 
     let assertionCode = {
@@ -605,14 +605,28 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
     let updateAction = 
         fun (dialogData : PopupDialogData) ->
             dispatch (StartUICmd SaveSheet)        
-            
+
             let code = getCodeContents dialogData
+            let inputNames = 
+                match parseAssertion code with
+                | Ok assertion ->
+                    assertion.InputNames
+                | _ -> failwithf "What? Impossible to press update on assertion text component that can't compile"
+                
+
+            //printfn "assertComponentt: %A" assertComponent
+
+            //printfn "Idmap: %A" <| Symbol.getCustomPortIdMap assertComponent
+            
             model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
-            model.Sheet.ChangeAssertionInputs (Sheet >> dispatch) (ComponentId compId) VerificationComponents.IODefaults.OneInput
+            model.Sheet.ChangeAssertionInputs (Sheet >> dispatch) (ComponentId compId) inputNames
+            //model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId compId) (fun state -> {state with Inputs = VerificationComponents.IODefaults.TwoInputs})
+            //model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId compId) (fun state -> {state with AssertionDescription = Some "lmao :)))"})
 
-            let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
-            printfn "assertComponent: %A" assertComponent
 
+            SetHasUnsavedChanges false
+            |> JSDiagramMsg
+            |> dispatch
             dispatch FinishUICmd     
             dispatch <| Sheet(SheetT.DoNothing)
 

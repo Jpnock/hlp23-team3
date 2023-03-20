@@ -378,7 +378,7 @@ let rec prettyPrintAST expr prevPrefix isLast:string =
                 boolOpInfo + printTypeName bExpr, boolOpAST
         | Lit l -> sprintf "%A" l, ""
         | Cast c ->
-            let (ToSigned info| ToUnsigned info | ToBool info) = c
+            let (ToSigned info| ToUnsigned info | ToBool info |ToFloat info) = c
             let castInfo = printTypeName c
             let castAST = prettyPrintAST (fst info) newPrefix true
             castInfo, castAST 

@@ -42,6 +42,7 @@ let getType value =
     | Int _ -> IntType
     | Uint _ -> UintType 
     | Bool _ -> BoolType 
+    | Float _ -> FloatType
 
 /// Check if the lit name that is being used refers to an existing component.
 /// Mainly relevant for text based assertions
@@ -138,5 +139,6 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         | ToSigned expr -> checkCast expr (Some IntType) None pos
         | ToUnsigned expr -> checkCast expr (Some UintType) None pos
         | ToBool expr-> checkCast expr (Some BoolType) None pos
+        | ToFloat expr -> checkCast expr (Some FloatType) None pos
     | BusCast(newSize, expr), pos -> checkCast expr None (Some newSize) pos
     | _ -> failwithf "should not happen" // check that operands (do nothing for unary operators) are the same and that their size is the same

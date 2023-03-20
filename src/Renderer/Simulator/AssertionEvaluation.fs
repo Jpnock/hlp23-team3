@@ -108,11 +108,23 @@ let resizeSigned (n: int64) width =
     let signExtended = if isNegative then (-1L <<< width) ||| n else n
     signExtended
 
-let handleFP op1 op2 operand = 
+let handleFP op1 op2 operand =
+    let reverseIf cond li =
+        if cond then Array.rev li else li    
+
     let fRes: float = operand op1 op2
-    let bytes = BitConverter.GetBytes(fRes)
-    if BitConverter.IsLittleEndian then Array.Reverse(bytes)
-    BitConverter.ToUInt64 bytes
+    
+    let fBytes =
+        System.BitConverter.GetBytes(fRes)
+        |> reverseIf (not BitConverter.IsLittleEndian)
+    
+    let castAndShift value shiftAmount =
+       (uint64 value) <<< shiftAmount
+       
+    [0..8..24]
+    |> List.mapi (fun i -> castAndShift fBytes[i])
+    |> List.reduce (|||)
+    |> uint64
 
  // make it convert it back to uint64
 // assume that the AST is correct (as it will be checked upon creation of the component)

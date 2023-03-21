@@ -73,3 +73,6 @@ let astMapper (typ : TokenType) (exprs : PortExprs) : Expr option =
         None
     | TAssertFalse -> None
     | TAssertTrue -> None
+    | TComma -> None
+    | TInput -> None
+    | TSemicolon -> None

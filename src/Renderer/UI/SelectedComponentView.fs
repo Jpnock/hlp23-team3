@@ -892,25 +892,22 @@ let private makeDropdown sectionName selectedOption menuItems =
                         ]]]]]
     readOnlyFormField sectionName ioSelect  
 
-let rec private makeComparatorDropdown model dispatch (comp: Component) (cfg: ComponentConfig) =
+let inline private makeMultiComponentDropdown<'T> model dispatch (comp: Component) cfg sectionName typeWrapper typeNamer currentTyp =
     let menuItem typ =
         Menu.Item.li [
-            Menu.Item.IsActive (cfg.ComparatorType.IsSome && cfg.ComparatorType.Value = typ)
+            Menu.Item.IsActive (cfg.MultiComponentType.IsSome && cfg.MultiComponentType.Value = typeWrapper typ)
             Menu.Item.OnClick (fun _ ->
-                 model.Sheet.ChangeComparatorType (Sheet >> dispatch) (ComponentId comp.Id) typ
+                 model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (fun oldCfg -> {
+                     oldCfg with MultiComponentType = Some (typeWrapper typ)
+                 })
                  )
-            ] [comparatorTypeName typ |> str]
-    
-    let selectedOption =
-        match cfg.ComparatorType with
-        | Some typ -> comparatorTypeName typ
-        | _ -> "Select comparator type"
-    
-    FSharpType.GetUnionCases typeof<ComparatorType>
-    |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> ComparatorType)
+            ] [typeNamer typ |> str]
+        
+    FSharpType.GetUnionCases typeof<'T>
+    |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> 'T)
     |> Seq.map menuItem
     |> List.ofSeq
-    |> makeDropdown "Comparator configuration" selectedOption 
+    |> makeDropdown sectionName (typeNamer currentTyp)
 
 let private makeDataTypeDropdown model dispatch (comp: Component) (inpPort : AssertionASTMap.InputPortNumber) (inp: ComponentInput) =
     match inp.DataType with
@@ -978,10 +975,21 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             match VerificationComponents.implementsVariableWidth p with
             | Some _ -> Some (makeNumberOfBitsField model comp text dispatch)
             | _ -> None
-        
-        let comparator =
-            match p.ComparatorType with
-            | Some _ -> Some (makeComparatorDropdown model dispatch comp p)
+
+        let multiComponentSelect =
+            match p.MultiComponentType with
+            | Some (LogicalOpType selected) ->
+                let sectionTitle = "Logical operation"
+                let typWrapper typ = LogicalOpType typ
+                Some (makeMultiComponentDropdown model dispatch comp p sectionTitle typWrapper logicalOpTypeName selected)
+            | Some (BitwiseOpType selected) ->
+                let sectionTitle = "Bitwise operation"
+                let typWrapper typ = BitwiseOpType typ
+                Some (makeMultiComponentDropdown model dispatch comp p sectionTitle typWrapper bitwiseOpTypeName selected)
+            | Some (ComparatorType selected) ->
+                let sectionTitle = "Comparator operation"
+                let typWrapper typ = ComparatorType typ
+                Some (makeMultiComponentDropdown model dispatch comp p sectionTitle typWrapper comparatorTypeName selected)
             | _ -> None
         
         let assertionDescription =
@@ -1001,7 +1009,7 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             |> Map.values
             |> List.ofSeq
         
-        let all = dataTypeDropdown @ [varWidth; comparator; assertionDescription]
+        let all = dataTypeDropdown @ [varWidth; multiComponentSelect; assertionDescription]
         div [] (
            Seq.choose id all
            |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])

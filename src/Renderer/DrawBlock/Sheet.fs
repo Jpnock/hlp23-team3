@@ -99,8 +99,8 @@ module SheetInterface =
         member this.ChangeComponentConfig (dispatch: Dispatch<Msg>) (compId: ComponentId) (cfgMapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeComponentConfig (compId, cfgMapper) ) ) )
         
-        member this.ChangeComparatorType (dispatch: Dispatch<Msg>) (compId: ComponentId) typ =
-            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeComparatorType (compId, typ) ) ) )
+        member this.ChangeMultiComponentType (dispatch: Dispatch<Msg>) (compId: ComponentId) typ =
+            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeMultiComponentType (compId, typ) ) ) )
         
         /// Given a compId and a width, update the width of the Component specified by compId
         member this.ChangeScale (dispatch: Dispatch<Msg>) (compId: ComponentId) (newScale: float) (whichScale:ScaleAdjustment) =

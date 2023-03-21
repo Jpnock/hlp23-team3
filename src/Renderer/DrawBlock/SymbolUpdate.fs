@@ -844,8 +844,9 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     | ChangeComponentConfig (compId, cfgMapper) ->
         updatePluginState cfgMapper model compId
     
-    | ChangeComparatorType (compId, typ) ->
-        updatePluginState (fun state -> {state with ComparatorType = Some typ}) model compId
+    | ChangeMultiComponentType (compId, typ) ->
+        // TODO(jpnock): consider what happens when number of inputs changes
+        updatePluginState (fun state -> {state with MultiComponentType = Some typ}) model compId
     
     | ChangeScale (compId,newScale,whichScale) ->
         let symbol = Map.find compId model.Symbols

@@ -9,27 +9,27 @@ open AssertionTypes
 open AssertionASTMap
 
 type ComparatorType =
-    | Eq
-    | Lt
-    | Lte
-    | Gt
-    | Gte
+    | ComparatorTypeEq
+    | ComparatorTypeLt
+    | ComparatorTypeLte
+    | ComparatorTypeGt
+    | ComparatorTypeGte
     
 let comparatorTypeName typ =
     match typ with
-    | Lt -> "Less than"
-    | Lte -> "Less than or equals"
-    | Gt -> "Greater than"
-    | Gte -> "Greater than or equals"
-    | Eq -> "Equal"
+    | ComparatorTypeLt -> "Less than"
+    | ComparatorTypeLte -> "Less than or equals"
+    | ComparatorTypeGt -> "Greater than"
+    | ComparatorTypeGte -> "Greater than or equals"
+    | ComparatorTypeEq -> "Equal"
 
 let comparatorTypeSymbolName typ =
     match typ with
-    | Lt -> "A < B"
-    | Lte -> "A <= B"
-    | Gt -> "A > B"
-    | Gte -> "A >= B"
-    | Eq -> "A == B"
+    | ComparatorTypeLt -> "A < B"
+    | ComparatorTypeLte -> "A <= B"
+    | ComparatorTypeGt -> "A > B"
+    | ComparatorTypeGte -> "A >= B"
+    | ComparatorTypeEq -> "A == B"
 
 type DataType =
     | DataTypeInt
@@ -111,7 +111,6 @@ type ComponentConfig =
       AssertionText: string option
       AssertionDescription: string option
       IsInput: bool option
-      ComparatorType: ComparatorType option
       MultiComponentType: MultiComponentType option }
     static member Default : ComponentConfig = {
         InstanceID = Some (Guid.NewGuid().ToString())
@@ -121,7 +120,6 @@ type ComponentConfig =
         AssertionText = None
         AssertionDescription = None
         IsInput = None
-        ComparatorType = None
         MultiComponentType = None
     }
 
@@ -323,14 +321,14 @@ type ComparatorComponent =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
         member this.GetDefaultConfig = {
             ComponentConfig.Default with
-                ComparatorType = Some Eq
+                MultiComponentType = Some (ComparatorType ComparatorTypeEq)
                 Inputs = IODefaults.TwoInputs
                 Outputs = IODefaults.OneFixedWidthOutputX 1
                 LibraryID = this.LibraryID }
         member this.GetSymbolDetails cfg =
             let comparatorTyp =
-                match cfg.ComparatorType with
-                | Some typ -> typ
+                match cfg.MultiComponentType with
+                | Some (ComparatorType typ) -> typ
                 | _ -> failwithf "Tried to get the comparator type of a non-comparator"
             { Name = comparatorTypeSymbolName comparatorTyp
               Prefix = SymbolDefaults.Prefix
@@ -345,18 +343,18 @@ type ComparatorComponent =
         member this.CreateAST cfg exprPortMap =
             let signedExprPortMap = addSignInfoToAST cfg exprPortMap
             let built =
-                match cfg.ComparatorType with
+                match cfg.MultiComponentType with
                 | None -> failwith "Tried to build assertion AST for comparator without config set"
-                | Some typ ->
+                | Some (ComparatorType typ) ->
                     match typ with
-                    | Eq -> astMapper TEq signedExprPortMap
-                    | Lt -> astMapper TLt signedExprPortMap
-                    | Gt -> astMapper TGt signedExprPortMap
-                    | Lte -> astMapper TLte signedExprPortMap
-                    | Gte -> astMapper TGte signedExprPortMap
+                    | ComparatorTypeEq -> astMapper TEq signedExprPortMap
+                    | ComparatorTypeLt -> astMapper TLt signedExprPortMap
+                    | ComparatorTypeGt -> astMapper TGt signedExprPortMap
+                    | ComparatorTypeLte -> astMapper TLte signedExprPortMap
+                    | ComparatorTypeGte -> astMapper TGte signedExprPortMap
             match built with
             | Some b -> b
-            | _ -> failwithf $"Unable to CreateAST for comparator {cfg.ComparatorType}"
+            | _ -> failwithf $"Unable to CreateAST for comparator {cfg.MultiComponentType}"
 
 type LogicalOpComponent =
     { LibraryID: string }

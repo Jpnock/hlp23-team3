@@ -76,7 +76,7 @@ type LibraryID = string
 /// be initialised to None in the default constructor; this
 /// allows for new fields to be added without changing the code
 /// in many places.
-type ComponentState =
+type ComponentConfig =
     { InstanceID: string option
       LibraryID: LibraryID
       Inputs: Map<InputPortNumber, ComponentInput>
@@ -85,7 +85,7 @@ type ComponentState =
       AssertionDescription: string option
       IsInput: bool option
       ComparatorType: ComparatorType option }
-    static member Default : ComponentState = {
+    static member Default : ComponentConfig = {
         InstanceID = Some (Guid.NewGuid().ToString())
         LibraryID = ""
         Inputs = Map.empty
@@ -128,25 +128,25 @@ type IComponent =
     abstract member GetName: string
     /// Returns tooltip text displayed when creating a component.
     abstract member GetTooltipText: string
-    /// Returns the initial state of a component, which determines its
+    /// Returns the initial config of a component, which determines its
     /// behaviour and the type of component. User modifications are
     /// not reflected here.
-    abstract member GetDefaultState : ComponentState
-    /// Retrieves the details of the component symbol, given the state
+    abstract member GetDefaultConfig : ComponentConfig
+    /// Retrieves the details of the component symbol, given the config,
     /// such that this can dynamically be generated with different
     /// behaviour per each component-type instance.
-    abstract member GetSymbolDetails : ComponentState -> SymbolDetails
-    /// Retrieves the description of the component based on the state.
-    /// Providing the state is useful if the description needs to be
-    /// dynamically updated based on the component state, such as
+    abstract member GetSymbolDetails : ComponentConfig -> SymbolDetails
+    /// Retrieves the description of the component based on the config.
+    /// Providing the config is useful if the description needs to be
+    /// dynamically updated based on the component config, such as
     /// changing "N-bit adder" to "10-bit adder" when the user configures this.
-    abstract member GetDescription : ComponentState -> string
+    abstract member GetDescription : ComponentConfig -> string
     /// Returns the output widths of each output port. Used by the width-inference
     /// engine to automatically deduce bus-widths.
-    abstract member GetOutputWidths : ComponentState -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
+    abstract member GetOutputWidths : ComponentConfig -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
     /// Builds the Assertion AST for this component, when the ASTs
     /// corresponding to each input port are provided.
-    abstract member Build : ComponentState -> Map<InputPortNumber, Expr> -> Expr
+    abstract member Build : ComponentConfig -> Map<InputPortNumber, Expr> -> Expr
   
 /// Defines helper defaults that are useful when constructing Component IO ports.
 module IODefaults =
@@ -199,40 +199,40 @@ let private collectionMaxWithDefault<'t when 't: comparison> defaultValue (seque
     | 0 -> defaultValue
     | _ -> Seq.max sequence
 
-/// Updates the state of a component, such that
+/// Updates the config of a component, such that
 /// all inputs are set to `signed`.
-let makeIOSigned state  =
+let makeIOSigned cfg  =
     {
-     state with
-        Inputs = state.Inputs |> Map.map (fun _ v -> {v with DataType = DataTypeInt})
+     cfg with
+        Inputs = cfg.Inputs |> Map.map (fun _ v -> {v with DataType = DataTypeInt})
     }
 
-let inputPortLabels (state:ComponentState) =
-    match state.Inputs.IsEmpty with
+let inputPortLabels (cfg: ComponentConfig) =
+    match cfg.Inputs.IsEmpty with
     | true -> []
     | false ->
         let highestPort =
-            state.Inputs.Keys
+            cfg.Inputs.Keys
             |> Seq.max
         [0..highestPort]
         |> List.choose (fun idx ->
-            match state.Inputs.TryFind idx with
+            match cfg.Inputs.TryFind idx with
             | Some port -> Some port.Name
             | None -> None)
 
 let emptyExprInfo expr =
     expr, { Line = 0; Col = 0; Length = 0 }
 
-let addSignInfoToAST (state : ComponentState) (exprPortMap : PortExprs) =
+let addSignInfoToAST (cfg : ComponentConfig) (exprPortMap : PortExprs) =
     let addSignInfoToPort inputPortNum expr =
-        match state.Inputs.TryFind inputPortNum with
+        match cfg.Inputs.TryFind inputPortNum with
         | Some inputPort ->
             match inputPort.DataType with
             | DataTypeInt -> Cast (ToSigned (emptyExprInfo expr))
             | DataTypeUInt -> expr
             | DataTypeFloat32 -> Cast (ToFloat (emptyExprInfo expr))
             | DataTypeAssertionInput -> expr
-        | _ -> failwith $"what? could not find port #{inputPortNum} for {state.LibraryID} : {state.InstanceID}"
+        | _ -> failwith $"what? could not find port #{inputPortNum} for {cfg.LibraryID} : {cfg.InstanceID}"
     
     exprPortMap
     |> Map.map addSignInfoToPort
@@ -243,37 +243,37 @@ type SimpleComponent =
     { 
       Name: string
       SymbolName: string
-      DescriptionFunc: SimpleComponent -> ComponentState -> string
+      DescriptionFunc: SimpleComponent -> ComponentConfig -> string
       TooltipText: string
-      DefaultState: ComponentState
+      DefaultConfig: ComponentConfig
       AssertionBuilder: ASTBuilder }
     member this.ToInterface : IComponent = this
     interface IComponent with
-        member this.GetLibraryID = this.DefaultState.LibraryID
+        member this.GetLibraryID = this.DefaultConfig.LibraryID
         member this.GetName = this.Name
         member this.GetTooltipText = this.TooltipText
-        member this.GetDefaultState = this.DefaultState
-        member this.GetSymbolDetails state =
+        member this.GetDefaultConfig = this.DefaultConfig
+        member this.GetSymbolDetails cfg =
             { Name = this.SymbolName
               Prefix = SymbolDefaults.Prefix
               Height = SymbolDefaults.Height
               Width = SymbolDefaults.Width
               Colour = SymbolDefaults.Colour
-              InputLabels = inputPortLabels state
+              InputLabels = inputPortLabels cfg
               OutputLabels = [] }
-        member this.GetDescription state = this.DescriptionFunc this state
-        member this.GetOutputWidths state inputPortWidths =
+        member this.GetDescription cfg = this.DescriptionFunc this cfg
+        member this.GetOutputWidths cfg inputPortWidths =
             // TODO(jpnock): Check logic
             let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
-            state.Outputs
+            cfg.Outputs
             |> Map.map (fun _ output ->
                 match output.FixedWidth with
                 | Some w -> w
                 | _ -> maxInputWidth)
-        member this.Build state exprPortMap =
-            let signedExprPortMap = addSignInfoToAST state exprPortMap
+        member this.Build cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
             let built = this.AssertionBuilder signedExprPortMap
-            printfn "verification port name %A" this.DefaultState.Outputs
+            printfn "verification port name %A" this.DefaultConfig.Outputs
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for {this.Name}"
@@ -287,15 +287,15 @@ type ComparatorComponent =
         member this.GetName = "Comparator"
         member this.GetTooltipText =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
-        member this.GetDefaultState = {
-            ComponentState.Default with
+        member this.GetDefaultConfig = {
+            ComponentConfig.Default with
                 ComparatorType = Some Eq
                 Inputs = IODefaults.TwoInputs
                 Outputs = IODefaults.OneFixedWidthOutputX 1
                 LibraryID = this.LibraryID }
-        member this.GetSymbolDetails state =
+        member this.GetSymbolDetails cfg =
             let comparatorTyp =
-                match state.ComparatorType with
+                match cfg.ComparatorType with
                 | Some typ -> typ
                 | _ -> failwithf "Tried to get the comparator type of a non-comparator"
             { Name = comparatorTypeSymbolName comparatorTyp
@@ -303,16 +303,16 @@ type ComparatorComponent =
               Height = SymbolDefaults.Height
               Width = SymbolDefaults.Width
               Colour = SymbolDefaults.Colour
-              InputLabels = inputPortLabels state
+              InputLabels = inputPortLabels cfg
               OutputLabels = [] }
         member this.GetDescription _ =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
-        member this.GetOutputWidths state _ = Map.map (fun _ _ -> 1) state.Outputs
-        member this.Build state exprPortMap =
-            let signedExprPortMap = addSignInfoToAST state exprPortMap
+        member this.GetOutputWidths cfg _ = Map.map (fun _ _ -> 1) cfg.Outputs
+        member this.Build cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
             let built =
-                match state.ComparatorType with
-                | None -> failwith "Tried to build assertion AST for comparator without state set"
+                match cfg.ComparatorType with
+                | None -> failwith "Tried to build assertion AST for comparator without config set"
                 | Some typ ->
                     match typ with
                     | Eq -> astMapper TEq signedExprPortMap
@@ -322,32 +322,32 @@ type ComparatorComponent =
                     | Gte -> astMapper TGte signedExprPortMap
             match built with
             | Some b -> b
-            | _ -> failwithf $"Unable to build for comparator {state.ComparatorType}"
+            | _ -> failwithf $"Unable to build for comparator {cfg.ComparatorType}"
 
 
 // Helper function for dynamically generating the description of a
-// signed component, based on its state.
-let signedDescription _ state =
+// signed component, based on its config.
+let signedDescription _ cfg =
     let dt =
-        state.Inputs.Values
+        cfg.Inputs.Values
         |> Seq.exists (fun el -> el.DataType = DataTypeInt)
     match dt with
     | true -> "treating them as signed values"
     | false -> "treating them as unsigned values"
 
-/// Helper function for creating a static description (regardless of state).
+/// Helper function for creating a static description (regardless of config).
 let basicDescription description _ _ =
     description
 
-/// Helper function for creating component state, with
+/// Helper function for creating component config, with
 /// defaults applied.
-let makeState outputs inputs libraryID =
-    { ComponentState.Default with Inputs = inputs; Outputs = outputs; LibraryID = libraryID }   
+let makeConfig outputs inputs libraryID =
+    { ComponentConfig.Default with Inputs = inputs; Outputs = outputs; LibraryID = libraryID }   
 
 /// Returns inputs 0 and 1 of a component, or fails if they
 /// are not both present.
-let mustGetOperands (state:ComponentState) =
-    let i1, i2 = state.Inputs.TryFind 0, state.Inputs.TryFind 1
+let mustGetOperands (cfg: ComponentConfig) =
+    let i1, i2 = cfg.Inputs.TryFind 0, cfg.Inputs.TryFind 1
     match i1, i2 with
     | Some input1, Some input2 ->
         input1, input2
@@ -362,7 +362,7 @@ let makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName des
         SymbolName = symbolName
         DescriptionFunc = description
         TooltipText = tooltip
-        DefaultState = makeState outputs inputs baseLibraryID
+        DefaultConfig = makeConfig outputs inputs baseLibraryID
         AssertionBuilder = builder
     }
 
@@ -381,10 +381,10 @@ module ComponentDefaults =
 
 /// Returns whether the component specifies a user-controllable
 /// input port 0 width.
-let implementsVariableWidth (state : ComponentState) =
+let implementsVariableWidth (cfg : ComponentConfig) =
     let inputIsAssertion input = input.DataType <> DataTypeAssertionInput
     
-    match state.Inputs.TryFind 0 with
+    match cfg.Inputs.TryFind 0 with
     | Some input when
         input.FixedWidth.IsSome && not (inputIsAssertion input) -> input.FixedWidth
     | _ -> None
@@ -400,9 +400,9 @@ let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput
 /// TODO(jpnock): refactor this such that these components are
 /// supported by natively.
 // TODO ln220 make it so that it actually holds the component outputs 
-let makeStateFromExternalInputComponent id widths portsIds hostLabel: ComponentState =
+let makeConfigFromExternalInputComponent id widths portsIds hostLabel: ComponentConfig =
     {
-        ComponentState.Default with
+        ComponentConfig.Default with
             InstanceID = Some id
             Outputs = makeOutputs portsIds widths hostLabel
             IsInput = Some true

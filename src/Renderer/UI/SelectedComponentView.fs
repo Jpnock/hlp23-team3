@@ -892,17 +892,17 @@ let private makeDropdown sectionName selectedOption menuItems =
                         ]]]]]
     readOnlyFormField sectionName ioSelect  
 
-let rec private makeComparatorDropdown model dispatch (comp: Component) (state: ComponentState) =
+let rec private makeComparatorDropdown model dispatch (comp: Component) (cfg: ComponentConfig) =
     let menuItem typ =
         Menu.Item.li [
-            Menu.Item.IsActive (state.ComparatorType.IsSome && state.ComparatorType.Value = typ)
+            Menu.Item.IsActive (cfg.ComparatorType.IsSome && cfg.ComparatorType.Value = typ)
             Menu.Item.OnClick (fun _ ->
                  model.Sheet.ChangeComparatorType (Sheet >> dispatch) (ComponentId comp.Id) typ
                  )
             ] [comparatorTypeName typ |> str]
     
     let selectedOption =
-        match state.ComparatorType with
+        match cfg.ComparatorType with
         | Some typ -> comparatorTypeName typ
         | _ -> "Select comparator type"
     
@@ -989,8 +989,8 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             | Some desc ->
                 textAreaFormFieldSimple "Assertion Description" desc 4 (
                     fun newText ->
-                        model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId comp.Id) (
-                            fun oldState -> {oldState with AssertionDescription = Some newText})
+                        model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (
+                            fun oldCfg -> {oldCfg with AssertionDescription = Some newText})
                 )
                 |> Some
             | _ -> None

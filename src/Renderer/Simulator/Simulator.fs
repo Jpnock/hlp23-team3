@@ -194,7 +194,7 @@ let rec startCircuitSimulation
         List.choose isAssertionComponent canvasComps
     
     let makeState =
-        VerificationComponents.makeStateFromExternalInputComponent
+        VerificationComponents.makeConfigFromExternalInputComponent
 
     let getPortNames comp : string List = 
         comp.OutputPorts 

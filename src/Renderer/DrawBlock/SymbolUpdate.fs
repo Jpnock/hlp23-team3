@@ -759,7 +759,7 @@ let storeLayoutInfoInComponent _ symbol =
 let checkSymbolIntegrity (sym: Symbol) =
     failwithf ""
 
-let rec private updatePluginState (mapper : VerificationComponents.ComponentState -> VerificationComponents.ComponentState) (model : Model) compId =
+let rec private updatePluginState (mapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) (model : Model) compId =
     let oldSymbol = Map.find compId model.Symbols
     let newCompType = 
         match oldSymbol.Component.Type with
@@ -841,8 +841,8 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
             let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
             {state with Inputs = newInputs}) model compId
     
-    | ChangeComponentState (compId, stateMapper) ->
-        updatePluginState stateMapper model compId
+    | ChangeComponentConfig (compId, cfgMapper) ->
+        updatePluginState cfgMapper model compId
     
     | ChangeComparatorType (compId, typ) ->
         updatePluginState (fun state -> {state with ComparatorType = Some typ}) model compId

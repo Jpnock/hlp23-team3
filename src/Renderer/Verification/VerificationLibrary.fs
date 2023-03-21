@@ -49,12 +49,12 @@ type DefaultComponent = {
         
         let assertState =
             match this.Class with
-            | ClassAssert _ -> {baseComp with DefaultState = {baseComp.DefaultState with AssertionDescription = Some ""}}
+            | ClassAssert _ -> {baseComp with DefaultConfig = {baseComp.DefaultConfig with AssertionDescription = Some ""}}
             | _ -> baseComp
         
         match this.SignedAndUnsigned with
         | false -> [assertState]
-        | true -> [{assertState with DefaultState = assertState.DefaultState}]
+        | true -> [{assertState with DefaultConfig = assertState.DefaultConfig}]
 
 // let lessThan =
 //      {
@@ -165,7 +165,7 @@ let private makeTextAssertion : IComponent =
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]
     {
-        comp with DefaultState = { comp.DefaultState with AssertionText = Some ""; AssertionDescription = Some "" }
+        comp with DefaultConfig = { comp.DefaultConfig with AssertionText = Some ""; AssertionDescription = Some "" }
     }
 
 let private comparatorComp : IComponent =

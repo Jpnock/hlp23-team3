@@ -359,7 +359,10 @@ let emptyFastData = {Width=0; Dat=Word 0u}
 /// not possible.
 let strToInt (str : string) : Result<int64, string> =
     try
-        Ok <| int64 str
+        str
+        |> String.filter (fun c -> c <> ',')
+        |> int64
+        |> Ok
     with
         | _ -> Error <| "Invalid number."
 
@@ -401,6 +404,7 @@ let rec checkWidth (width : int) (num : int64) : string option =
         match bitsCount <= width with
         | true -> None
         | false -> Some <| sprintf "Expected %d or less bits." width
+
 
 /// Convert a string to a number making sure that it has no more bits than
 /// specified in width.

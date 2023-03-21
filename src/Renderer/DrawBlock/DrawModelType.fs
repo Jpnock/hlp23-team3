@@ -223,6 +223,9 @@ module SymbolT =
         | ErrorSymbols of errorIds: ComponentId list * selectIds: ComponentId list * isDragAndDrop: bool
         | ChangeNumberOfBits of compId:ComponentId * NewBits:int
         | ChangeAssertionText of compId:ComponentId * string
+        | ChangeInputDataType of compId:ComponentId * AssertionASTMap.InputPortNumber * VerificationComponents.DataType
+        | ChangeComponentConfig of compId:ComponentId * (VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig)
+        | ChangeMultiComponentType of compId:ComponentId * VerificationComponents.MultiComponentType
         | ChangeLsb of compId: ComponentId * NewBits:int64 
         | ChangeInputValue of compId: ComponentId * newVal: int
         | ChangeScale of compId:ComponentId * newScale:float * whichScale:ScaleAdjustment

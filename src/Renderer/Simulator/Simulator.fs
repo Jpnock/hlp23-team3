@@ -6,6 +6,7 @@
 
 module Simulator
 
+open AssertionTypes
 open CommonTypes
 open SimulatorTypes
 open SynchronousUtils
@@ -175,159 +176,140 @@ let rec startCircuitSimulation
         (fullCanvasState : CanvasState)
         (loadedDependencies : LoadedComponent list)
         : Result<SimulationData, SimulationError> =
-
-    // Remove all verification components from the simulation
-    // as this logic is performed outside of the simulator.
+    
     let canvasComps, canvasConnections = fullCanvasState 
-    
-    let isTypeVerificationComp =
-        function
-        | Plugin _ -> true
-        | _ -> false
-    
-    let verificationCompMap =
-        canvasComps
-        |> List.map (fun comp -> comp.Id, isTypeVerificationComp comp.Type)
-        |> Map.ofList
-    
-    // TODO(jpnock): we might also want to remove constants that are solely 
-    // connected to verification components, otherwise these will error.
-    let canvasNonVerificationComps =
-        canvasComps
-        |> List.filter (fun comp -> not (isTypeVerificationComp comp.Type))
-    
-    let isVerificationComp compId = verificationCompMap[compId]
     
     let componentMap =
         canvasComps
         |> List.map (fun el -> el.Id, el)
         |> Map.ofList
     
-    let textAssertions =
-        canvasComps
-        |> List.filter (fun c ->
-            match c.Type with
-            | Plugin state when state.AssertionText.IsSome -> true
-            | _ -> false)
-        
+    let isAssertionComponent (comp:Component) =
+        match comp.Type with
+        | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
+            Some (comp.Id, state)
+        | _ -> None
+    
+    let assertionCompsAndIDs =
+        List.choose isAssertionComponent canvasComps
+    
     let makeState =
-        VerificationComponents.makeStateFromExternalInputComponent
-        
+        VerificationComponents.makeConfigFromExternalInputComponent
+
+    let getPortNames comp : string List = 
+        comp.OutputPorts 
+        |> List.map (fun oP -> oP.Id) 
+
     let getSourceComponentState componentId =
         let source = componentMap[componentId]
         match source.Type with
         | Plugin state -> state
-        | Input1 (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
-        | IOLabel -> makeState source.Id source.Label None
-        | Viewer busWidth -> makeState source.Id source.Label (Some busWidth)
-        | Constant (busWidth, _) -> makeState source.Id source.Label (Some busWidth)
-        | _ -> makeState source.Id source.Label None
+        | Input1 (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
+        | IOLabel -> makeState source.Id [None] [source.OutputPorts.Head.Id] source.Label
+        | Viewer busWidth -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
+        | Constant (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
+        | _ -> makeState source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source) source.Label
         
     // Problem : port number is None on components
     // Solution : make a mapping between port Id and number
     let inputPortIDToNumber =
         canvasComps
-        |> List.map (fun comp -> comp.InputPorts)
-        |> List.concat
+        |> List.map (fun comp -> [comp.InputPorts; comp.OutputPorts])
+        |> List.concat |> List.concat
         |> List.map (fun port -> (port.Id, port.PortNumber))
         |> Map.ofList
     
     let targetIDtoPortNum id =
-        printf $"Looking up {id}"
+        // printf $"Looking up {id}"
         inputPortIDToNumber[id]
     
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
-        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, getSourceComponentState conn.Source.HostId))
+        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, (getSourceComponentState conn.Source.HostId, targetIDtoPortNum conn.Source.Id, conn.Id)))
         |> List.groupBy (fun (hostId, _, _) -> hostId)
         |> List.map (fun (k, v) ->
             let inputMap =
                 v |> List.choose (
-                        fun (_, inputNumber, state) ->
-                        match inputNumber.IsSome with
-                        | true -> Some (inputNumber.Value, state)
-                        | false -> None )
+                        fun (_, inputNumber, (state, sourceNumber, connId)) ->
+                        match inputNumber.IsSome, sourceNumber.IsSome with
+                        | true, true -> Some (inputNumber.Value, (state, sourceNumber.Value, connId))
+                        | _ -> None )
             k, Map.ofList inputMap)
         |> Map.ofList
-
-    let assertionComps =
-        canvasComps
-        |> List.choose (fun el ->
-            match el.Type with
-            | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
-                Some state
-            | _ -> None)
     
-    let assertionTexts =
-        canvasComps
-        |> List.choose (fun el ->
-            match el.Type with
-            | Plugin state when state.AssertionText.IsSome -> state.AssertionText
-            | _ -> None)
+    // TODO(jpnock): Fix uses of this
+    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
     
-    let assertionCompASTs : AssertionTypes.Assertion list =
+    let assertionComps = List.map snd assertionCompsAndIDs
+    
+    let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
-            let compConnectedToAssert = componentIDToInputPortState[el.InstanceID.Value][0]
-            let ast = VerificationASTGen.generateAST componentIDToInputPortState compConnectedToAssert
-            let exprPos = {Line = 0; Col = 0; Length = 0} : AssertionTypes.Pos
-            let assertion = ast, exprPos
-            {AST = assertion})
+            let connectedToPort = componentIDToInputPortState.TryFind el.InstanceID.Value
+            match connectedToPort with
+            | None -> Error {
+                Msg = "An assertion component was not driven by any inputs"
+                Pos = emptyPos
+                ExtraErrors = None }
+            | Some connectedTo ->               
+                let (assertionInput, _, _) = connectedTo[0]
+                let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
+                let assertion = ast, emptyPos
+                Ok {AssertExpr = assertion; InputNames = Set.empty})
     
-    let assertionParseResults = List.map AssertionParser.parseAssertion assertionTexts
+    let isAssertionTextComp (comp:Component) =
+        match comp.Type with
+        | Plugin state -> state.AssertionText
+        | _ -> None
+    
+    let assertionTexts = canvasComps |> List.choose isAssertionTextComp
+    
+    let assertionTextASTs =
+        List.map AssertionParser.parseAssertion assertionTexts
+    
+    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
     
     let resultFolder state result =
         match result with 
         | Ok expr -> (List.append [expr] <| fst state, snd state)
         | Error e -> (fst state, List.append [e] <| snd state)
 
-    let (assertionExprs, assertionErrors) = List.fold resultFolder ([], []) assertionParseResults
-
-    if assertionErrors.IsEmpty = false then
+    let (validASTs, astErrors) = List.fold resultFolder ([], []) allASTs
+    
+    if not astErrors.IsEmpty then
+        // TODO(jpnock): improve error output
         printf $"Not all assertions could be parsed:"
-        List.iter ( fun e -> printf $"{e}") assertionErrors
-
-    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
-    let assertionASTs = List.map (fun expr -> {AssertionTypes.AST = expr, emptyPos}) assertionExprs
-    let assertionTextASTs : AssertionTypes.Assertion list = assertionASTs
+        List.iter ( fun e -> printf $"{e}") astErrors
+   
+    printf $"Got valid ASTs: {validASTs}"
     
-    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
-    
-    printf $"Got assertion ASTs {allASTs}"
-    
-    allASTs
+    validASTs
     |> List.map (fun el ->
-        let pretty = AssertionParser.prettyPrintAST (fst el.AST) "" false
+        let pretty = AssertionParser.prettyPrintAST (fst el.AssertExpr) "" false
         printf $"Got AST:\n{pretty}")
     |> ignore
     
     let checkedASTs =
-        allASTs
-        |> List.map (fun el -> AssertionCheck.checkAST el.AST canvasComps)
-    
+        validASTs
+        |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr canvasComps)
+        
     let goodASTs =
         checkedASTs
         |> List.choose (
             function
-            | AssertionTypes.Properties properties -> Some properties
+            | AssertionTypes.TypeInfo typeInfo-> Some typeInfo 
             | _ -> None)
     
     let finalAssertions =
-        if goodASTs.Length = checkedASTs.Length then allASTs
+        if goodASTs.Length = checkedASTs.Length then validASTs
         else
+            // TODO(jpnock): improve error output
             printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
             []
     
-    // Remove all connections that are connected to verification components
-    // at either end.
-    let canvasNonVerificationConns =
-        canvasConnections
-        |> List.filter (fun conn ->
-            (not (isVerificationComp conn.Source.HostId)) && (not (isVerificationComp conn.Target.HostId)))
-    
-    let canvasState = canvasNonVerificationComps, canvasNonVerificationConns
+    let canvasState = canvasComps, canvasConnections
     
     /// Tune for performance of initial zero-length simulation versus longer run.
     /// Probably this is not critical.

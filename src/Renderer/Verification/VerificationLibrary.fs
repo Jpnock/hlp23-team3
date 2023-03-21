@@ -13,6 +13,16 @@ type ComponentClass =
     | ClassTwoInputOperator of string
     | ClassNoIO of string
     | ClassAssert of string
+    | ClassMultiComponent of string * MultiComponentType
+
+let makeLibraryID (cls:ComponentClass) (name:string) =
+    let normalised = name.Replace(" ", "_").Replace("(", "_").Replace(")", "_").ToUpper()
+    let className = cls.ToString().ToUpper().Split(" ")[0]
+    $"PLUGIN_{className}_{normalised.ToUpper()}"
+
+let inline defaultIO<'T when 'T : (member ToInterface : IComponent)> (comp : 'T)=
+    let compDefaults = comp.ToInterface.GetDefaultConfig
+    compDefaults.Inputs, compDefaults.Outputs
 
 type DefaultComponent = {
     Name: string
@@ -21,35 +31,43 @@ type DefaultComponent = {
     Builder: ASTBuilder
     SignedAndUnsigned: bool
 } with
-    member this.MakeID =
-        let normalised = this.Name.Replace(" ", "_").Replace("(", "_").Replace(")", "_").ToUpper()
-        let className = this.Class.ToString().ToUpper()
-        $"PLUGIN_{className}_{normalised.ToUpper()}"
-    
+    member this.MakeID = makeLibraryID this.Class this.Name
     member this.makeSimpleComponents : SimpleComponent list =
         let inputs, outputs =
             match this.Class with
             | ClassComparator _ -> IODefaults.TwoInputs, IODefaults.OneFixedWidthOutputX 1
             | ClassTwoInputOperator _ -> IODefaults.TwoInputs, IODefaults.OneOutput
             | ClassNoIO _ -> Map.empty, Map.empty
-            | ClassAssert _ -> IODefaults.OneFixedWidthInputA 1, Map.empty
-            
+            | ClassAssert _ -> IODefaults.OneAssertionInputA, Map.empty
+            | ClassMultiComponent (_, multiTyp) ->
+                match multiTyp with
+                | ComparatorType _ -> defaultIO ({ LibraryID = "" } : ComparatorComponent)
+                | LogicalOpType _ -> defaultIO ({ LibraryID = "" } : LogicalOpComponent)
+                | BitwiseOpType _ -> defaultIO ({ LibraryID = "" } : BitwiseOpComponent)
+        
         let tooltip =
             match this.Class with
             | ClassComparator desc -> desc
             | ClassTwoInputOperator desc -> desc
             | ClassNoIO desc -> desc
             | ClassAssert desc -> desc
+            | ClassMultiComponent (desc, _) -> desc
         
         let description = basicDescription tooltip
         
+        let baseComp =
+            makeSimpleComponentConcrete outputs inputs this.Name this.MakeID this.SymbolName description tooltip this.Builder
+        
+        let assertCfg =
+            match this.Class with
+            | ClassAssert _ ->
+                {baseComp with DefaultConfig = {baseComp.DefaultConfig with AssertionDescription = Some ""}}
+            | _ -> baseComp
+        
         match this.SignedAndUnsigned with
-        | false -> [makeSimpleComponentConcrete outputs inputs this.Name this.MakeID this.SymbolName description tooltip this.Builder]
-        | true ->
-            let u, s = makeSignedPairOfComponents outputs description tooltip this.Name this.MakeID this.SymbolName this.Builder
-            [u; s]
+        | false -> [assertCfg]
+        | true -> [{assertCfg with DefaultConfig = assertCfg.DefaultConfig}]
 
-// TODO(jpnock): Add more components in group phase
 let private defaultComps : DefaultComponent list = [
      {
         Name = "Multiply"
@@ -80,41 +98,6 @@ let private defaultComps : DefaultComponent list = [
         SignedAndUnsigned = true
      }
      {
-        Name = "Less Than"
-        Class = ClassComparator "Outputs HIGH when A is less than B"
-        SymbolName = "A < B"
-        Builder = astMapper TLt
-        SignedAndUnsigned = true
-     }
-     {
-        Name = "Less Than or Equal"
-        Class = ClassComparator "Outputs HIGH when A is less than or equal to B"
-        SymbolName = "A <= B"
-        Builder = astMapper TLte
-        SignedAndUnsigned = true
-     }
-     {
-        Name = "Greater Than"
-        Class = ClassComparator "Outputs HIGH when A is greater than B"
-        SymbolName = "A > B"
-        Builder = astMapper TGt
-        SignedAndUnsigned = true
-     }
-     {
-        Name = "Greater Than or Equal"
-        Class = ClassComparator "Outputs HIGH when A is greater than or equal to B"
-        SymbolName = "A >= B"
-        Builder = astMapper TGte
-        SignedAndUnsigned = true
-     }
-     {
-         Name = "Equals"
-         Class = ClassComparator "Outputs HIGH when A equals B"
-         SymbolName = "A == B"
-         Builder = astMapper TEq
-         SignedAndUnsigned = false
-     }
-     {
          Name = "Add"
          Class = ClassTwoInputOperator "Outputs the sum of A and B"
          SymbolName = "A + B"
@@ -125,11 +108,11 @@ let private defaultComps : DefaultComponent list = [
          Name = "Subtract"
          Class = ClassTwoInputOperator "Outputs the value of B subtracted from A"
          SymbolName = "A - B"
-         Builder = astMapper TAdd
+         Builder = astMapper TSub
          SignedAndUnsigned = false
      }
      {
-         Name = "Assert HIGH"
+         Name = "Assert HIGH (Visual)"
          Class = ClassAssert "Raises an assertion if the input is not HIGH"
          SymbolName = "Assert\nHIGH"
          Builder = noAssertion
@@ -141,20 +124,37 @@ let private defaultComps : DefaultComponent list = [
 let private makeTextAssertion : IComponent =
     let comp =
         {
-            Name = "Text Assert HIGH"
+            Name = "Assert HIGH (Text)"
             Class = ClassNoIO "Evaluates the provided expression and raises an assertion if the result is not HIGH"
             SymbolName = "Text\nAssertion"
             Builder = noAssertion
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]
-    {comp with DefaultState = {comp.DefaultState with AssertionText = Some ""}}
+    {
+        comp with DefaultConfig = { comp.DefaultConfig with AssertionText = Some ""; AssertionDescription = Some "" }
+    }
+
+let private comparatorComp : IComponent =
+    {
+        LibraryID = makeLibraryID (ClassComparator "") "Comparator"
+    } : ComparatorComponent
+
+let private bitwiseOpComp : IComponent =
+    {
+        LibraryID = makeLibraryID (ClassMultiComponent ("", BitwiseOpType BitwiseOpTypeAnd)) "Bitwise Operator"
+    } : BitwiseOpComponent
+
+let private logicalOpComponent : IComponent =
+    {
+        LibraryID = makeLibraryID (ClassMultiComponent ("", LogicalOpType LogicalOpTypeAnd)) "Logical Operator"
+    } : LogicalOpComponent
 
 let private components: IComponent list =
     let allDefaultComps =
         defaultComps
         |> List.collect (fun el -> el.makeSimpleComponents)
         |> List.map (fun el -> el.ToInterface)
-    List.concat [allDefaultComps; [makeTextAssertion]]
+    List.concat [allDefaultComps; [makeTextAssertion; comparatorComp; bitwiseOpComp; logicalOpComponent]]
 
 type ComponentLibrary =
     { Components: Map<LibraryID, IComponent> }

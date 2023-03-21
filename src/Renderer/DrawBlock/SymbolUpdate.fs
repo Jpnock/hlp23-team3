@@ -759,6 +759,14 @@ let storeLayoutInfoInComponent _ symbol =
 let checkSymbolIntegrity (sym: Symbol) =
     failwithf ""
 
+let rec private updatePluginState (mapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) (model : Model) compId =
+    let oldSymbol = Map.find compId model.Symbols
+    let newCompType = 
+        match oldSymbol.Component.Type with
+        | Plugin state -> Plugin (mapper state)
+        | _ -> failwithf "Tried to update plugin state of non plugin component"
+    let newSymbol = set (component_ >-> type_) newCompType oldSymbol
+    (replaceSymbol model newSymbol compId), Cmd.none
 
 /// Update function which displays symbols
 let update (msg : Msg) (model : Model): Model*Cmd<'a>  =     
@@ -825,13 +833,20 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
         (replaceSymbol model newsymbol compId), Cmd.none
     
     | ChangeAssertionText (compId, newText) ->
-        let oldSymbol = Map.find compId model.Symbols
-        let newCompType = 
-            match oldSymbol.Component.Type with
-            | Plugin state -> Plugin {state with AssertionText = Some newText}
-            | _ -> failwithf "Tried to change assertion text on non-verification component"
-        let newSymbol = set (component_ >-> type_) newCompType oldSymbol
-        (replaceSymbol model newSymbol compId), Cmd.none
+        updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
+    
+    | ChangeInputDataType (compId, portNum, dataType) ->
+        updatePluginState (fun state ->
+            let updateSign (target: VerificationComponents.ComponentInput) = {target with DataType = dataType}
+            let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
+            {state with Inputs = newInputs}) model compId
+    
+    | ChangeComponentConfig (compId, cfgMapper) ->
+        updatePluginState cfgMapper model compId
+    
+    | ChangeMultiComponentType (compId, typ) ->
+        // TODO(jpnock): consider what happens when number of inputs changes
+        updatePluginState (fun state -> {state with MultiComponentType = Some typ}) model compId
     
     | ChangeScale (compId,newScale,whichScale) ->
         let symbol = Map.find compId model.Symbols

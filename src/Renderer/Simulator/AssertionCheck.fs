@@ -6,12 +6,15 @@ open CommonTypes
 open SimulatorTypes
 open System
 
+/// Facilitates accessing expressions with similar characteristics under a type-system 
+/// point of view to facilitate compiler checks
 let (|RequiresBool|_|) (expr: ExprInfo) = 
     match expr with 
     | (BoolExpr (LogAnd(BinOp(l, r)))), pos| BoolExpr(LogOr (BinOp(l, r))), pos -> Some(l, r, pos)
     | _ -> None 
 
 // no checks needed, return the type of the expression
+/// Allows to match on all unary expressions
 let (|IsUnary|_|) (expr: ExprInfo) =
     match expr with 
     | BitNot(UnOp(op)), _ | BoolExpr(LogNot(UnOp(op))), _ -> Some(op)
@@ -19,121 +22,105 @@ let (|IsUnary|_|) (expr: ExprInfo) =
 
 // this is useful as it allows to neatly extract the expressions from the wrappers and check those directly 
 // without having to match and repeat code in the main function 
+/// Allows to match on all expressions that return a bool
 let (|IsBoolExpr|_|) (expr: ExprInfo) = 
     match expr with 
     | BoolExpr(boolExpr), pos ->
         match boolExpr with 
-        | Eq(BinOp(l, r)) | Neq(BinOp(l, r)) | Lt(BinOp(l, r)) | Gt(BinOp(l, r)) | Lte(BinOp(l,r)) | Gte(BinOp(l,r)) -> Some(l, r, pos)
-        | _ -> None 
+        | Eq(BinOp(l, r))
+        | Neq(BinOp(l, r))
+        | Lt(BinOp(l, r))
+        | Gt(BinOp(l, r))
+        | Lte(BinOp(l,r))
+        | Gte(BinOp(l,r)) -> Some(l, r, pos)
+        | _ -> None
     | _ -> None
 
+/// Allows to match on all binary expression 
 let (|IsBinExpr|_|) (expr: ExprInfo) = 
     match expr with 
-    | Add(BinOp(l, r)), pos | Sub(BinOp(l, r)), pos | Mul(BinOp(l, r)), pos | Div(BinOp(l, r)), pos| Rem(BinOp(l, r)), pos -> Some(l, r, pos)
+    | Add(BinOp(l, r)), pos
+    | Sub(BinOp(l, r)), pos
+    | Mul(BinOp(l, r)), pos
+    | Div(BinOp(l, r)), pos
+    | Rem(BinOp(l, r)), pos
+    | BitAnd(BinOp(l,r)), pos
+    | BitOr(BinOp(l,r)), pos -> Some(l, r, pos)
     | _ -> None
-
-let getLitMinSize lit = 
-    match lit with
-    | Int intN -> 
-        let n = float intN
-        (ceil >> int) (Math.Log (n, 2.) + 0.1) + 1
-    | Uint uint -> 
-        let n = float uint 
-        (ceil >> int) (Math.Log (n, 2.) + 0.1)
-    | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
-
-
 
 let getType value = 
     match value with 
     | Int _ -> IntType
     | Uint _ -> UintType 
     | Bool _ -> BoolType 
+    | Float _ -> FloatType
 
-let getLitProperties (components: Component List) lit = 
+/// Check if the lit name that is being used refers to an existing component.
+/// Mainly relevant for text based assertions
+let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
-    | Value value -> getType value, getLitMinSize value 
-    | Id id -> 
-        let width = 
-            let isRightComponent (comp: Component) = 
-                match comp.Label, comp.Type with 
-                | idComp, Viewer width when idComp = id -> Some(width)
-                | idComp, Input1 (width,_) when idComp = id -> Some(width)
-                | _ -> None 
-            List.choose isRightComponent components 
-            |> function 
-                | id::[] -> id 
-                | [] -> failwithf "the component is not in the list" // TODO make an actual error message as this is a user error
-                | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
-        UintType, int width
+    | Value value -> Ok(getType value)
+    | Id (id, _, _) -> 
+        let isRightComponent (comp: Component) = 
+            match comp.Label with 
+            | idComp when idComp = id -> true
+            | _ -> false 
+
+        List.filter isRightComponent components 
+        |> function 
+            | [c] -> Ok(UintType) 
+            | [] -> Error($"the ID {id} does not exist") 
+            | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
 
 
-// for unary expressions type checks are not needed, it's enough to return the type of the variable (tricky because it needs to take into account casts)
-// maybe do an active matching to check if it's a unary operator, in that case only evaluate the type and size
+/// check that the verification AST obeys the type system 
 let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes = 
+    /// Create one error from errors retunred by the evaluation of two operands 
     let propagateError (leftRes: CheckRes) (rightRes: CheckRes) =
         let toErr =
             function
-            | Properties _ -> []
+            | TypeInfo _ -> []
             | ErrLst e -> e
 
         toErr leftRes @ toErr rightRes
     
+    /// creates an error caused by argument types being not compatible in the same function
     let hetTypesErr () =
-        "This function can't be applied on value of different types"
+        "This function can't be applied on a bool variable and a non-bool variable"
 
+    /// Creates error caused by function being applied to argument of unsupported type
     let invTypesErr () = "Types not supported by this function"
     
+    /// Create a type error
     let makeTypeError errType leftType (rightType: Option<AssertionTypes.Type>) pos =
         let msg = errType () + ". left expr is of type: " + string leftType + if rightType.IsNone  then "" else (". Right expr is of type: " + string (Option.defaultValue UintType rightType))
-        ErrLst [ { Msg = msg; Pos = pos } ]
+        ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
 
-    let makeSizeError leftSize rightSize pos = 
-        let msg = "The buses have different widths. Left expr is of size: " + string leftSize + if rightSize = 0 then "" else (". Right expr is of size: " + string rightSize)
-        ErrLst [ { Msg = msg; Pos = pos } ]
-        
-
+    /// Check that cast function is applied appropriately
     let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
         let exprRes = checkAST castExpr components
         match exprRes with 
-        | Properties {Type = BoolType; Size = _} when castSize.IsSome -> 
+        | TypeInfo BoolType when castSize.IsSome -> 
             makeTypeError invTypesErr BoolType None pos
-        | Properties {Type = t ; Size = size} -> 
-            Properties {Type = Option.defaultValue t castType; Size = Option.defaultValue size castSize} 
+        | TypeInfo t -> 
+            TypeInfo (Option.defaultValue t castType)
         | _ -> exprRes //propagate error
 
-    let checkSize exprL exprR propertiesL propertiesR pos makesBool = 
-        let checkLit sizeLit sizeOther typeOther left= 
-            if sizeLit <= sizeOther 
-            then Properties{Type = (if makesBool then BoolType else typeOther); Size = sizeOther}
-            else 
-                if left
-                then makeSizeError sizeLit sizeOther pos//make this better (with a general function that also prints the sizes on the left and on the right)
-                else makeSizeError sizeOther sizeLit pos
-    
-        match propertiesL, propertiesR with 
-        | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
-            match exprL, exprR with 
-            | (Lit (Value valL), _), (Lit (Value valR), _) -> Properties{Type = typeL; Size = max sizeL sizeR}
-            | (Lit (Value valL), _), _ -> checkLit sizeL sizeR typeR true
-            | _, (Lit (Value valR), _) -> checkLit sizeR sizeL typeL false
-            | _, _ -> 
-                printfn "creating error potentially"
-                if sizeL = sizeR then propertiesL else makeSizeError sizeL sizeR pos
-        | _ -> ErrLst (propagateError propertiesL propertiesR)
 
+    /// Check adherence of binary expressions to the type system
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  
         match leftChecked, rightChecked with
-        | Properties {Type = typeL; Size = sizeL}, Properties {Type = typeR; Size = sizeR} -> 
+        | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = typeR && typeL = BoolType
             then
                 if supportsBool 
                 then leftChecked
                 else makeTypeError invTypesErr typeL (Some typeR) pos
-            elif typeL = typeR 
-            then checkSize l r leftChecked rightChecked pos makesBool
+            elif typeL <> BoolType && typeR <> BoolType 
+            //then checkSize l r leftChecked rightChecked pos makesBool
+            then leftChecked 
             else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
@@ -141,26 +128,28 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     | IsUnary op -> 
         let opRes = checkAST op components
         match opRes with 
-        | Properties _ -> opRes 
+        | TypeInfo _ -> opRes 
         | _ -> failwithf "should not happen" 
     | RequiresBool (l, r, pos) -> // check that operand(s) are bool 
         let leftRes = checkAST l components
         let rightRes = checkAST r components 
         match leftRes, rightRes with 
-        | Properties {Type = typeL; Size = _}, Properties {Type = typeR; Size =_} -> 
+        | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = BoolType && typeL = typeR 
             then leftRes // it's not important what is passed, it's enough to pass type and size information 
             else makeTypeError invTypesErr typeL (Some typeR) pos
         | _ -> ErrLst (propagateError leftRes rightRes)
     | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
     | IsBinExpr (l, r, pos) -> checkBin l r pos false false
-    | Lit lit, _ -> 
-        let litType, size = getLitProperties components lit
-        Properties {Type = litType; Size = size}
+    | Lit lit, pos -> 
+        match checkLitExistance components lit with 
+            | Ok(litType) -> TypeInfo litType
+            | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
     | Cast cast, pos -> 
         match cast with
         | ToSigned expr -> checkCast expr (Some IntType) None pos
         | ToUnsigned expr -> checkCast expr (Some UintType) None pos
         | ToBool expr-> checkCast expr (Some BoolType) None pos
+        | ToFloat expr -> checkCast expr (Some FloatType) None pos
     | BusCast(newSize, expr), pos -> checkCast expr None (Some newSize) pos
-    | _ -> failwithf "should not happen" // check that operands (do nothing for unary operators) are the same and that their size is the same
+    | _ -> failwithf $"should not happen {tree}" // check that operands (do nothing for unary operators) are the same and that their size is the same

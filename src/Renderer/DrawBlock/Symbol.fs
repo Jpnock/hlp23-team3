@@ -191,7 +191,6 @@ let getSymbolColour compType clocked (theme:ThemeType) =
         | Plugin p -> (
             let comp = VerificationLibrary.library.Components[p.LibraryID]
             let symbolProps = comp.GetSymbolDetails p
-            printf $"got colour {symbolProps.Colour}"
             symbolProps.Colour)
         | _ -> "rgba(255,255,217,1)" //lightyellow: for combinational components
 
@@ -389,6 +388,10 @@ let portNames (componentType:ComponentType)  = //(input port names, output port 
     | NbitsNot _ -> (["IN"]@["OUT"])
     | Shift _ -> (["IN" ; "SHIFTER"]@["OUT"])
     | Custom x -> (List.map fst x.InputLabels)@ (List.map fst x.OutputLabels)
+    | Plugin p ->
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
+        let symbolProps = comp.GetSymbolDetails p
+        (symbolProps.InputLabels @ symbolProps.OutputLabels)
     | _ -> ([]@[])
    // |Demux8 -> (["IN"; "SEL"],["0"; "1"; "2" ; "3" ; "4" ; "5" ; "6" ; "7"])
    // |_ -> ([],[])

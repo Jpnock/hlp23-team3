@@ -8,6 +8,69 @@ open System
 open AssertionTypes
 open AssertionASTMap
 
+type ComparatorType =
+    | ComparatorTypeEq
+    | ComparatorTypeLt
+    | ComparatorTypeLte
+    | ComparatorTypeGt
+    | ComparatorTypeGte
+    
+let comparatorTypeName typ =
+    match typ with
+    | ComparatorTypeLt -> "Less than"
+    | ComparatorTypeLte -> "Less than or equals"
+    | ComparatorTypeGt -> "Greater than"
+    | ComparatorTypeGte -> "Greater than or equals"
+    | ComparatorTypeEq -> "Equal"
+
+let comparatorTypeSymbolName typ =
+    match typ with
+    | ComparatorTypeLt -> "A < B"
+    | ComparatorTypeLte -> "A <= B"
+    | ComparatorTypeGt -> "A > B"
+    | ComparatorTypeGte -> "A >= B"
+    | ComparatorTypeEq -> "A == B"
+
+type DataType =
+    | DataTypeInt
+    | DataTypeUInt
+    | DataTypeFloat32
+    | DataTypeAssertionInput
+
+let dataTypeName =
+    function
+    | DataTypeInt -> "Signed Integer"
+    | DataTypeUInt -> "Unsigned Integer (default)"
+    | DataTypeFloat32 -> "32-bit Float (IEEE-754)"
+    | DataTypeAssertionInput -> "Assertion Input"
+
+type LogicalOpType =
+    | LogicalOpTypeAnd
+    | LogicalOpTypeOr
+    | LogicalOpTypeNot
+
+let logicalOpTypeName =
+    function
+    | LogicalOpTypeAnd -> "L. AND"
+    | LogicalOpTypeOr -> "L. OR"
+    | LogicalOpTypeNot -> "L. NOT"
+
+type BitwiseOpType =
+    | BitwiseOpTypeAnd
+    | BitwiseOpTypeOr
+    | BitwiseOpTypeNot
+
+let bitwiseOpTypeName =
+    function
+    | BitwiseOpTypeAnd -> "B. AND"
+    | BitwiseOpTypeOr -> "B. OR"
+    | BitwiseOpTypeNot -> "B. NOT"
+
+type MultiComponentType =
+    | ComparatorType of ComparatorType
+    | BitwiseOpType of BitwiseOpType
+    | LogicalOpType of LogicalOpType
+
 /// Represents stored data about a component input.
 type ComponentInput =
     {
@@ -16,8 +79,8 @@ type ComponentInput =
       // The output width; set to Some (value) for static width-inference.
       // If None, then automatic width-inference is applied.
       FixedWidth: int option
-      // Optional field for whether the output is signed or unsigned.
-      Signed: bool option
+      // The type of the data represented by this input
+      DataType: DataType
     }
 
 /// Represents stored data about a component output.
@@ -28,8 +91,8 @@ type ComponentOutput =
       // The output width; set to Some (value) for static width-inference.
       // If None, then automatic width-inference is applied.
       FixedWidth: int option
-      // Optional field for whether the output is signed or unsigned.
-      Signed: bool option
+      // Used in evaluation 
+      HostLabel: string
     }
 
 /// Represents the ID of a component in the Component Library.
@@ -40,20 +103,24 @@ type LibraryID = string
 /// be initialised to None in the default constructor; this
 /// allows for new fields to be added without changing the code
 /// in many places.
-type ComponentState =
+type ComponentConfig =
     { InstanceID: string option
       LibraryID: LibraryID
       Inputs: Map<InputPortNumber, ComponentInput>
       Outputs: Map<OutputPortNumber, ComponentOutput>
       AssertionText: string option
-      IsInput: bool option }
-    static member Default : ComponentState = {
+      AssertionDescription: string option
+      IsInput: bool option
+      MultiComponentType: MultiComponentType option }
+    static member Default : ComponentConfig = {
         InstanceID = Some (Guid.NewGuid().ToString())
         LibraryID = ""
         Inputs = Map.empty
         Outputs = Map.empty
         AssertionText = None
+        AssertionDescription = None
         IsInput = None
+        MultiComponentType = None
     }
 
 /// Represents stored data about a Symbol for a component.
@@ -69,6 +136,10 @@ type SymbolDetails =
       Width: float
       // The colour of the symbol.
       Colour: string
+      // The port labels for each input.
+      InputLabels: string list
+      // The port labels for each output.
+      OutputLabels: string list
     }
     
 /// Abstracts the behaviour of any component behind an interface. This allows
@@ -84,30 +155,30 @@ type IComponent =
     abstract member GetName: string
     /// Returns tooltip text displayed when creating a component.
     abstract member GetTooltipText: string
-    /// Returns the initial state of a component, which determines its
+    /// Returns the initial config of a component, which determines its
     /// behaviour and the type of component. User modifications are
     /// not reflected here.
-    abstract member GetDefaultState : ComponentState
-    /// Retrieves the details of the component symbol, given the state
+    abstract member GetDefaultConfig : ComponentConfig
+    /// Retrieves the details of the component symbol, given the config,
     /// such that this can dynamically be generated with different
     /// behaviour per each component-type instance.
-    abstract member GetSymbolDetails : ComponentState -> SymbolDetails
-    /// Retrieves the description of the component based on the state.
-    /// Providing the state is useful if the description needs to be
-    /// dynamically updated based on the component state, such as
+    abstract member GetSymbolDetails : ComponentConfig -> SymbolDetails
+    /// Retrieves the description of the component based on the config.
+    /// Providing the config is useful if the description needs to be
+    /// dynamically updated based on the component config, such as
     /// changing "N-bit adder" to "10-bit adder" when the user configures this.
-    abstract member GetDescription : ComponentState -> string
+    abstract member GetDescription : ComponentConfig -> string
     /// Returns the output widths of each output port. Used by the width-inference
     /// engine to automatically deduce bus-widths.
-    abstract member GetOutputWidths : ComponentState -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
-    /// Builds the Assertion AST for this component, when the ASTs
+    abstract member GetOutputWidths : ComponentConfig -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
+    /// Creates the Assertion AST for this component, when the ASTs
     /// corresponding to each input port are provided.
-    abstract member Build : Map<InputPortNumber, Expr> -> Expr
+    abstract member CreateAST : ComponentConfig -> Map<InputPortNumber, Expr> -> Expr
   
 /// Defines helper defaults that are useful when constructing Component IO ports.
 module IODefaults =
     /// A single input named A, with no initialised fixed with.
-    let InputA: ComponentInput = { Name = "A"; FixedWidth = None; Signed = None; }
+    let InputA: ComponentInput = { Name = "A"; FixedWidth = None; DataType = DataTypeUInt; }
     
     /// A single input named B, with no initialised fixed with.
     let InputB: ComponentInput = { InputA with Name = "B" }
@@ -125,8 +196,11 @@ module IODefaults =
     let OneFixedWidthInputA width =
         Map [ (0, {InputA with FixedWidth = Some width}) ]
 
+    let OneAssertionInputA =
+        Map [ (0, {InputA with FixedWidth = Some 1; DataType = DataTypeAssertionInput}) ]
+    
     /// A single output named X, with no initialised fixed width.
-    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; Signed = None; }
+    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; HostLabel = ""}
     
     /// A single output named X at port 0, with no initialised fixed width.
     let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
@@ -137,10 +211,14 @@ module IODefaults =
     let OneFixedWidthOutputX width =
         Map [ (0, {OutputX with FixedWidth = Some width}) ]
 
+let convertAllToDataTypeAssertion inputs =
+    inputs
+    |> Map.map (fun _ input -> {input with DataType = DataTypeAssertionInput})
+
 /// Defines helper defaults that are useful when constructing Component symbols.
 module SymbolDefaults =
     let GridSize = 30.0
-    let Width = 3.0 * GridSize
+    let Width = 3.5 * GridSize
     let Height = 2.0 * GridSize
     let Prefix = "VERI"
     let Colour = "rgb(175,220,120)"
@@ -152,75 +230,240 @@ let private collectionMaxWithDefault<'t when 't: comparison> defaultValue (seque
     | 0 -> defaultValue
     | _ -> Seq.max sequence
 
+/// Updates the config of a component, such that
+/// all inputs are set to `signed`.
+let makeIOSigned cfg  =
+    {
+     cfg with
+        Inputs = cfg.Inputs |> Map.map (fun _ v -> {v with DataType = DataTypeInt})
+    }
+
+let inputPortLabels (cfg: ComponentConfig) =
+    match cfg.Inputs.IsEmpty with
+    | true -> []
+    | false ->
+        let highestPort =
+            cfg.Inputs.Keys
+            |> Seq.max
+        [0..highestPort]
+        |> List.choose (fun idx ->
+            match cfg.Inputs.TryFind idx with
+            | Some port -> Some port.Name
+            | None -> None)
+
+let emptyExprInfo expr =
+    expr, { Line = 0; Col = 0; Length = 0 }
+
+let addSignInfoToAST (cfg : ComponentConfig) (exprPortMap : PortExprs) =
+    let addSignInfoToPort inputPortNum expr =
+        match cfg.Inputs.TryFind inputPortNum with
+        | Some inputPort ->
+            match inputPort.DataType with
+            | DataTypeInt -> Cast (ToSigned (emptyExprInfo expr))
+            | DataTypeUInt -> expr
+            | DataTypeFloat32 -> Cast (ToFloat (emptyExprInfo expr))
+            | DataTypeAssertionInput -> expr
+        | _ -> failwith $"what? could not find port #{inputPortNum} for {cfg.LibraryID} : {cfg.InstanceID}"
+    
+    exprPortMap
+    |> Map.map addSignInfoToPort
+    
+let largestOutputWidthForAllPorts cfg (inputPortWidths: Map<InputPortNumber, int>) =
+    let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
+    cfg.Outputs
+    |> Map.map (fun _ output ->
+        match output.FixedWidth with
+        | Some w -> w
+        | _ -> maxInputWidth)
+    
 /// Represents a generic component that implements all features required for
 /// Assertion components. Implements IComponent.
 type SimpleComponent =
     { 
       Name: string
       SymbolName: string
-      DescriptionFunc: SimpleComponent -> ComponentState -> string
+      DescriptionFunc: SimpleComponent -> ComponentConfig -> string
       TooltipText: string
-      DefaultState: ComponentState
+      DefaultConfig: ComponentConfig
       AssertionBuilder: ASTBuilder }
     member this.ToInterface : IComponent = this
     interface IComponent with
-        member this.GetLibraryID = this.DefaultState.LibraryID
+        member this.GetLibraryID = this.DefaultConfig.LibraryID
         member this.GetName = this.Name
         member this.GetTooltipText = this.TooltipText
-        member this.GetDefaultState = this.DefaultState
-        member this.GetSymbolDetails state =
+        member this.GetDefaultConfig = this.DefaultConfig
+        member this.GetSymbolDetails cfg =
             { Name = this.SymbolName
               Prefix = SymbolDefaults.Prefix
               Height = SymbolDefaults.Height
               Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour }
-        member this.GetDescription state = this.DescriptionFunc this state
-        member this.GetOutputWidths state inputPortWidths =
-            // TODO(jpnock): Check logic
-            let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
-            state.Outputs
-            |> Map.map (fun outputPortNum output ->
-                match output.FixedWidth with
-                | Some w -> w
-                | _ -> maxInputWidth)
-        member this.Build exprPortMap =
-            let built = this.AssertionBuilder exprPortMap
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels cfg
+              OutputLabels = [] }
+        member this.GetDescription cfg = this.DescriptionFunc this cfg
+        member this.GetOutputWidths cfg inputPortWidths =
+            largestOutputWidthForAllPorts cfg inputPortWidths
+        member this.CreateAST cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
+            let built = this.AssertionBuilder signedExprPortMap
+            printfn "verification port name %A" this.DefaultConfig.Outputs
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for {this.Name}"
 
+type ComparatorComponent =
+    { LibraryID: string }
+    member this.ToInterface : IComponent = this
+    interface IComponent with
+        member this.GetLibraryID = this.LibraryID
+        member this.GetName = "Comparator"
+        member this.GetTooltipText =
+            "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
+        member this.GetDefaultConfig = {
+            ComponentConfig.Default with
+                MultiComponentType = Some (ComparatorType ComparatorTypeEq)
+                Inputs = IODefaults.TwoInputs
+                Outputs = IODefaults.OneFixedWidthOutputX 1
+                LibraryID = this.LibraryID }
+        member this.GetSymbolDetails cfg =
+            let comparatorTyp =
+                match cfg.MultiComponentType with
+                | Some (ComparatorType typ) -> typ
+                | _ -> failwithf "Tried to get the comparator type of a non-comparator"
+            { Name = comparatorTypeSymbolName comparatorTyp
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels cfg
+              OutputLabels = [] }
+        member this.GetDescription _ =
+            "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
+        member this.GetOutputWidths cfg _ = Map.map (fun _ _ -> 1) cfg.Outputs
+        member this.CreateAST cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
+            let built =
+                match cfg.MultiComponentType with
+                | None -> failwith "Tried to build assertion AST for comparator without config set"
+                | Some (ComparatorType typ) ->
+                    match typ with
+                    | ComparatorTypeEq -> astMapper TEq signedExprPortMap
+                    | ComparatorTypeLt -> astMapper TLt signedExprPortMap
+                    | ComparatorTypeGt -> astMapper TGt signedExprPortMap
+                    | ComparatorTypeLte -> astMapper TLte signedExprPortMap
+                    | ComparatorTypeGte -> astMapper TGte signedExprPortMap
+                | _ -> None
+            match built with
+            | Some b -> b
+            | _ -> failwithf $"Unable to CreateAST for comparator {cfg.MultiComponentType}"
+
+type LogicalOpComponent =
+    { LibraryID: string }
+    member this.ToInterface : IComponent = this
+    interface IComponent with
+        member this.GetLibraryID = this.LibraryID
+        member this.GetName = "Logical Operator"
+        member this.GetTooltipText =
+            "Applies logical operations to the inputs, such as the AND (&&); OR (||) and NOT (!) operators"
+        member this.GetDefaultConfig = {
+            ComponentConfig.Default with
+                Inputs = IODefaults.TwoInputs |> convertAllToDataTypeAssertion
+                Outputs = IODefaults.OneFixedWidthOutputX 1
+                LibraryID = this.LibraryID
+                MultiComponentType = Some (LogicalOpType LogicalOpTypeAnd)}
+        member this.GetSymbolDetails cfg =
+            let typ =
+                match cfg.MultiComponentType with
+                | Some (LogicalOpType logicalOpType) -> logicalOpType
+                | _ -> failwithf "Tried to get the logical-operator type of a non-logical-operator"
+            { Name = logicalOpTypeName typ
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels cfg
+              OutputLabels = [] }
+        member this.GetDescription _ =
+            "Applies logical operations to the inputs, such as the AND (&&); OR (||) and NOT (!) operators"
+        member this.GetOutputWidths cfg _ = Map.map (fun _ _ -> 1) cfg.Outputs
+        member this.CreateAST cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
+            match cfg.MultiComponentType with
+            | Some (LogicalOpType logicalOpType) ->
+                match logicalOpType with
+                | LogicalOpTypeAnd -> astMapper TLogAnd signedExprPortMap
+                | LogicalOpTypeOr -> astMapper TLogOr signedExprPortMap
+                | LogicalOpTypeNot -> astMapper TLogNot signedExprPortMap
+            | None -> failwith "Tried to build assertion AST for logical operator without config set"
+            | _ -> failwith "what? Tried to build assertion AST for logical operator but wrong multi-component type was set"
+            |> Option.defaultValue (failwithf $"Unable to CreateAST for logical operator {cfg.MultiComponentType}")
+
+type BitwiseOpComponent =
+    { LibraryID: string }
+    member this.ToInterface : IComponent = this
+    interface IComponent with
+        member this.GetLibraryID = this.LibraryID
+        member this.GetName = "Bitwise Operator"
+        member this.GetTooltipText =
+            "Applies bitwise operations to the inputs, such as the AND (&); OR (|) and NOT (~) operators. \
+            Zero extends the smaller of the two inputs."
+        member this.GetDefaultConfig = {
+            ComponentConfig.Default with
+                Inputs = IODefaults.TwoInputs |> convertAllToDataTypeAssertion
+                Outputs = IODefaults.OneOutput
+                LibraryID = this.LibraryID
+                MultiComponentType = Some (BitwiseOpType BitwiseOpTypeAnd)}
+        member this.GetSymbolDetails cfg =
+            let typ =
+                match cfg.MultiComponentType with
+                | Some (BitwiseOpType bitwiseTyp) -> bitwiseTyp
+                | _ -> failwithf "Tried to get the bitwise-operator type of a non-bitwise-operator"
+            { Name = bitwiseOpTypeName typ
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels cfg
+              OutputLabels = [] }
+        member this.GetDescription _ =
+            "Applies bitwise operations to the inputs, such as the AND (&); OR (|) and NOT (~) operators. \
+            Zero extends the smaller of the two inputs."
+        member this.GetOutputWidths cfg inputPortWidths = largestOutputWidthForAllPorts cfg inputPortWidths
+        member this.CreateAST cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
+            match cfg.MultiComponentType with
+            | Some (BitwiseOpType bitwiseOpType) ->
+                match bitwiseOpType with
+                | BitwiseOpTypeAnd -> astMapper TBitAnd signedExprPortMap
+                | BitwiseOpTypeOr -> astMapper TBitOr signedExprPortMap
+                | BitwiseOpTypeNot -> astMapper TBitNot signedExprPortMap
+            | None -> failwith "Tried to build assertion AST for bitwise without config set"
+            | _ -> failwith "what? Tried to build assertion AST for bitwise operator but wrong multi-component type was set"
+            |> Option.defaultWith (fun () -> failwithf $"Unable to CreateAST for bitwise operator {cfg.MultiComponentType}")
+
 // Helper function for dynamically generating the description of a
-// signed component, based on its state.
-let signedDescription _ state =
-    let signedOperation =
-        state.Inputs.Values
-        |> Seq.exists (fun el -> Option.defaultValue false el.Signed)
-    match signedOperation with
+// signed component, based on its config.
+let signedDescription _ cfg =
+    let dt =
+        cfg.Inputs.Values
+        |> Seq.exists (fun el -> el.DataType = DataTypeInt)
+    match dt with
     | true -> "treating them as signed values"
     | false -> "treating them as unsigned values"
 
-/// Helper function for creating a static description (regardless of state).
+/// Helper function for creating a static description (regardless of config).
 let basicDescription description _ _ =
     description
 
-/// Updates the state of a component, such that
-/// all inputs are set to `signed`.
-let makeIOSigned signed state  =
-    {
-     state with
-        Inputs = state.Inputs |> Map.map (fun _ v -> {v with Signed = Some signed})
-        Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
-    }
-
-/// Helper function for creating component state, with
+/// Helper function for creating component config, with
 /// defaults applied.
-let makeState outputs inputs libraryID =
-    { ComponentState.Default with Inputs = inputs; Outputs = outputs; LibraryID = libraryID }   
+let makeConfig outputs inputs libraryID =
+    { ComponentConfig.Default with Inputs = inputs; Outputs = outputs; LibraryID = libraryID }   
 
 /// Returns inputs 0 and 1 of a component, or fails if they
 /// are not both present.
-let mustGetOperands (state:ComponentState) =
-    let i1, i2 = state.Inputs.TryFind 0, state.Inputs.TryFind 1
+let mustGetOperands (cfg: ComponentConfig) =
+    let i1, i2 = cfg.Inputs.TryFind 0, cfg.Inputs.TryFind 1
     match i1, i2 with
     | Some input1, Some input2 ->
         input1, input2
@@ -235,7 +478,7 @@ let makeSimpleComponentConcrete outputs inputs name baseLibraryID symbolName des
         SymbolName = symbolName
         DescriptionFunc = description
         TooltipText = tooltip
-        DefaultState = makeState outputs inputs baseLibraryID
+        DefaultConfig = makeConfig outputs inputs baseLibraryID
         AssertionBuilder = builder
     }
 
@@ -252,56 +495,31 @@ module ComponentDefaults =
     let makeOneInputOneOutputComponent = makeOneOutputComponent IODefaults.OneInput
     let makeTwoInputOneOutputComponent = makeOneOutputComponent IODefaults.TwoInputs
 
-/// Returns an unsigned and signed version of a base component, modifying the library ID
-/// and name as required.
-let makeSignedPairOfComponents outputs description tooltip name baseLibraryID symbolName builder : SimpleComponent * SimpleComponent =
-    let signedName = $"{name} (Signed)"
-    let unsignedName = $"{name} (Unsigned)"
-    
-    let extendLibraryID id signed =
-        match signed with
-        | true -> $"{id}_SIGNED"
-        | false -> $"{id}_UNSIGNED"
-
-    let defaultState = makeState outputs IODefaults.TwoInputs baseLibraryID
-    
-    let unsignedState =
-        { defaultState with LibraryID = extendLibraryID defaultState.LibraryID false }
-        |> makeIOSigned false
-    
-    let signedState =
-        { defaultState with LibraryID = extendLibraryID defaultState.LibraryID true }
-        |> makeIOSigned true
-    
-    let unsignedComp = {
-        Name = unsignedName
-        SymbolName = symbolName
-        DescriptionFunc = description
-        TooltipText = tooltip
-        DefaultState = unsignedState
-        AssertionBuilder = builder
-    }
-    
-    let signedComp = { unsignedComp with Name = signedName; DefaultState = signedState }
-    unsignedComp, signedComp
-
 /// Returns whether the component specifies a user-controllable
 /// input port 0 width.
-let implementsVariableWidth (state : ComponentState) =
-    match state.Inputs.TryFind 0 with
-    | Some input when input.FixedWidth.IsSome -> input.FixedWidth
+let implementsVariableWidth (cfg : ComponentConfig) =
+    let inputIsAssertion input = input.DataType <> DataTypeAssertionInput
+    
+    match cfg.Inputs.TryFind 0 with
+    | Some input when
+        input.FixedWidth.IsSome && not (inputIsAssertion input) -> input.FixedWidth
     | _ -> None
+
+let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput> =
+    portIds
+    |> List.zip widths 
+    |> List.mapi (fun i (width, name) -> (i, {IODefaults.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel}))
+    |> Map.ofList 
 
 /// Allows for components not registered in the library to be
 /// represented as Plugin components (useful for simulation)
 /// TODO(jpnock): refactor this such that these components are
 /// supported by natively.
-let makeStateFromExternalInputComponent id inputName width : ComponentState =
+// TODO ln220 make it so that it actually holds the component outputs 
+let makeConfigFromExternalInputComponent id widths portsIds hostLabel: ComponentConfig =
     {
-        ComponentState.Default with
+        ComponentConfig.Default with
             InstanceID = Some id
-            Outputs = Map [
-                (0, {IODefaults.OutputX with Name = inputName; FixedWidth = width})
-            ]
+            Outputs = makeOutputs portsIds widths hostLabel
             IsInput = Some true
     }

@@ -93,6 +93,15 @@ module SheetInterface =
         member this.ChangeAssertionText (dispatch: Dispatch<Msg>) (compId: ComponentId) (text : string) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeAssertionText (compId, text) ) ) )
         
+        member this.ChangeInputDataType (dispatch: Dispatch<Msg>) (compId: ComponentId) (portNum : AssertionASTMap.InputPortNumber) (dataType : VerificationComponents.DataType) =
+            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeInputDataType (compId, portNum, dataType) ) ) )
+        
+        member this.ChangeComponentConfig (dispatch: Dispatch<Msg>) (compId: ComponentId) (cfgMapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) =
+            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeComponentConfig (compId, cfgMapper) ) ) )
+        
+        member this.ChangeMultiComponentType (dispatch: Dispatch<Msg>) (compId: ComponentId) typ =
+            dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeMultiComponentType (compId, typ) ) ) )
+        
         /// Given a compId and a width, update the width of the Component specified by compId
         member this.ChangeScale (dispatch: Dispatch<Msg>) (compId: ComponentId) (newScale: float) (whichScale:ScaleAdjustment) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeScale (compId, newScale, whichScale) ) ) )

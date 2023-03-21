@@ -44,6 +44,33 @@ let dataTypeName =
     | DataTypeFloat32 -> "32-bit Float (IEEE-754)"
     | DataTypeAssertionInput -> "Assertion Input"
 
+type LogicalOpType =
+    | LogicalOpTypeAnd
+    | LogicalOpTypeOr
+    | LogicalOpTypeNot
+
+let logicalOpTypeName =
+    function
+    | LogicalOpTypeAnd -> "L. AND"
+    | LogicalOpTypeOr -> "L. OR"
+    | LogicalOpTypeNot -> "L. NOT"
+
+type BitwiseOpType =
+    | BitwiseOpTypeAnd
+    | BitwiseOpTypeOr
+    | BitwiseOpTypeNot
+
+let bitwiseOpTypeName =
+    function
+    | BitwiseOpTypeAnd -> "B. AND"
+    | BitwiseOpTypeOr -> "B. OR"
+    | BitwiseOpTypeNot -> "B. NOT"
+
+type MultiComponentType =
+    | ComparatorType of ComparatorType
+    | BitwiseOpType of BitwiseOpType
+    | LogicalOpType of LogicalOpType
+
 /// Represents stored data about a component input.
 type ComponentInput =
     {
@@ -84,7 +111,8 @@ type ComponentConfig =
       AssertionText: string option
       AssertionDescription: string option
       IsInput: bool option
-      ComparatorType: ComparatorType option }
+      ComparatorType: ComparatorType option
+      MultiComponentType: MultiComponentType option }
     static member Default : ComponentConfig = {
         InstanceID = Some (Guid.NewGuid().ToString())
         LibraryID = ""
@@ -94,6 +122,7 @@ type ComponentConfig =
         AssertionDescription = None
         IsInput = None
         ComparatorType = None
+        MultiComponentType = None
     }
 
 /// Represents stored data about a Symbol for a component.
@@ -184,6 +213,10 @@ module IODefaults =
     let OneFixedWidthOutputX width =
         Map [ (0, {OutputX with FixedWidth = Some width}) ]
 
+let convertAllToDataTypeAssertion inputs =
+    inputs
+    |> Map.map (fun _ input -> {input with DataType = DataTypeAssertionInput})
+
 /// Defines helper defaults that are useful when constructing Component symbols.
 module SymbolDefaults =
     let GridSize = 30.0
@@ -237,6 +270,14 @@ let addSignInfoToAST (cfg : ComponentConfig) (exprPortMap : PortExprs) =
     exprPortMap
     |> Map.map addSignInfoToPort
     
+let largestOutputWidthForAllPorts cfg (inputPortWidths: Map<InputPortNumber, int>) =
+    let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
+    cfg.Outputs
+    |> Map.map (fun _ output ->
+        match output.FixedWidth with
+        | Some w -> w
+        | _ -> maxInputWidth)
+    
 /// Represents a generic component that implements all features required for
 /// Assertion components. Implements IComponent.
 type SimpleComponent =
@@ -263,13 +304,7 @@ type SimpleComponent =
               OutputLabels = [] }
         member this.GetDescription cfg = this.DescriptionFunc this cfg
         member this.GetOutputWidths cfg inputPortWidths =
-            // TODO(jpnock): Check logic
-            let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
-            cfg.Outputs
-            |> Map.map (fun _ output ->
-                match output.FixedWidth with
-                | Some w -> w
-                | _ -> maxInputWidth)
+            largestOutputWidthForAllPorts cfg inputPortWidths
         member this.CreateAST cfg exprPortMap =
             let signedExprPortMap = addSignInfoToAST cfg exprPortMap
             let built = this.AssertionBuilder signedExprPortMap
@@ -277,7 +312,6 @@ type SimpleComponent =
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to build for {this.Name}"
-
 
 type ComparatorComponent =
     { LibraryID: string }
@@ -322,8 +356,91 @@ type ComparatorComponent =
                     | Gte -> astMapper TGte signedExprPortMap
             match built with
             | Some b -> b
-            | _ -> failwithf $"Unable to build for comparator {cfg.ComparatorType}"
+            | _ -> failwithf $"Unable to CreateAST for comparator {cfg.ComparatorType}"
 
+type LogicalOpComponent =
+    { LibraryID: string }
+    member this.ToInterface : IComponent = this
+    interface IComponent with
+        member this.GetLibraryID = this.LibraryID
+        member this.GetName = "Logical Operator"
+        member this.GetTooltipText =
+            "Applies logical operations to the inputs, such as the AND (&&); OR (||) and NOT (!) operators"
+        member this.GetDefaultConfig = {
+            ComponentConfig.Default with
+                Inputs = IODefaults.TwoInputs |> convertAllToDataTypeAssertion
+                Outputs = IODefaults.OneFixedWidthOutputX 1
+                LibraryID = this.LibraryID
+                MultiComponentType = Some (LogicalOpType LogicalOpTypeAnd)}
+        member this.GetSymbolDetails cfg =
+            let typ =
+                match cfg.MultiComponentType with
+                | Some (LogicalOpType logicalOpType) -> logicalOpType
+                | _ -> failwithf "Tried to get the logical-operator type of a non-logical-operator"
+            { Name = logicalOpTypeName typ
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels cfg
+              OutputLabels = [] }
+        member this.GetDescription _ =
+            "Applies logical operations to the inputs, such as the AND (&&); OR (||) and NOT (!) operators"
+        member this.GetOutputWidths cfg _ = Map.map (fun _ _ -> 1) cfg.Outputs
+        member this.CreateAST cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
+            match cfg.MultiComponentType with
+            | Some (LogicalOpType logicalOpType) ->
+                match logicalOpType with
+                | LogicalOpTypeAnd -> astMapper TLogAnd signedExprPortMap
+                | LogicalOpTypeOr -> astMapper TLogOr signedExprPortMap
+                | LogicalOpTypeNot -> astMapper TLogNot signedExprPortMap
+            | None -> failwith "Tried to build assertion AST for logical operator without config set"
+            | _ -> failwith "what? Tried to build assertion AST for logical operator but wrong multi-component type was set"
+            |> Option.defaultValue (failwithf $"Unable to CreateAST for logical operator {cfg.MultiComponentType}")
+
+type BitwiseOpComponent =
+    { LibraryID: string }
+    member this.ToInterface : IComponent = this
+    interface IComponent with
+        member this.GetLibraryID = this.LibraryID
+        member this.GetName = "Bitwise Operator"
+        member this.GetTooltipText =
+            "Applies bitwise operations to the inputs, such as the AND (&); OR (|) and NOT (~) operators. \
+            Zero extends the smaller of the two inputs."
+        member this.GetDefaultConfig = {
+            ComponentConfig.Default with
+                Inputs = IODefaults.TwoInputs |> convertAllToDataTypeAssertion
+                Outputs = IODefaults.OneOutput
+                LibraryID = this.LibraryID
+                MultiComponentType = Some (BitwiseOpType BitwiseOpTypeAnd)}
+        member this.GetSymbolDetails cfg =
+            let typ =
+                match cfg.MultiComponentType with
+                | Some (BitwiseOpType bitwiseTyp) -> bitwiseTyp
+                | _ -> failwithf "Tried to get the bitwise-operator type of a non-bitwise-operator"
+            { Name = bitwiseOpTypeName typ
+              Prefix = SymbolDefaults.Prefix
+              Height = SymbolDefaults.Height
+              Width = SymbolDefaults.Width
+              Colour = SymbolDefaults.Colour
+              InputLabels = inputPortLabels cfg
+              OutputLabels = [] }
+        member this.GetDescription _ =
+            "Applies bitwise operations to the inputs, such as the AND (&); OR (|) and NOT (~) operators. \
+            Zero extends the smaller of the two inputs."
+        member this.GetOutputWidths cfg inputPortWidths = largestOutputWidthForAllPorts cfg inputPortWidths
+        member this.CreateAST cfg exprPortMap =
+            let signedExprPortMap = addSignInfoToAST cfg exprPortMap
+            match cfg.MultiComponentType with
+            | Some (BitwiseOpType bitwiseOpType) ->
+                match bitwiseOpType with
+                | BitwiseOpTypeAnd -> astMapper TBitAnd signedExprPortMap
+                | BitwiseOpTypeOr -> astMapper TBitOr signedExprPortMap
+                | BitwiseOpTypeNot -> astMapper TBitNot signedExprPortMap
+            | None -> failwith "Tried to build assertion AST for bitwise without config set"
+            | _ -> failwith "what? Tried to build assertion AST for bitwise operator but wrong multi-component type was set"
+            |> Option.defaultWith (fun () -> failwithf $"Unable to CreateAST for bitwise operator {cfg.MultiComponentType}")
 
 // Helper function for dynamically generating the description of a
 // signed component, based on its config.

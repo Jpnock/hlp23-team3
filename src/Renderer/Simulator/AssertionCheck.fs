@@ -27,14 +27,25 @@ let (|IsBoolExpr|_|) (expr: ExprInfo) =
     match expr with 
     | BoolExpr(boolExpr), pos ->
         match boolExpr with 
-        | Eq(BinOp(l, r)) | Neq(BinOp(l, r)) | Lt(BinOp(l, r)) | Gt(BinOp(l, r)) | Lte(BinOp(l,r)) | Gte(BinOp(l,r)) -> Some(l, r, pos)
-        | _ -> None 
+        | Eq(BinOp(l, r))
+        | Neq(BinOp(l, r))
+        | Lt(BinOp(l, r))
+        | Gt(BinOp(l, r))
+        | Lte(BinOp(l,r))
+        | Gte(BinOp(l,r)) -> Some(l, r, pos)
+        | _ -> None
     | _ -> None
 
 /// Allows to match on all binary expression 
 let (|IsBinExpr|_|) (expr: ExprInfo) = 
     match expr with 
-    | Add(BinOp(l, r)), pos | Sub(BinOp(l, r)), pos | Mul(BinOp(l, r)), pos | Div(BinOp(l, r)), pos| Rem(BinOp(l, r)), pos -> Some(l, r, pos)
+    | Add(BinOp(l, r)), pos
+    | Sub(BinOp(l, r)), pos
+    | Mul(BinOp(l, r)), pos
+    | Div(BinOp(l, r)), pos
+    | Rem(BinOp(l, r)), pos
+    | BitAnd(BinOp(l,r)), pos
+    | BitOr(BinOp(l,r)), pos -> Some(l, r, pos)
     | _ -> None
 
 let getType value = 
@@ -141,4 +152,4 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         | ToBool expr-> checkCast expr (Some BoolType) None pos
         | ToFloat expr -> checkCast expr (Some FloatType) None pos
     | BusCast(newSize, expr), pos -> checkCast expr None (Some newSize) pos
-    | _ -> failwithf "should not happen" // check that operands (do nothing for unary operators) are the same and that their size is the same
+    | _ -> failwithf $"should not happen {tree}" // check that operands (do nothing for unary operators) are the same and that their size is the same

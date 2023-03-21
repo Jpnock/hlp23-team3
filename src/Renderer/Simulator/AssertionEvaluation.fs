@@ -16,8 +16,8 @@ type BoolToBool = bool -> bool -> bool
 type IntToIntUn = int64 -> int64
 type UintToUintUn = uint64 -> uint64
 type BoolToBoolUn = bool -> bool
-type FloatToFloat = float->float->float
-type FloatToBool = float->float->bool
+type FloatToFloat = float32->float32->float32
+type FloatToBool = float32->float32->bool
 
 type Functions =
     | ItB of IntToBool
@@ -44,25 +44,25 @@ let boolToUint =
 let intToBool n = if n = 0L then false else true
 let uintToBool n = if n = 0UL then false else true
 
-let conversion n signBit expShift expBits (mantissaBits: uint64) bias = 
-    let iSign = (n >>> signBit) &&& 1UL |> int 
-    let exponent = (n >>> expShift) &&& expBits |> int 
-    let mantissa =  n &&& mantissaBits |> int 
-    let fSign = if iSign = 0 then 1.0 else -1.0
-
-    match exponent, mantissa with 
-    | 0, 0 -> 0.
-    // TODO ln220 find the right constant that i need to divide by for doubles
-    | 0, _ -> fSign * (1.0 / float 0x800000) * Math.Pow (2.0, exponent - bias + 1 |> float)
-    | _ -> fSign * (1.0 + (float mantissa / float 0x800000)) * Math.Pow (2.0, exponent - bias |> float)
-
-/// performs conversion to double based on IEEE 754 conventions 
-/// (if the input is 32its it converts to float and upcasts to double to avoid operator redundancy)
-let nToDouble (n: uint64) size = 
+// Converts bits to a float32
+let nToFloat32 (n: uint64) size : float32 = 
     match size with 
-    | Size s when s = 32 -> conversion n 31 23 0xffUL 0x7fffffUL 127
-    | Size s when s = 64 -> conversion n 63 52 0x7ffUL 0xfffffffffffffUL 1023
-    | _ -> 0. // error
+    | Size s when s = 32 ->
+        let exponent = (n >>> 23) &&& uint64 0xFF |> int
+        match exponent with
+        | 0 ->
+            // De-normals are zero (DAZ) for this implementation
+            0.0f
+        | _ ->
+            let mantissa = n &&& uint64 0x7FFFFF |> int
+            let sign = n >>> 31 |> int
+            
+            let trueSign = if sign = 0 then 1.0f else -1.0f
+            let trueExp = float32(exponent - 127)
+            let trueMantissa = (1.0f + float32(mantissa) / float32(0x800000))
+
+            trueSign * (2.0f ** trueExp) * trueMantissa
+    | _ -> 0.f // TODO(): error
 
 /// get the smallest possible number of bits that a lit would need, 
 /// this provides the width for literals that are not buses
@@ -71,10 +71,11 @@ let getLitMinSize lit =
     | Int intN -> 
         let n = float intN
         (ceil >> int) (Math.Log (n, 2.) + 0.1) + 1
-    | Uint uint | Float uint-> 
+    | Uint uint -> 
         let n = float uint 
         (ceil >> int) (Math.Log (n, 2.) + 0.1)
-    | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
+    | Bool bool -> 1
+    | Float f -> 32
 
 
 /// get FComponentId for component that is in the sheet where it's currently being simulated 
@@ -112,7 +113,7 @@ let handleFP op1 op2 operand =
     let reverseIf cond li =
         if cond then Array.rev li else li    
 
-    let fRes: float = operand op1 op2
+    let fRes: float32 = operand op1 op2
     
     let fBytes =
         System.BitConverter.GetBytes(fRes)
@@ -169,18 +170,18 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok (Float op1, Size sizeL), Ok (Float op2, Size sizeR) -> 
                     match fFloat with 
-                    | Some(FtB f) -> Ok(Bool( f (nToDouble op1 (Size sizeL)) (nToDouble op2 (Size sizeR))), Size(max sizeL sizeR))
-                    | Some(FtF f) -> Ok(Uint(handleFP (nToDouble op1 (Size sizeL)) (nToDouble op2 (Size sizeR)) f), Size(max sizeL sizeR))
+                    | Some(FtB f) -> Ok(Bool( f (nToFloat32 op1 (Size sizeL)) (nToFloat32 op2 (Size sizeR))), Size(max sizeL sizeR))
+                    | Some(FtF f) -> Ok(Uint(handleFP (nToFloat32 op1 (Size sizeL)) (nToFloat32 op2 (Size sizeR)) f), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Float opF, sizeF), Ok(Uint opU, _) -> 
                     match fFloat with 
-                    | Some (FtB f) -> Ok(Bool(f (nToDouble opF sizeF) (float opU)), sizeF)
-                    | Some(FtF f) -> Ok(Uint(handleFP (nToDouble opF sizeF) (float opU) f), sizeF)
+                    | Some (FtB f) -> Ok(Bool(f (nToFloat32 opF sizeF) (float32 opU)), sizeF)
+                    | Some (FtF f) -> Ok(Uint(handleFP (nToFloat32 opF sizeF) (float32 opU) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Uint opU, sizeU), Ok (Float opF, sizeF) -> 
                     match fFloat with 
-                    | Some(FtB f) -> Ok(Bool(f (float opU) (nToDouble opF sizeF)), sizeF)
-                    | Some(FtF f) -> Ok(Uint(handleFP (float opU) (nToDouble opF sizeF) f), sizeF)
+                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (nToFloat32 opF sizeF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (nToFloat32 opF sizeF) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Error(e1), Error(e2) -> Error(e1+e2)
                 | Error(e1), _ -> Error(e1)

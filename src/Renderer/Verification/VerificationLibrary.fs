@@ -33,7 +33,7 @@ type DefaultComponent = {
             | ClassComparator _ -> IODefaults.TwoInputs, IODefaults.OneFixedWidthOutputX 1
             | ClassTwoInputOperator _ -> IODefaults.TwoInputs, IODefaults.OneOutput
             | ClassNoIO _ -> Map.empty, Map.empty
-            | ClassAssert _ -> IODefaults.OneFixedWidthInputA 1, Map.empty
+            | ClassAssert _ -> IODefaults.OneAssertionInputA, Map.empty
             
         let tooltip =
             match this.Class with
@@ -54,7 +54,7 @@ type DefaultComponent = {
         
         match this.SignedAndUnsigned with
         | false -> [assertState]
-        | true -> [{assertState with DefaultState = assertState.DefaultState |> makeIOSigned false}]
+        | true -> [{assertState with DefaultState = assertState.DefaultState}]
 
 // let lessThan =
 //      {

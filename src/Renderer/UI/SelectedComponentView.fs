@@ -862,15 +862,7 @@ let private makeDescription (comp:Component) model dispatch =
     | Shift _ -> 
         div [] [str "Issie Internal Error: This is an internal component and should never appear selected to view properties"]
 
-let private makeComparatorDropdown model dispatch (comp: Component) (state: ComponentState) =    
-    let menuItem typ =
-        Menu.Item.li [
-            Menu.Item.IsActive (state.ComparatorType.IsSome && state.ComparatorType.Value = typ)
-            Menu.Item.OnClick (fun _ ->
-                 model.Sheet.ChangeComparatorType (Sheet >> dispatch) (ComponentId comp.Id) typ
-                 )
-            ] [comparatorTypeName typ |> str]
-
+let private makeDropdown sectionName selectedOption menuItems =
     let ioSelect =
         Dropdown.dropdown [
                 Dropdown.IsHoverable
@@ -886,27 +878,59 @@ let private makeComparatorDropdown model dispatch (comp: Component) (state: Comp
                     ]
                 ]
             ] [
-            
-            let dropDownDefault =
-                match state.ComparatorType with
-                | Some typ -> comparatorTypeName typ
-                | _ -> "Select comparator type"
+
             Navbar.Link.a [
                 Navbar.Link.Option.Props [
                     Style [Width "100%"]
                 ]
-            ] [ str dropDownDefault ]
+            ] [ str selectedOption ]
             Dropdown.menu [Props [Style [Width "100%"]]] [
                 Dropdown.content [Props [Style [ZIndex 1000]]] [
                     Dropdown.Item.div [] [
                         Menu.menu [Props [Style [OverflowY OverflowOptions.Scroll]]] [
-                            Menu.list [] (
-                                FSharpType.GetUnionCases typeof<ComparatorType>
-                                |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> ComparatorType)
-                                |> Seq.map menuItem
-                                |> List.ofSeq)
+                            Menu.list [] menuItems
                         ]]]]]
-    readOnlyFormField "Comparator configuration" ioSelect
+    readOnlyFormField sectionName ioSelect  
+
+let rec private makeComparatorDropdown model dispatch (comp: Component) (state: ComponentState) =
+    let menuItem typ =
+        Menu.Item.li [
+            Menu.Item.IsActive (state.ComparatorType.IsSome && state.ComparatorType.Value = typ)
+            Menu.Item.OnClick (fun _ ->
+                 model.Sheet.ChangeComparatorType (Sheet >> dispatch) (ComponentId comp.Id) typ
+                 )
+            ] [comparatorTypeName typ |> str]
+    
+    let selectedOption =
+        match state.ComparatorType with
+        | Some typ -> comparatorTypeName typ
+        | _ -> "Select comparator type"
+    
+    FSharpType.GetUnionCases typeof<ComparatorType>
+    |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> ComparatorType)
+    |> Seq.map menuItem
+    |> List.ofSeq
+    |> makeDropdown "Comparator configuration" selectedOption 
+
+let private makeDataTypeDropdown model dispatch (comp: Component) (inpPort : AssertionASTMap.InputPortNumber) (inp: ComponentInput) =
+    match inp.DataType with
+    | DataTypeAssertionInput -> None
+    | dt ->
+        let menuItem typ =
+            Menu.Item.li [
+                Menu.Item.IsActive (dt = typ)
+                Menu.Item.OnClick (fun clicked ->
+                     model.Sheet.ChangeInputDataType (Sheet >> dispatch) (ComponentId comp.Id) inpPort typ
+                     )
+                ] [dataTypeName typ |> str]
+        
+        FSharpType.GetUnionCases typeof<DataType>
+        |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> DataType)
+        |> Seq.filter ((<>)DataTypeAssertionInput)
+        |> Seq.map menuItem
+        |> List.ofSeq
+        |> makeDropdown $"Input {inp.Name}" (dataTypeName dt)
+        |> Some
 
 let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
     match comp.Type with
@@ -970,33 +994,14 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
                 )
                 |> Some
             | _ -> None
-        
-        let reactElementForSign portName portNum currentVal =
-            div [] [
-            Checkbox.checkbox [] [
-                Checkbox.input [ Props [
-                    Style [ MarginRight "5px"; MarginBottom "1rem" ]
-                    Checked currentVal
-                    OnChange (fun checkbox ->
-                        model.Sheet.ChangeInputSignedness (Sheet >> dispatch) (ComponentId comp.Id) portNum checkbox.Checked
-                    )
-                ] ]
-                str $"{portName} is Signed"
-            ]]
-        
-        let makeSection title (body: ReactElement list) =
-            match body with
-            | [] -> None
-            | _ -> Some (readOnlyFormField title (div [] body))
-        
-        let inputsWithSign =
+
+        let dataTypeDropdown =
             p.Inputs
-            |> Map.filter (fun _ v -> v.Signed.IsSome) 
-            |> Map.toList
-            |> List.map (fun (port, input) -> reactElementForSign input.Name port input.Signed.Value)
-            |> makeSection "Input configuration"
-            
-        let all = [inputsWithSign; varWidth; comparator; assertionDescription]
+            |> Map.map (makeDataTypeDropdown model dispatch comp)
+            |> Map.values
+            |> List.ofSeq
+        
+        let all = dataTypeDropdown @ [varWidth; comparator; assertionDescription]
         div [] (
            Seq.choose id all
            |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])

@@ -31,6 +31,19 @@ let comparatorTypeSymbolName typ =
     | Gte -> "A >= B"
     | Eq -> "A == B"
 
+type DataType =
+    | DataTypeInt
+    | DataTypeUInt
+    | DataTypeFloat32
+    | DataTypeAssertionInput
+
+let dataTypeName =
+    function
+    | DataTypeInt -> "Signed Integer"
+    | DataTypeUInt -> "Unsigned Integer (default)"
+    | DataTypeFloat32 -> "32-bit Float (IEEE-754)"
+    | DataTypeAssertionInput -> "Assertion Input"
+
 /// Represents stored data about a component input.
 type ComponentInput =
     {
@@ -39,8 +52,8 @@ type ComponentInput =
       // The output width; set to Some (value) for static width-inference.
       // If None, then automatic width-inference is applied.
       FixedWidth: int option
-      // Optional field for whether the output is signed or unsigned.
-      Signed: bool option
+      // The type of the data represented by this input
+      DataType: DataType
     }
 
 /// Represents stored data about a component output.
@@ -51,8 +64,6 @@ type ComponentOutput =
       // The output width; set to Some (value) for static width-inference.
       // If None, then automatic width-inference is applied.
       FixedWidth: int option
-      // Optional field for whether the output is signed or unsigned.
-      Signed: bool option
       // Used in evaluation 
       HostLabel: string
     }
@@ -140,7 +151,7 @@ type IComponent =
 /// Defines helper defaults that are useful when constructing Component IO ports.
 module IODefaults =
     /// A single input named A, with no initialised fixed with.
-    let InputA: ComponentInput = { Name = "A"; FixedWidth = None; Signed = None; }
+    let InputA: ComponentInput = { Name = "A"; FixedWidth = None; DataType = DataTypeUInt; }
     
     /// A single input named B, with no initialised fixed with.
     let InputB: ComponentInput = { InputA with Name = "B" }
@@ -158,8 +169,11 @@ module IODefaults =
     let OneFixedWidthInputA width =
         Map [ (0, {InputA with FixedWidth = Some width}) ]
 
+    let OneAssertionInputA =
+        Map [ (0, {InputA with FixedWidth = Some 1; DataType = DataTypeAssertionInput}) ]
+    
     /// A single output named X, with no initialised fixed width.
-    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; Signed = None; HostLabel = ""}
+    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; HostLabel = ""}
     
     /// A single output named X at port 0, with no initialised fixed width.
     let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
@@ -187,11 +201,10 @@ let private collectionMaxWithDefault<'t when 't: comparison> defaultValue (seque
 
 /// Updates the state of a component, such that
 /// all inputs are set to `signed`.
-let makeIOSigned signed state  =
+let makeIOSigned state  =
     {
      state with
-        Inputs = state.Inputs |> Map.map (fun _ v -> {v with Signed = Some signed})
-        Outputs = state.Outputs |> Map.map (fun _ v -> {v with Signed = Some signed})
+        Inputs = state.Inputs |> Map.map (fun _ v -> {v with DataType = DataTypeInt})
     }
 
 let inputPortLabels (state:ComponentState) =
@@ -214,9 +227,11 @@ let addSignInfoToAST (state : ComponentState) (exprPortMap : PortExprs) =
     let addSignInfoToPort inputPortNum expr =
         match state.Inputs.TryFind inputPortNum with
         | Some inputPort ->
-            match inputPort.Signed with
-            | Some signed when signed -> Cast (ToSigned (emptyExprInfo expr))
-            | _ -> expr
+            match inputPort.DataType with
+            | DataTypeInt -> Cast (ToSigned (emptyExprInfo expr))
+            | DataTypeUInt -> expr
+            | DataTypeFloat32 -> Cast (ToFloat (emptyExprInfo expr))
+            | DataTypeAssertionInput -> expr
         | _ -> failwith $"what? could not find port #{inputPortNum} for {state.LibraryID} : {state.InstanceID}"
     
     exprPortMap
@@ -251,7 +266,7 @@ type SimpleComponent =
             // TODO(jpnock): Check logic
             let maxInputWidth = collectionMaxWithDefault 0 inputPortWidths.Values
             state.Outputs
-            |> Map.map (fun outputPortNum output ->
+            |> Map.map (fun _ output ->
                 match output.FixedWidth with
                 | Some w -> w
                 | _ -> maxInputWidth)
@@ -272,7 +287,7 @@ type ComparatorComponent =
         member this.GetName = "Comparator"
         member this.GetTooltipText =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
-        member this.GetDefaultState = makeIOSigned false <| {
+        member this.GetDefaultState = {
             ComponentState.Default with
                 ComparatorType = Some Eq
                 Inputs = IODefaults.TwoInputs
@@ -290,9 +305,9 @@ type ComparatorComponent =
               Colour = SymbolDefaults.Colour
               InputLabels = inputPortLabels state
               OutputLabels = [] }
-        member this.GetDescription state =
+        member this.GetDescription _ =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
-        member this.GetOutputWidths state inputPortWidths = Map.map (fun _ _ -> 1) state.Outputs
+        member this.GetOutputWidths state _ = Map.map (fun _ _ -> 1) state.Outputs
         member this.Build state exprPortMap =
             let signedExprPortMap = addSignInfoToAST state exprPortMap
             let built =
@@ -313,10 +328,10 @@ type ComparatorComponent =
 // Helper function for dynamically generating the description of a
 // signed component, based on its state.
 let signedDescription _ state =
-    let signedOperation =
+    let dt =
         state.Inputs.Values
-        |> Seq.exists (fun el -> Option.defaultValue false el.Signed)
-    match signedOperation with
+        |> Seq.exists (fun el -> el.DataType = DataTypeInt)
+    match dt with
     | true -> "treating them as signed values"
     | false -> "treating them as unsigned values"
 
@@ -367,8 +382,11 @@ module ComponentDefaults =
 /// Returns whether the component specifies a user-controllable
 /// input port 0 width.
 let implementsVariableWidth (state : ComponentState) =
+    let inputIsAssertion input = input.DataType <> DataTypeAssertionInput
+    
     match state.Inputs.TryFind 0 with
-    | Some input when input.FixedWidth.IsSome -> input.FixedWidth
+    | Some input when
+        input.FixedWidth.IsSome && not (inputIsAssertion input) -> input.FixedWidth
     | _ -> None
 
 let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput> =

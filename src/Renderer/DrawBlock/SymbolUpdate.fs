@@ -835,9 +835,9 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     | ChangeAssertionText (compId, newText) ->
         updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
     
-    | ChangeInputSignedness (compId, portNum, signed) ->
+    | ChangeInputDataType (compId, portNum, dataType) ->
         updatePluginState (fun state ->
-            let updateSign (target: VerificationComponents.ComponentInput) = {target with Signed = Some signed}
+            let updateSign (target: VerificationComponents.ComponentInput) = {target with DataType = dataType}
             let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
             {state with Inputs = newInputs}) model compId
     

@@ -105,6 +105,11 @@ let generateCopiedLabel (model: Model) (oldSymbol:Symbol) (compType: ComponentTy
     |Input _ | Input1 (_,_) |Output _ |Viewer _ -> generateIOLabel model compType oldSymbol.Component.Label
     | _ -> prefix + (generateLabelNumber listSymbols compType)
 
+/// Generate an empty port order
+let emptyPortOrder = 
+    (Map.empty, [Edge.Top; Edge.Bottom; Edge.Left; Edge.Right])
+    ||> List.fold (fun currMap edge -> Map.add edge [] currMap)
+
 
 /// Initialises and returns the PortMaps of a pasted symbol
 let initCopiedPorts (oldSymbol:Symbol) (newComp: Component): PortMaps =
@@ -122,9 +127,6 @@ let initCopiedPorts (oldSymbol:Symbol) (newComp: Component): PortMaps =
         ||> Map.fold 
             (fun currMap oldPortId edge -> Map.add equivPortIds[oldPortId] edge currMap)
 
-    let emptyPortOrder = 
-        (Map.empty, [Edge.Top; Edge.Bottom; Edge.Left; Edge.Right])
-        ||> List.fold (fun currMap edge -> Map.add edge [] currMap)
     let portOrder =
         (emptyPortOrder, oldSymbol.PortMaps.Order)
         ||> Map.fold 
@@ -836,118 +838,50 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     | ChangeAssertionText (compId, newText) ->
         updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
 
-    | ChangeAssertionInputs (compId, newInputNames) ->
-
+    | SetAssertionInputs (compId, newInputNames) ->
+        // Basic idea: If the inputs to the text assertion block have changed,
+        // update all the relevant state to reflect these new inputs.
+        // TODO(jlsand): For simplicity a full-replacement approach is used, however
+        // in-place replacement could most likely be implemented using CustomCompPorts.fs
         let symbol = Map.find compId model.Symbols
         let comp = symbol.Component
 
+        // Update the component assertion state
         let assertState = 
             match comp.Type with
             | Plugin p -> p
             | _ -> failwithf "What? Can not change the inputs of a non-assertion component"
-        let curInputNames = 
-            assertState.Inputs.Values 
-            |> Set.ofSeq
-            |> Set.map (fun v -> v.Name)
-
-        let addedInputNames = Set.difference newInputNames curInputNames |> List.ofSeq
-        let removedInputNames = Set.difference curInputNames newInputNames |> List.ofSeq
-        printfn "addedInputNames: %A, removedInputNames: %A" addedInputNames removedInputNames
-
         let newInputs = 
             List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) (List.ofSeq newInputNames)
             |> Map.ofList
-
         let newAssertState = {assertState with Inputs = newInputs}
 
-        let inputsToBeRemoved = 
-            Map.toList assertState.Inputs 
-            |> List.filter ( fun (pn, cin) -> List.contains cin.Name removedInputNames)
-            |> List.map ( fun (pn, _) -> pn)
-        printfn "inputsToBeRemoved %A" inputsToBeRemoved
-
-        let currentPorts = comp.InputPorts
-
-        let portShouldBeRemoved (port:Port) =
-            List.contains (Option.get port.PortNumber) inputsToBeRemoved
-
-        let portsToBeRemoved = List.filter portShouldBeRemoved currentPorts
-        printfn "portsToBeRemoved %A" portsToBeRemoved
-
-        let addNewPort index _ =
+        // Generate new ports and port maps
+        let addPort index _ =
             {
                 Id = JSHelpers.uuid ()
                 PortNumber = index + comp.InputPorts.Length |> Some
                 HostId = comp.Id
                 PortType = PortType.Input
             }
-        let portsToBeAdded = 
-            List.mapi addNewPort addedInputNames
-
-        printfn "portsToBeAdded %A" portsToBeAdded
-
-        // remove all removed ports, add all new ports
         let newPorts = 
-            List.filter (fun p -> portShouldBeRemoved p |> not) currentPorts
-            |> List.append portsToBeAdded
+            List.mapi addPort (List.ofSeq newInputNames)
 
+        let emptyPortMaps = {Order = emptyPortOrder; Orientation = Map.empty}
         let newPortMaps = 
-            List.fold (fun maps (newPort:Port) -> addPortToMaps Edge.Left maps newPort.Id) symbol.PortMaps portsToBeAdded
-        let newPortMaps' =
-            List.fold (fun maps (newPort:Port) -> deletePortFromMaps newPort.Id maps ) newPortMaps portsToBeRemoved 
+            List.fold (fun maps (newPort:Port) -> addPortToMaps Edge.Left maps newPort.Id) emptyPortMaps newPorts
 
-        
-        printfn "new port maps %A" newPortMaps'
-
-
-        let newSymbolInfo = 
-            match comp.SymbolInfo with
-            | Some si -> {si with PortOrder = newPortMaps'.Order; PortOrientation = newPortMaps'.Orientation}
-            | None -> failwithf "What? Symbol info can not be none here."
-
-        let newComp = {comp with InputPorts = newPorts; Type = Plugin newAssertState; SymbolInfo = Some newSymbolInfo}
-
-        let newSymbol = {symbol with Component = newComp; PortMaps = newPortMaps'}
-        let newModel = {model with Ports = addToPortModel model newSymbol}
-
-        //printfn "NEW SYMBOL: %A" newSymbol
-        //printfn "Port ids: %A" model.Ports
-
-        (replaceSymbol newModel newSymbol compId), Cmd.none
-        (*
-        printfn "SYMBOL %A" symbol
-
-        let newPort:Port = 
-            {
-                Id = JSHelpers.uuid ()
-                PortNumber = Some comp.InputPorts.Length // next available number
-                HostId = comp.Id
-                PortType = PortType.Input
-            }
-        let newPorts = comp.InputPorts @ [newPort]
-
-
-
-        let newPortMaps = addPortToMaps Edge.Left symbol.PortMaps newPort.Id
-
+        // Update the symbolinfo, component, symbol and model with the new ports, port maps and assertion state.
         let newSymbolInfo = 
             match comp.SymbolInfo with
             | Some si -> {si with PortOrder = newPortMaps.Order; PortOrientation = newPortMaps.Orientation}
             | None -> failwithf "What? Symbol info can not be none here."
+        let newComp = {comp with InputPorts = newPorts; Type = Plugin newAssertState; SymbolInfo = Some newSymbolInfo}
 
-        let newComp = {comp with InputPorts = newPorts; Type = Plugin newPluginType; SymbolInfo = Some newSymbolInfo}
-
-
-        let newSymbol = {symbol with Component = newComp; PortMaps = newPortMaps}
-        let newModel = {model with Ports = Map.add newPort.Id newPort model.Ports}
-        printfn "NEW SYMBOL: %A" newSymbol
-        printfn "Port ids: %A" newModel.Ports
+        let newSymbol = autoScaleHAndW {symbol with Component = newComp; PortMaps = newPortMaps}
+        let newModel = {model with Ports = addToPortModel model newSymbol}
 
         (replaceSymbol newModel newSymbol compId), Cmd.none
-        *)
-
-
-
     
     | ChangeInputSignedness (compId, portNum, signed) ->
         updatePluginState (fun state ->

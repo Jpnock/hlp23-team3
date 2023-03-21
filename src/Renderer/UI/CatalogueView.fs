@@ -619,7 +619,7 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             //printfn "Idmap: %A" <| Symbol.getCustomPortIdMap assertComponent
             
             model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
-            model.Sheet.ChangeAssertionInputs (Sheet >> dispatch) (ComponentId compId) inputNames
+            model.Sheet.SetAssertionInputs (Sheet >> dispatch) (ComponentId compId) inputNames
             //model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId compId) (fun state -> {state with Inputs = VerificationComponents.IODefaults.TwoInputs})
             //model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId compId) (fun state -> {state with AssertionDescription = Some "lmao :)))"})
 

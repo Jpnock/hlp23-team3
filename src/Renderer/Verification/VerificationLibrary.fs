@@ -160,7 +160,7 @@ let private makeTextAssertion : IComponent =
         {
             Name = "Assert HIGH (Text)"
             Class = ClassNoIO "Evaluates the provided expression and raises an assertion if the result is not HIGH"
-            SymbolName = "Text\nAssertion"
+            SymbolName = "Text Assert"
             Builder = noAssertion
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]

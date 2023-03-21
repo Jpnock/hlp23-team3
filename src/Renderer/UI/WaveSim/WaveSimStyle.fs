@@ -447,6 +447,7 @@ let valuesColumnSize wsModel =
                             | CommonTypes.Hex | CommonTypes.Bin -> 0I, 2.
                             | CommonTypes.Dec -> SimulatorTypes.bigIntMask (num+1), 2.
                             | CommonTypes.SDec -> SimulatorTypes.bigIntMask (num-1), 10.
+                            | CommonTypes.Float32 -> 0I, 2. // TODO(jpnock): unsure about this
                         let (fd: SimulatorTypes.FastData) = {Dat=SimulatorTypes.BigWord worstCaseVal; Width=num}
                         NumberHelpers.fastDataToPaddedString 10000 wsModel.Radix fd
                         |> (fun s -> s[0..min (s.Length-1) Constants.valueColumnMaxChars])

@@ -74,7 +74,7 @@ let private textFormFieldSimple name defaultValue onChange =
     Field.div [] [
         Label.label [] [ str name ]
         Input.text [
-            Input.Props [ Rows 20; Wrap "wrap"; OnPaste preventDefault; SpellCheck false; Name name; AutoFocus true; Style [ Width "100%"; Height "300px"]]
+            Input.Props [ Wrap "wrap"; OnPaste preventDefault; SpellCheck false; Name name; AutoFocus true; Style [ Width "100%" ]]
             Input.DefaultValue defaultValue
             Input.Type Input.Text
             Input.OnChange (getTextEventValue >> onChange)
@@ -596,7 +596,7 @@ let makeConstantDialog (model:Model) (comp: Component) (text:string) (dispatch: 
                 br []
                 textFormFieldSimple 
                     "Enter constant value in decimal, hex, or binary:" 
-                    cText 
+                    cText
                     (fun txt -> 
                         printfn $"Setting {txt}"
                         dispatch <| SetPopupDialogText (Some txt))
@@ -628,7 +628,7 @@ let makeBusCompareDialog (model:Model) (comp: Component) (text:string) (dispatch
                 br []
                 textFormFieldSimple 
                     "Enter bus compare value in decimal, hex, or binary:" 
-                    cText 
+                    cText
                     (fun txt -> 
                         printfn $"Setting {txt}"
                         dispatch <| SetPopupDialogText (Some txt))

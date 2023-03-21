@@ -10,89 +10,104 @@ module AssertionParser
 open EEExtensions
 open AssertionTypes
 
-let (|RegexPattern|_|) regex str =
+let literals = [
+    "signed",   TSigned 
+    "unsigned", TUnsigned
+    "bool",     TBool 
+    "assertTrue",       TAssertTrue 
+    "assertFalse",      TAssertFalse
+    "input",    TInput
+    ",",        TComma
+    ";",        TSemicolon
+    "\(",       TLParen
+    "\)",       TRParen
+    "\+",       TAdd
+    "-",        TSub
+    "\*",       TMul
+    "/",        TDiv
+    "%",        TRem
+    "&&",       TLogAnd
+    "\|\|",     TLogOr
+    "&",        TBitAnd
+    "~",        TBitNot
+    "\|",       TBitOr
+    "==",       TEq
+    "!=",       TNeq
+    "!",        TLogNot
+    ">=",       TGte
+    "<=",       TLte
+    "<",        TLt
+    ">",        TGt
+]
+
+/// Use the literals array to try to match the given string
+/// with a token
+let (|LiteralMatch|_|) text =
+    List.tryPick (fun (regex, tok) ->
+        let regex' = "^" + regex
+        match String.regexMatchFull regex' text with
+        | Some m -> Some (tok, m)
+        | None -> None
+    ) literals
+    
+/// General purpose active pattern to match any regex
+/// pattern from the start of a string
+let (|RegexPattern|_|) regex text =
     let regex' = "^" + regex 
-    String.regexMatchFull regex' str
+    String.regexMatchFull regex' text
 
 /// Lex an assertion expression into a series of tokens.
 /// Will supply errors messages pointing to the piece of text
 /// which cannot be correctly tokenized.
 let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<Token list, CodeError> =
-    if code.Length = 0 then
-        Ok tokens
-    else
-        let addToken tokType len= 
-            let remainingCode = code.Substring len
-            let token = {Type = tokType; Pos = {Line = curLine; Col = curCol; Length = len}}
-            let tokens' = List.append tokens [token]
-            lexAssertion remainingCode curLine (curCol + len) tokens'
+    let addToken tokType len= 
+        let remainingCode = code.Substring len
+        let token = {Type = tokType; Pos = {Line = curLine; Col = curCol; Length = len}}
+        let tokens' = List.append tokens [token]
+        lexAssertion remainingCode curLine (curCol + len) tokens'
 
-        match code with 
-        | RegexPattern "\n" m -> 
-            // Count new lines, but don't add them to the list of tokens
-            lexAssertion (code.Substring m.Length) (curLine+1) 0 tokens
-        | RegexPattern "( |\t)+" m -> 
-            // Similar concept for white space
-            lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
-        | RegexPattern "\/\/[^\n\r]+" m -> 
-            // Single line comment
-            lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
-        | RegexPattern "[1-9]\d*'" m ->
-            let matchedStr = m.Value;
-            let width = System.Int32.Parse <| matchedStr.Remove (matchedStr.Length - 1)
-            addToken (TBusCast width) m.Length
-        | RegexPattern "'" m ->
-            Error { 
-                Pos = {Line = curLine; Col = curCol; Length = m.Length}
-                Msg = "Remember to specify a width for the bus cast"
-                ExtraErrors = None
-            }
-        | RegexPattern "([1-9]\d*|0x([0-9]|[A-F])+|0b(0|1)+)" m -> 
-            // integer literals
-            let intTok = System.Int64.Parse m.Value |> Int |> Value |> TLit 
-            addToken intTok m.Length
-        | RegexPattern "signed" m -> addToken TSigned m.Length 
-        | RegexPattern "unsigned" m -> addToken TUnsigned m.Length 
-        | RegexPattern "bool" m -> addToken TBool m.Length 
-        | RegexPattern "assertTrue" m -> addToken TAssertTrue m.Length 
-        | RegexPattern "assertFalse" m -> addToken TAssertFalse m.Length 
-        | RegexPattern "input" m -> addToken TInput m.Length
-        | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
-            // identifiers
-            // ln220: added 0 as a temporary fix to the fact that now output port number is fixed
-            let idTok = Id (m.Value, 0, "") |> TLit
-            addToken idTok m.Length
-        | RegexPattern "," m ->    addToken TComma m.Length 
-        | RegexPattern ";" m ->    addToken TSemicolon m.Length 
-        | RegexPattern "\(" m ->   addToken TLParen m.Length
-        | RegexPattern "\)" m ->   addToken TRParen m.Length
-        | RegexPattern "\+" m ->   addToken TAdd m.Length
-        | RegexPattern "-" m ->    addToken TSub m.Length
-        | RegexPattern "\*" m ->   addToken TMul m.Length
-        | RegexPattern "/" m ->    addToken TDiv m.Length
-        | RegexPattern "%" m ->    addToken TRem m.Length
-        | RegexPattern "&&" m ->   addToken TLogAnd m.Length
-        | RegexPattern "\|\|" m -> addToken TLogOr m.Length
-        | RegexPattern "&" m ->    addToken TBitAnd m.Length
-        | RegexPattern "~" m ->    addToken TBitNot m.Length
-        | RegexPattern "\|" m ->   addToken TBitOr m.Length
-        | RegexPattern "==" m ->   addToken TEq m.Length
-        | RegexPattern "!=" m ->   addToken TNeq m.Length
-        | RegexPattern "!" m ->    addToken TLogNot m.Length
-        | RegexPattern ">=" m ->   addToken TGte m.Length
-        | RegexPattern "<=" m ->   addToken TLte m.Length
-        | RegexPattern "<" m ->    addToken TLt m.Length
-        | RegexPattern ">" m ->    addToken TGt m.Length
-        | RegexPattern ".*(\n|$)" m ->
-            // Catch all syntax to match any invalid input
-            Error {
-                Pos = {Line = curLine; Col = curCol; Length = m.Length}; 
-                Msg = "Unrecognized token: " + m.Value; 
-                ExtraErrors = None
-            }
-        | _ ->
-            failwithf "What? Should not be possible for code not to be matched to token in assertion lexer"
+    match code with 
+    | RegexPattern "\n" m -> 
+        // Count new lines, but don't add them to the list of tokens
+        lexAssertion (code.Substring m.Length) (curLine+1) 0 tokens
+    | RegexPattern "( |\t)+" m -> 
+        // Similar concept for white space
+        lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
+    | RegexPattern "\/\/[^\n\r]+" m -> 
+        // Single line comment
+        lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
+    | RegexPattern "[1-9]\d*'" m ->
+        let matchedStr = m.Value;
+        let width = System.Int32.Parse <| matchedStr.Remove (matchedStr.Length - 1)
+        addToken (TBusCast width) m.Length
+    | RegexPattern "'" m ->
+        Error { 
+            Pos = {Line = curLine; Col = curCol; Length = m.Length}
+            Msg = "Remember to specify a width for the bus cast"
+            ExtraErrors = None
+        }
+    | RegexPattern "([1-9]\d*|0x([0-9]|[A-F])+|0b(0|1)+)" m -> 
+        // integer literals
+        let intTok = System.Int64.Parse m.Value |> Int |> Value |> TLit 
+        addToken intTok m.Length
+    | LiteralMatch(tok,m) ->   addToken tok m.Length
+    | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
+        // identifiers
+        // ln220: added 0 as a temporary fix to the fact that now output port number is fixed
+        let idTok = Id (m.Value, 0, "") |> TLit
+        addToken idTok m.Length
+    | RegexPattern "" _ ->     Ok tokens // Reached end of input.
+    | RegexPattern ".*(\n|$)" m ->
+        // Catch all syntax to match any invalid input
+        Error {
+            Pos = {Line = curLine; Col = curCol; Length = m.Length}; 
+            Msg = "Unrecognized token: " + m.Value; 
+            ExtraErrors = None
+        }
+    | _ ->
+        failwithf "What? Should not be possible for code not to be matched to token in assertion lexer"
 
+/// Map a binary token to its equivalent Expr type.
 let mapBinaryOpToExpr tokenType binaryOperands =
     match tokenType with
     | TAdd ->
@@ -190,36 +205,31 @@ let advanceIfCorrectToken (expectedMsg:string) (expectedType: TokenType) (stream
 /// Parse an operand, potentially being prefixed by unary operations (e.g. casts)
 /// or contained in a set of parentheses.
 let rec parseOperand expectParen (inputs: string Set) (stream: TokenStream) : ParseExprResult =
-    if List.isEmpty stream.RemainingTokens then
-        Error { Msg = "Missing operand!"; Pos = stream.CurToken.Pos; ExtraErrors = None}
-    else
+    
+    match stream.RemainingTokens with
+    | [] -> Error { Msg = "Missing operand!"; Pos = stream.CurToken.Pos; ExtraErrors = None}
+    | _ ->
         let stream' = advanceStream stream
         let curToken = stream'.CurToken
 
         let handleParens lParenToken (newStream:TokenStream) =
             let parenthisedExpr = parseExpr 0 true inputs newStream
             let handleEndOfParen parenExpr =
-                if List.isEmpty parenExpr.Stream.RemainingTokens then
-                    Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos; ExtraErrors = None }
-                else 
-                    Ok {parenExpr with Stream = advanceStream parenExpr.Stream}
+                match parenExpr.Stream.RemainingTokens with
+                | [] -> Error { Msg = "This left parenthesis is not matched."; Pos = lParenToken.Pos; ExtraErrors = None }
+                | _ -> Ok {parenExpr with Stream = advanceStream parenExpr.Stream}
             Result.bind handleEndOfParen parenthisedExpr
 
         let handleFunctionCall functionType =
-            if List.isEmpty stream'.RemainingTokens then
-                Error <| createExpectError "subsequent left-parenthesis" true curToken
-            else 
-                let lParenToken = nextToken stream'.RemainingTokens
-                match lParenToken.Type with
-                | TLParen -> 
-                    handleParens lParenToken <| advanceStream stream' 
-                    |> Result.bind (fun parenExpr ->
-                        let castExpr = Cast (functionType (parenExpr.Expr, curToken.Pos))
-                        Ok {parenExpr with Expr = castExpr}
-                    )
-                | _ -> 
-                    Error <| createExpectError "left-parenthesis" false lParenToken
-
+            advanceIfNotEmpty "subsequent left-parenthesis" stream'
+            |> Result.bind (advanceIfCorrectToken "left-parenthesis" TLParen)
+            |> Result.bind ( fun stream'' ->
+                handleParens stream''.CurToken stream''
+                |> Result.bind (fun parenExpr ->
+                    let castExpr = Cast (functionType (parenExpr.Expr, curToken.Pos))
+                    Ok {parenExpr with Expr = castExpr}
+                )
+            )
 
         let handleUnaryOp unaryType =
             parseOperand expectParen inputs stream'
@@ -256,12 +266,13 @@ let rec parseOperand expectParen (inputs: string Set) (stream: TokenStream) : Pa
         | _ ->
             Error {Msg = sprintf "%A is not a valid operand!" <| tokenSymbol curToken.Type; Pos = curToken.Pos; ExtraErrors = None }
 
+/// Parse a binary operation with lhs as the left-hand operand.
+/// Parser is similar to an operator precedence parser.
 and parseBinaryOp minPrecedence expectParen (inputs: string Set) (lhs:ParsedExpr) :ParseExprResult =
 
-    if List.isEmpty lhs.Stream.RemainingTokens then
-        // No more tokens 
-        Ok lhs
-    else 
+    match lhs.Stream.RemainingTokens with
+    | [] -> Ok lhs
+    | _ ->
         let token = nextToken lhs.Stream.RemainingTokens
 
         let (Precedence prec) = operatorPrecedence token.Type
@@ -294,12 +305,14 @@ and parseExpr (minPrecedence:int) expectParen (inputs: string Set) (stream: Toke
     parseOperand expectParen inputs stream
     |> Result.bind (parseBinaryOp minPrecedence expectParen inputs)
 
+/// Easy wrapper around the recursive expression parser functions. 
 let startParseExpr (parsedInputs: ParsedInputs): Result<Assertion, CodeError> =
     parseExpr 0 false parsedInputs.InputNames parsedInputs.Stream
     |> Result.bind ( fun pExpr -> 
         Ok {AssertExpr = pExpr.Expr,pExpr.Stream.CurToken.Pos; InputNames = parsedInputs.InputNames}
     )
 
+/// Parse inputs to the assertion text block e.g. input a; input myInputLabel;
 let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInputs, CodeError> =
     advanceIfNotEmpty "input" stream 
     |> Result.bind (advanceIfCorrectToken "input" TInput)
@@ -310,6 +323,7 @@ let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInpu
 
         let stream' = advanceStream stream
         let token = stream'.CurToken
+        let notIdError = Error <| createExpectError "identifier" false token
         match stream'.CurToken.Type with
         | TLit l ->
             match l with
@@ -317,26 +331,27 @@ let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInpu
                 advanceIfNotEmpty "semicolon" stream'
                 |> Result.bind (advanceIfCorrectToken "semicolon" TSemicolon)
                 |> Result.bind ( fun stream ->
+                    if Set.contains name inputs then
+                        Error {Msg = sprintf "This input has already been defined"; Pos = stream.CurToken.Pos; ExtraErrors = None }
+                    else 
+                        Ok stream
+                ) |> Result.bind (fun stream ->
                     let inputs' = Set.add name inputs
 
-                    if List.isEmpty stream.RemainingTokens then
-                        Ok {InputNames = inputs'; Stream = stream}
-                    else
+                    match stream.RemainingTokens with 
+                    | [] -> Ok {InputNames = inputs'; Stream = stream}
+                    | _ ->
                         let postInputToken = nextToken stream.RemainingTokens
                         match postInputToken.Type with 
-                        | TInput -> parseInputs inputs' <| advanceStream stream'
+                        | TInput ->
+                            // Another input detected, keep parsing
+                            parseInputs inputs' <| advanceStream stream'
                         | _ -> Ok {InputNames = inputs'; Stream = stream}
                 )
-            | _ -> Error <| createExpectError "identifier" false token
-        | _ -> Error <| createExpectError "identifier" false token
+            | _ -> notIdError
+        | _ -> notIdError
         )
         
-
-
-//let rec parseInputs (tokens:Token list) : ParseResult =
-
-
-
 /// Generate a pretty print string for the generated AST. 
 let rec prettyPrintAST expr prevPrefix isLast:string =
 
@@ -393,7 +408,6 @@ let prettyPrintAssertion assertion =
     printfn "%A" <| prettyPrintAST (fst assertion.AssertExpr) "" true
     assertion
 
-
 /// Returns either the resulting AST or an Error 
 let parseAssertion code: Result<Assertion, CodeError>=
 
@@ -403,6 +417,7 @@ let parseAssertion code: Result<Assertion, CodeError>=
         else
             Ok stream
 
+    // Purely used to cleanly initialize token stream
     let dummyToken = {Type = TComma; Pos = {Line = 1; Col = 1; Length = 1}}
 
     // Parse the inputs list followed by the actual assertion expression.

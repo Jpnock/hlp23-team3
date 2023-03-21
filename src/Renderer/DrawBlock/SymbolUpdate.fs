@@ -852,20 +852,9 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
             | Plugin p -> p
             | _ -> failwithf "What? Can not change the inputs of a non-assertion component"
 
-        let oldInputNames = 
-            assertState.Inputs 
-            |> Map.toList
-            |> List.map (fun (_, i) -> i.Name)
         let newInputNames' = List.ofSeq newInputNames
-
-        printfn $"Old: {oldInputNames}, new: {newInputNames'}"
-
-        if newInputNames' <> oldInputNames then
-            printfn "Inputs have changed!"
-
-
         let newInputs = 
-            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) newInputNames'
+            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) newInputNames' 
             |> Map.ofList
         let newAssertState = {assertState with Inputs = newInputs}
 
@@ -877,8 +866,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
                 HostId = comp.Id
                 PortType = PortType.Input
             }
-        let newPorts = 
-            List.mapi addPort (List.ofSeq newInputNames)
+        let newPorts = List.mapi addPort newInputNames'
 
         let emptyPortMaps = {Order = emptyPortOrder; Orientation = Map.empty}
         let newPortMaps = 

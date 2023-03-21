@@ -144,9 +144,9 @@ type IComponent =
     /// Returns the output widths of each output port. Used by the width-inference
     /// engine to automatically deduce bus-widths.
     abstract member GetOutputWidths : ComponentConfig -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
-    /// Builds the Assertion AST for this component, when the ASTs
+    /// Creates the Assertion AST for this component, when the ASTs
     /// corresponding to each input port are provided.
-    abstract member Build : ComponentConfig -> Map<InputPortNumber, Expr> -> Expr
+    abstract member CreateAST : ComponentConfig -> Map<InputPortNumber, Expr> -> Expr
   
 /// Defines helper defaults that are useful when constructing Component IO ports.
 module IODefaults =
@@ -270,7 +270,7 @@ type SimpleComponent =
                 match output.FixedWidth with
                 | Some w -> w
                 | _ -> maxInputWidth)
-        member this.Build cfg exprPortMap =
+        member this.CreateAST cfg exprPortMap =
             let signedExprPortMap = addSignInfoToAST cfg exprPortMap
             let built = this.AssertionBuilder signedExprPortMap
             printfn "verification port name %A" this.DefaultConfig.Outputs
@@ -308,7 +308,7 @@ type ComparatorComponent =
         member this.GetDescription _ =
             "Performs comparisons between two busses, such as checking a bus contains a greater value than another."
         member this.GetOutputWidths cfg _ = Map.map (fun _ _ -> 1) cfg.Outputs
-        member this.Build cfg exprPortMap =
+        member this.CreateAST cfg exprPortMap =
             let signedExprPortMap = addSignInfoToAST cfg exprPortMap
             let built =
                 match cfg.ComparatorType with

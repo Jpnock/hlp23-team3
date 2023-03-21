@@ -39,4 +39,4 @@ let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentConfig
         |> Map.map (fun k cs -> 
             let (_, portN, connId) = componentPortSources[cfg.InstanceID.Value].[k] 
             generateAST componentPortSources portN connId cs)
-        |> componentBuilder.Build cfg 
+        |> componentBuilder.CreateAST cfg 

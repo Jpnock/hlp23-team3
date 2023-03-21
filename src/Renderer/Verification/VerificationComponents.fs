@@ -352,6 +352,7 @@ type ComparatorComponent =
                     | ComparatorTypeGt -> astMapper TGt signedExprPortMap
                     | ComparatorTypeLte -> astMapper TLte signedExprPortMap
                     | ComparatorTypeGte -> astMapper TGte signedExprPortMap
+                | _ -> None
             match built with
             | Some b -> b
             | _ -> failwithf $"Unable to CreateAST for comparator {cfg.MultiComponentType}"

@@ -291,7 +291,7 @@ let rec startCircuitSimulation
                     match el.InstanceID with
                     | Some id -> id
                     | _ -> failwithf "What - assertion comps should have ids at this point"
-                let assertionLabel = componentMap[componentId].Label
+                let assertionLabel = componentMap[ComponentId componentId].Label
                 Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId})
     
     let isAssertionTextComp (comp:Component) =

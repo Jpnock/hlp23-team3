@@ -241,7 +241,7 @@ let rec startCircuitSimulation
     // TODO(jpnock): Fix uses of this
     let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
     
-    let assertionComps = List.map snd assertionCompsAndIDs
+    let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
     
     let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
@@ -257,7 +257,12 @@ let rec startCircuitSimulation
                 let (assertionInput, _, _) = connectedTo[0]
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
                 let assertion = ast, emptyPos
-                Ok {AssertExpr = assertion; InputNames = Set.empty})
+                let componentId = 
+                    match el.InstanceID with
+                    | Some id -> id
+                    | _ -> failwithf "What - assertion comps should have ids at this point"
+                let assertionLabel = componentMap[componentId].Label
+                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with

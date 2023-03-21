@@ -295,28 +295,30 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
 
     let evalTree step assertion = 
         let value = evaluate assertion.AssertExpr fs step connectionsWidth 
-        match value with 
+        let assertionName = 
+            match assertion.Name with
+            | Some name -> name
+            | _ -> failwithf "What - assertion should have name"
+        let assertionId = 
+            match assertion.Id with
+            | Some id -> id
+            | _ -> failwithf "What - assertion should have id"
+        match value with  
         | Ok(Bool true, _) -> None 
         | Ok(Bool false, _) ->
             let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
-            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
+            Some {Name = assertionName; Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"; CompId = ComponentId assertionId} 
         | Ok(e, _) -> 
             let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
-            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return a bool but it returned: {e}s\n"; Sheet = "Not implemented"} 
+            Some {Name = assertionName; Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return a bool but it returned: {e}s\n"; Sheet = "Not implemented"; CompId = ComponentId assertionId} 
         | Error(e) -> 
             let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
-            Some {Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = "Not implemented"} 
+            Some {Name = assertionName; Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = "Not implemented"; CompId = ComponentId assertionId} 
     let evalAllAssertions assertions n = 
         assertions
         |> List.choose (evalTree n)
     [startCycle..endCycle]
-    // |> List.collect (evalAllAssertions fs.Assertions)
-    // let failedAssertion0 = { Name = "Assertion1"; Cycle = 3; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
-    // let failedAssertion1 = { Name = "Assertion2"; Cycle = 12; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
-    // let failedAssertion2 = { Name = "Assertion3"; Cycle = 7; FailureMessage = "Comp blah balh failed blah...1"; Sheet = "test2"; CompId = ComponentId "259bbd3c-ba4b-4aea-8d5b-a7733b9d0fe4" }
-    // let failedAssertion3 = { Name = "Assertion4"; Cycle = 7; FailureMessage = "Comp blah balh failed blah...2"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
-    // let failedAssertion4 = { Name = "Assertion55555555555555555555555555555555555555555555555555555555555"; Cycle = 7; FailureMessage = "Comp blah balh failed blah...3"; Sheet = "main"; CompId = ComponentId "2d23c545-d8f4-49cc-85cc-5381f7fda2d3" }
-    // [failedAssertion0; failedAssertion1; failedAssertion2; failedAssertion3; failedAssertion4]
+    |> List.collect (evalAllAssertions fs.Assertions)
 
 /// return the integers of the cycles with failed assertions given a list of failed assertions
 /// Authored by djj120

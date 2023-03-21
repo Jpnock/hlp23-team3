@@ -988,10 +988,10 @@ let topHalf canvasState (model: Model) dispatch : ReactElement =
                     Level.level [] [
                         Level.item [ ] [
                             Button.list [] [
-                                selectWavesButton wsModel dispatch
+                                selectWavesButton wbo.IsRunning wsModel dispatch
                                 selectWavesModal wsModel dispatch
 
-                                selectRamButton wsModel dispatch
+                                selectRamButton wbo.IsRunning wsModel dispatch
                                 selectRamModal wsModel dispatch
                             ]
                         ]

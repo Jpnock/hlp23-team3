@@ -851,8 +851,21 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
             match comp.Type with
             | Plugin p -> p
             | _ -> failwithf "What? Can not change the inputs of a non-assertion component"
+
+        let oldInputNames = 
+            assertState.Inputs 
+            |> Map.toList
+            |> List.map (fun (_, i) -> i.Name)
+        let newInputNames' = List.ofSeq newInputNames
+
+        printfn $"Old: {oldInputNames}, new: {newInputNames'}"
+
+        if newInputNames' <> oldInputNames then
+            printfn "Inputs have changed!"
+
+
         let newInputs = 
-            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) (List.ofSeq newInputNames)
+            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) newInputNames'
             |> Map.ofList
         let newAssertState = {assertState with Inputs = newInputs}
 

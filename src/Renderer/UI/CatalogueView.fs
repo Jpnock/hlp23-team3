@@ -607,22 +607,30 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             dispatch (StartUICmd SaveSheet)        
 
             let code = getCodeContents dialogData
-            let inputNames = 
+            model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
+            
+            // Get the inputs for the assertion code. Check if they have been updated and if so,
+            // change the component to reflect these changes.
+            let newInputNames = 
                 match parseAssertion code with
                 | Ok assertion ->
                     assertion.InputNames
                 | _ -> failwithf "What? Impossible to press update on assertion text component that can't compile"
-                
-
-            //printfn "assertComponentt: %A" assertComponent
-
-            //printfn "Idmap: %A" <| Symbol.getCustomPortIdMap assertComponent
             
-            model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
-            model.Sheet.SetAssertionInputs (Sheet >> dispatch) (ComponentId compId) inputNames
-            //model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId compId) (fun state -> {state with Inputs = VerificationComponents.IODefaults.TwoInputs})
-            //model.Sheet.ChangeComponentState (Sheet >> dispatch) (ComponentId compId) (fun state -> {state with AssertionDescription = Some "lmao :)))"})
+            let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
+            let assertState = 
+                match assertComponent.Type with
+                | Plugin p -> p
+                | _ -> failwithf "What? Not possible for a text assertion component not to be a verification component."
 
+            let oldInputNames = 
+                assertState.Inputs 
+                |> Map.toList
+                |> List.map (fun (_, i) -> i.Name)
+                |> Set.ofList
+
+            if newInputNames <> oldInputNames then
+                model.Sheet.SetAssertionInputs (Sheet >> dispatch) (ComponentId compId) newInputNames
 
             SetHasUnsavedChanges false
             |> JSDiagramMsg

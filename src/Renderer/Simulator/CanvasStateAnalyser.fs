@@ -251,29 +251,34 @@ let private checkCounts (conns : Connection list) connMap bins binMap cond errMs
     let totals = countPortsConnections conns connMap bins binMap 
     checkEvery totals cond errMsg
 
-let private checkConns (conns : Connection list) (m : MapData) : SimulationError option =
+let private createConnSimError (conn:Connection) (src:Component) (target: Component) errMsg =
+    {
+        Msg = errMsg
+        InDependency = None
+        ComponentsAffected = [ComponentId src.Id ; ComponentId target.Id]
+        ConnectionsAffected = [ConnectionId conn.Id] 
+    }
+
+let private checkConnSrcTarget conn (src:Component) (target:Component)  =
+     let isPlugin = function | Plugin _ -> true | _ -> false
+     match src.Type, target.Type with
+     | IOLabel, IOLabel ->
+        Some "You can't connect two Wire Labels with a wire. Delete the connecting wire. If you want to join two bus labels \
+                     you need only give them the same name - then they will form a single net."
+     | Plugin _ , x when not (isPlugin x) ->
+         Some "You can't connect the output of Verification components to normal Issie components."
+     | _ ->
+         None
+     |> Option.map (createConnSimError conn src target)
+
+let private checkConnections (connections : Connection list) (m : MapData) : SimulationError option =
     let compOfPort p = m.ToComp[ComponentId p.HostId]
-    conns
+    connections
     |> List.tryPick (fun conn ->
         let s = compOfPort conn.Source
         let t = compOfPort conn.Target
-        if s.Type = IOLabel &&  t.Type = IOLabel then
-            Some (s, t, conn)
-        else None)
-        |> Option.map (fun (s, t, conn) ->
-            (sprintf "You can't connect two Wire Labels with a wire. Delete the connecting wire. If you want to join two bus labels \
-                     you need only give them the same name - then they will form a single net.")
-            |> (fun errMsg -> {
-                Msg = errMsg
-                InDependency = None
-                ComponentsAffected = [ComponentId s.Id ; ComponentId t.Id]
-                ConnectionsAffected = [ConnectionId conn.Id] 
-                }   )      
-        )
-         
-        
+        checkConnSrcTarget conn s t)
     
-
 /// Check that:
 /// - any port has at least one connection,
 /// - any input port has precisely one connection.
@@ -306,12 +311,7 @@ let private checkPortsAreConnectedProperly
                 "A component output port must have at least one connection. If the component output \
                 is meant to be disconnected you can add a wire label to stop this error", "%d")
 
-        // TODO(jpnock): Add check that verification components are only connected to other
-        // verification components, or verification component outputs.
-
-        checkConns conns m 
-                
-
+        checkConnections conns m 
 
     ] |> List.tryPick id
 

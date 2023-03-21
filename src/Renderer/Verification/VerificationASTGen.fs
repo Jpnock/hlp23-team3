@@ -25,7 +25,8 @@ let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentState 
     | Some true -> 
         printf $"making lit : {state}"
 
-        Lit (Id (state.Outputs[sourcePortN].HostLabel, sourcePortN, connId))
+        Id { Name = state.Outputs[sourcePortN].HostLabel; PortNumber = sourcePortN; ConnId = connId}
+        |> Lit
     | _ ->
         printf $"Getting state for {state}"
         let componentPortMap = 

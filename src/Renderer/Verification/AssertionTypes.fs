@@ -34,13 +34,29 @@ type Value =
     | Bool of bool 
     | Uint of uint64
 
+/// Type containing all the necessary information evaluate
+/// an identifier in the simulation
+type Id = {
+    Name: string
+    PortNumber: int
+    ConnId: string
+}
+
 // authored by ln220
 /// Wraps two smallest blocks of an expression
 /// relevant only for Text assertions as block assertions don't have value tokens
 type Lit = 
     | Value of Value
-    //| Id of string // for now, later make it of BusLabel of whatever type there is 
-    | Id of (string * int * string)// for now, later make it of BusLabel of whatever type there is 
+    | Id of Id
+
+// Pattern to make matches on Ids more ergonomic
+let (|Id|_|) expr =
+    match expr with
+    | Id idVal -> Some (idVal.Name, idVal.PortNumber, idVal.ConnId)
+    | _ -> None
+
+let makeId name portNumber connId =
+    Id {Name = name; PortNumber = portNumber; ConnId = connId}
 
 // authored by ln220
 /// Different kinds of type casting supported

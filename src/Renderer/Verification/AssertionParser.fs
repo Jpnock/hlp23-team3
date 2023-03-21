@@ -59,23 +59,26 @@ let (|RegexPattern|_|) regex text =
 /// Lex an assertion expression into a series of tokens.
 /// Will supply errors messages pointing to the piece of text
 /// which cannot be correctly tokenized.
-let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<Token list, CodeError> =
+/// If the input names are known beforehand, e.g. when running the simulation
+/// an input map can be supplied which can be used to link each identifier to 
+/// a specific port/connection in the current sheet.
+let rec lexAssertion (code: string) (inputLinks: Map<string, Id> option) curLine curCol (tokens: Token list): Result<Token list, CodeError> =
     let addToken tokType len= 
         let remainingCode = code.Substring len
         let token = {Type = tokType; Pos = {Line = curLine; Col = curCol; Length = len}}
         let tokens' = List.append tokens [token]
-        lexAssertion remainingCode curLine (curCol + len) tokens'
+        lexAssertion remainingCode inputLinks curLine (curCol + len) tokens'
 
     match code with 
     | RegexPattern "\n" m -> 
         // Count new lines, but don't add them to the list of tokens
-        lexAssertion (code.Substring m.Length) (curLine+1) 0 tokens
+        lexAssertion (code.Substring m.Length) inputLinks (curLine+1) 0 tokens
     | RegexPattern "( |\t)+" m -> 
         // Similar concept for white space
-        lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
+        lexAssertion (code.Substring m.Length) inputLinks curLine (curCol + m.Length) tokens
     | RegexPattern "\/\/[^\n\r]+" m -> 
         // Single line comment
-        lexAssertion (code.Substring m.Length) curLine (curCol + m.Length) tokens
+        lexAssertion (code.Substring m.Length) inputLinks curLine (curCol + m.Length) tokens
     | RegexPattern "[1-9]\d*'" m ->
         let matchedStr = m.Value;
         let width = System.Int32.Parse <| matchedStr.Remove (matchedStr.Length - 1)
@@ -93,8 +96,13 @@ let rec lexAssertion (code: string) curLine curCol (tokens: Token list): Result<
     | LiteralMatch(tok,m) ->   addToken tok m.Length
     | RegexPattern "[_a-zA-Z][_a-zA-Z0-9]*" m ->
         // identifiers
-        // ln220: added 0 as a temporary fix to the fact that now output port number is fixed
-        let idTok = Id (m.Value, 0, "") |> TLit
+        let idTok = 
+            match inputLinks with 
+            | None -> 
+                // No inputs specified, we do not link the identifiers to anything 
+                Id {Name = m.Value; PortNumber= 0; ConnId = ""} |> TLit
+            | Some inputs ->
+                inputs[m.Value] |> Id |> TLit
         addToken idTok m.Length
     | RegexPattern "" _ ->     Ok tokens // Reached end of input.
     | RegexPattern ".*(\n|$)" m ->
@@ -243,7 +251,7 @@ let rec parseOperand expectParen (inputs: string Set) (stream: TokenStream) : Pa
             let litExpr = Expr.Lit lit
             let res = Ok {Expr = litExpr ; Stream = stream'}
             match lit with
-            | Id (name,_,_) -> 
+            | Id (name, _, _) -> 
                 if Set.contains name inputs then
                     res
                 else 
@@ -409,7 +417,7 @@ let prettyPrintAssertion assertion =
     assertion
 
 /// Returns either the resulting AST or an Error 
-let parseAssertion code: Result<Assertion, CodeError>=
+let parseAssertion code (inputLinks: Map<string, Id> option): Result<Assertion, CodeError>=
 
     let checkIfMissing (missingMsg:string) (stream: TokenStream) =
         if List.isEmpty stream.RemainingTokens then
@@ -423,7 +431,7 @@ let parseAssertion code: Result<Assertion, CodeError>=
     // Parse the inputs list followed by the actual assertion expression.
     // Before each parse check if there are any tokens left and if not
     // return a relevant error.
-    lexAssertion code 1 1 []
+    lexAssertion code inputLinks 1 1 []
     |> Result.bind (fun tokens -> Ok {CurToken = dummyToken; RemainingTokens = tokens})
     |> Result.bind (checkIfMissing "Missing definition of inputs!")
     |> Result.bind (parseInputs Set.empty)

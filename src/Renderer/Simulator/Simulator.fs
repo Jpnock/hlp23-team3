@@ -261,15 +261,47 @@ let rec startCircuitSimulation
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with
-        | Plugin state -> state.AssertionText
-        | _ -> None
+        | Plugin state -> 
+            match state.AssertionText with
+            | Some text -> Some (state, text, comp)
+            | None -> None
+        | _ -> None 
     
-    let assertionTexts = canvasComps |> List.choose isAssertionTextComp
-    
-    let assertionTextASTs =
-        List.map AssertionParser.parseAssertion assertionTexts
-    
-    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
+    let assertionTextComps = canvasComps |> List.choose isAssertionTextComp
+    //printfn "Assertion text components %A" assertionTextComps
+    printfn "SimConns: %A" <| snd fullCanvasState  
+
+    let parsedAssertionTexts =
+        let parseAndLink (state:VerificationComponents.ComponentState,assertText:string, comp:Component) =
+
+            printfn "state: %A" state
+            printfn "comp: %A" comp
+            let hostIds = comp.InputPorts |> List.map (fun p -> p.HostId) |> Set.ofList
+
+            let t = componentIDToInputPortState.TryFind state.InstanceID.Value
+            
+            // Get all the inputs going to the text assertion component
+            let inputLinks =
+                List.choose (fun (conn:Connection) ->
+                    let isConnected = Set.contains conn.Target.HostId hostIds 
+                    if isConnected then
+                        printfn "Conn: %A" conn
+                        Some (conn.Target.PortNumber.Value, conn.Id)
+                    else 
+                        None
+                ) (snd fullCanvasState)
+                |> List.map ( fun (pn, connId) -> 
+                    let inputName = state.Inputs[pn].Name 
+                    inputName, {Name = inputName; PortNumber = pn; ConnId = connId} 
+                )
+                |> Map.ofList
+            printfn "Input links: %A" inputLinks
+
+            Some inputLinks 
+            |> AssertionParser.parseAssertion assertText 
+        List.map parseAndLink assertionTextComps
+
+    let allASTs = List.concat [assertionCompASTs; parsedAssertionTexts]
     
     let resultFolder state result =
         match result with 

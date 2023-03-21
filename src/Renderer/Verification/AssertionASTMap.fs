@@ -71,3 +71,5 @@ let astMapper (typ : TokenType) (exprs : PortExprs) : Expr option =
     | TBusCast _->
         printf "Bus cast not yet implemented"
         None
+    | TAssertFalse -> None
+    | TAssertTrue -> None

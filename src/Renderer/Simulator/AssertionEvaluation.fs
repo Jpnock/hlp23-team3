@@ -41,28 +41,24 @@ let boolToUint =
     | true -> 1UL
     | false -> 0UL
 
-let intToBool n = if n = 0L then false else true
-let uintToBool n = if n = 0UL then false else true
+let intToBool n = not (n = 0L)
+let uintToBool n = not (n = 0UL)
 
 // Converts bits to a float32
-let nToFloat32 (n: uint64) size : float32 = 
-    match size with 
-    | Size s when s = 32 ->
-        let exponent = (n >>> 23) &&& uint64 0xFF |> int
-        match exponent with
-        | 0 ->
-            // De-normals are zero (DAZ) for this implementation
-            0.0f
-        | _ ->
-            let mantissa = n &&& uint64 0x7FFFFF |> int
-            let sign = n >>> 31 |> int
-            
-            let trueSign = if sign = 0 then 1.0f else -1.0f
-            let trueExp = float32(exponent - 127)
-            let trueMantissa = (1.0f + float32(mantissa) / float32(0x800000))
-
-            trueSign * (2.0f ** trueExp) * trueMantissa
-    | _ -> 0.f // TODO(): error
+let nToFloat32 (n: uint64) : float32 =
+    let exponent = (n >>> 23) &&& uint64 0xFF |> int
+    match exponent with
+    | 0 ->
+        // De-normals are zero (DAZ) for this implementation
+        0.0f
+    | _ ->
+        let mantissa = n &&& uint64 0x7FFFFF |> int
+        let sign = n >>> 31 |> int
+        
+        let trueSign = if sign = 0 then 1.0f else -1.0f
+        let trueExp = float32(exponent - 127)
+        let trueMantissa = (1.0f + float32(mantissa) / float32(0x800000))
+        trueSign * (2.0f ** trueExp) * trueMantissa
 
 /// get the smallest possible number of bits that a lit would need, 
 /// this provides the width for literals that are not buses
@@ -168,20 +164,20 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     match fBool with
                     | Some(BtB f) -> Ok(Bool(f op1 op2), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
-                | Ok (Float op1, Size sizeL), Ok (Float op2, Size sizeR) -> 
+                | Ok (Float op1, Size sizeL), Ok (Float op2, Size sizeR) ->
                     match fFloat with 
-                    | Some(FtB f) -> Ok(Bool( f (nToFloat32 op1 (Size sizeL)) (nToFloat32 op2 (Size sizeR))), Size(max sizeL sizeR))
-                    | Some(FtF f) -> Ok(Uint(handleFP (nToFloat32 op1 (Size sizeL)) (nToFloat32 op2 (Size sizeR)) f), Size(max sizeL sizeR))
+                    | Some(FtB f) -> Ok(Bool( f (nToFloat32 op1) (nToFloat32 op2)), Size(max sizeL sizeR))
+                    | Some(FtF f) -> Ok(Uint(handleFP (nToFloat32 op1) (nToFloat32 op2) f), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Float opF, sizeF), Ok(Uint opU, _) -> 
                     match fFloat with 
-                    | Some (FtB f) -> Ok(Bool(f (nToFloat32 opF sizeF) (float32 opU)), sizeF)
-                    | Some (FtF f) -> Ok(Uint(handleFP (nToFloat32 opF sizeF) (float32 opU) f), sizeF)
+                    | Some (FtB f) -> Ok(Bool(f (nToFloat32 opF) (float32 opU)), sizeF)
+                    | Some (FtF f) -> Ok(Uint(handleFP (nToFloat32 opF) (float32 opU) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Uint opU, sizeU), Ok (Float opF, sizeF) -> 
                     match fFloat with 
-                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (nToFloat32 opF sizeF)), sizeF)
-                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (nToFloat32 opF sizeF) f), sizeF)
+                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (nToFloat32 opF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (nToFloat32 opF) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Error(e1), Error(e2) -> Error(e1+e2)
                 | Error(e1), _ -> Error(e1)
@@ -231,14 +227,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
         | ToSigned e -> cast e "int" fs step connectionsWidth// this might require some sort of manipulation? or will it be done automatically
         | ToUnsigned e -> cast e "uint" fs step connectionsWidth
         | ToBool e -> cast e "bool" fs step connectionsWidth
-        | ToFloat e -> 
-            match e with 
-            | Lit (Value (Uint _)), _ ->  
-                let value = evaluate e fs step connectionsWidth
-                match value with 
-                | Ok(Uint u, size) -> Ok(Float u, size)
-                | e -> e
-            | _ -> Error("invalid use of floatcast")
+        | ToFloat e -> cast e "float32" fs step connectionsWidth
 
     | BusCast (destSize, e), _-> 
         let value= evaluate e fs step connectionsWidth
@@ -282,6 +271,8 @@ and cast expr castType fs step connectionsWidth=
     let castExprEvaluated= evaluate expr fs step connectionsWidth
     let value = 
         match castExprEvaluated, castType with
+        | Ok(Uint uint, Size size), "float32" -> (Float(uint), Size 32) |> Ok
+        | Ok(Int int, Size size), "float32" -> (Float(uint64 int), Size 32) |> Ok
         | Ok(Int int, size ), "uint" -> Ok(Uint(uint64 (int &&& -1L)), size)
         | Ok(Int int, size), "bool" -> Ok(Bool(intToBool int), size)
         | Ok(Bool bool, size), "uint" -> Ok(Uint(boolToUint bool), size)

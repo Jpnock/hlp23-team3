@@ -855,7 +855,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
         printfn "addedInputNames: %A, removedInputNames: %A" addedInputNames removedInputNames
 
         let newInputs = 
-            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; Signed = None; }) (List.ofSeq newInputNames)
+            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; DataType = DataTypeAssertionInput; }) (List.ofSeq newInputNames)
             |> Map.ofList
 
         let newAssertState = {assertState with Inputs = newInputs}

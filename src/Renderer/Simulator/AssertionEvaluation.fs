@@ -7,6 +7,7 @@ open CommonTypes
 open SimulatorTypes
 open BusWidthInferer
 open System
+open NumberHelpers
 
 type IntToBool = int64 -> int64 -> bool
 type IntToInt = int64 -> int64 -> int64
@@ -44,21 +45,7 @@ let boolToUint =
 let intToBool n = not (n = 0L)
 let uintToBool n = not (n = 0UL)
 
-// Converts bits to a float32
-let nToFloat32 (n: uint64) : float32 =
-    let exponent = (n >>> 23) &&& uint64 0xFF |> int
-    match exponent with
-    | 0 ->
-        // De-normals are zero (DAZ) for this implementation
-        0.0f
-    | _ ->
-        let mantissa = n &&& uint64 0x7FFFFF |> int
-        let sign = n >>> 31 |> int
-        
-        let trueSign = if sign = 0 then 1.0f else -1.0f
-        let trueExp = float32(exponent - 127)
-        let trueMantissa = (1.0f + float32(mantissa) / float32(0x800000))
-        trueSign * (2.0f ** trueExp) * trueMantissa
+
 
 /// get the smallest possible number of bits that a lit would need, 
 /// this provides the width for literals that are not buses
@@ -106,22 +93,8 @@ let resizeSigned (n: int64) width =
     signExtended
 
 let handleFP op1 op2 operand =
-    let reverseIf cond li =
-        if cond then Array.rev li else li    
-
-    let fRes: float32 = operand op1 op2
-    
-    let fBytes =
-        System.BitConverter.GetBytes(fRes)
-        |> reverseIf (not BitConverter.IsLittleEndian)
-    
-    let castAndShift value shiftAmount =
-       (uint64 value) <<< shiftAmount
-       
-    [0..8..24]
-    |> List.mapi (fun i -> castAndShift fBytes[i])
-    |> List.reduce (|||)
-    |> uint64
+    operand op1 op2
+    |> convertFloat32ToIEEE754UInt
 
  // make it convert it back to uint64
 // assume that the AST is correct (as it will be checked upon creation of the component)
@@ -166,18 +139,18 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok (Float op1, Size sizeL), Ok (Float op2, Size sizeR) ->
                     match fFloat with 
-                    | Some(FtB f) -> Ok(Bool( f (nToFloat32 op1) (nToFloat32 op2)), Size(max sizeL sizeR))
-                    | Some(FtF f) -> Ok(Uint(handleFP (nToFloat32 op1) (nToFloat32 op2) f), Size(max sizeL sizeR))
+                    | Some(FtB f) -> Ok(Bool( f (convertIEEE754ToFloat32 op1) (convertIEEE754ToFloat32 op2)), Size(max sizeL sizeR))
+                    | Some(FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 op1) (convertIEEE754ToFloat32 op2) f), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Float opF, sizeF), Ok(Uint opU, _) -> 
                     match fFloat with 
-                    | Some (FtB f) -> Ok(Bool(f (nToFloat32 opF) (float32 opU)), sizeF)
-                    | Some (FtF f) -> Ok(Uint(handleFP (nToFloat32 opF) (float32 opU) f), sizeF)
+                    | Some (FtB f) -> Ok(Bool(f (convertIEEE754ToFloat32 opF) (float32 opU)), sizeF)
+                    | Some (FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 opF) (float32 opU) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Uint opU, sizeU), Ok (Float opF, sizeF) -> 
                     match fFloat with 
-                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (nToFloat32 opF)), sizeF)
-                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (nToFloat32 opF) f), sizeF)
+                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (convertIEEE754ToFloat32 opF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (convertIEEE754ToFloat32 opF) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
                 | Error(e1), Error(e2) -> Error(e1+e2)
                 | Error(e1), _ -> Error(e1)

@@ -417,7 +417,7 @@ module CommonTypes
     ///unconfigured replaces Some -1, Error replaces None, Configured of int replaces Some (positive int)
     type WireWidth = | Configured of int | Unconfigured | ErrorWidth
 
-    type NumberBase = | Hex | Dec | Bin | SDec
+    type NumberBase = | Hex | Dec | Bin | SDec | Float32
 
     /// Colors to highlight components
     /// Case name is used as HTML color name.

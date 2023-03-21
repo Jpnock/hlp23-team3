@@ -147,7 +147,17 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     | Some (FtB f) -> Ok(Bool(f (convertIEEE754ToFloat32 opF) (float32 opU)), sizeF)
                     | Some (FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 opF) (float32 opU) f), sizeF)
                     | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Float opF, sizeF), Ok(Int opU, _) -> 
+                    match fFloat with 
+                    | Some (FtB f) -> Ok(Bool(f (convertIEEE754ToFloat32 opF) (float32 opU)), sizeF)
+                    | Some (FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 opF) (float32 opU) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
                 | Ok(Uint opU, sizeU), Ok (Float opF, sizeF) -> 
+                    match fFloat with 
+                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (convertIEEE754ToFloat32 opF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (convertIEEE754ToFloat32 opF) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Int opU, sizeU), Ok (Float opF, sizeF) -> 
                     match fFloat with 
                     | Some(FtB f) -> Ok(Bool(f (float32 opU) (convertIEEE754ToFloat32 opF)), sizeF)
                     | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (convertIEEE754ToFloat32 opF) f), sizeF)

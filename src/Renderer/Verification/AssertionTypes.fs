@@ -12,6 +12,7 @@ type CodePos = {
     Line : int
     Col : int
     Length : int
+    CompId: string
 }
 
 type CodeExtraErrorInfo = {Text: string; Copy: bool; Replace: ReplaceType}

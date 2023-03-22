@@ -599,7 +599,7 @@ let autoScaleHAndW (sym:Symbol) : Symbol =
         match sym.Component.Type with
         | Custom ct ->
             autoScaleWithName ct.Name 
-        | Plugin p ->
+        | Plugin p when p.AssertionDescription.IsSome && p.LibraryID <> "PLUGIN_CLASSASSERT_ASSERT_HIGH__VISUAL_" ->
             let comp = VerificationLibrary.library.Components[p.LibraryID]
             autoScaleWithName (comp.GetSymbolDetails p).Name
         | _ -> 

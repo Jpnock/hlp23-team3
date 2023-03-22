@@ -270,11 +270,11 @@ let rec startCircuitSimulation
         |> Map.ofList
     
     // TODO(jpnock): Fix uses of this
-    let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
+    let emptyPos compId = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; CompId = compId}
     
     let undrivenError = Error {
         Msg = "An assertion component was not driven by any inputs"
-        Pos = emptyPos
+        Pos = emptyPos "Undriven"
         ExtraErrors = None } 
     let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
     
@@ -294,7 +294,7 @@ let rec startCircuitSimulation
             | Some connectedTo ->               
                 let (assertionInput, _, _) = connectedTo[0]
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
-                let assertion = ast, emptyPos
+                let assertion = ast, emptyPos assertionInput.InstanceID.Value
                 let componentId = 
                     match el.InstanceID with
                     | Some id -> id
@@ -363,7 +363,33 @@ let rec startCircuitSimulation
     let checkedASTs =
         validASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr canvasComps)
-        
+    
+    printfn "checked asts %A" checkedASTs 
+    let checkedASTsWithSimErrors: Result<CheckRes, SimulationError> list = 
+        checkedASTs
+        |> List.mapi ( fun idx ast -> 
+            match ast with 
+            | ErrLst errors -> 
+                Error {
+                    ComponentsAffected = errors |> List.map (fun err -> ComponentId err.Pos.CompId)
+                    ConnectionsAffected = []
+                    Msg = ("", errors) ||> List.fold (fun errMsg err -> errMsg + err.Msg)
+                    InDependency = None
+                }
+            | _ -> Ok ast 
+        )
+    
+    let failedASTs = 
+        checkedASTsWithSimErrors
+        |> List.choose (
+            function 
+            | Ok _ -> None 
+            | Error err -> Some (Error err)
+        )
+
+    printfn "failed asts %A" failedASTs
+
+    // TODO ln220: add something that, if any of the assertions don't compile, returns a simulation erro
     let goodASTs =
         checkedASTs
         |> List.choose (
@@ -382,9 +408,10 @@ let rec startCircuitSimulation
     
     /// Tune for performance of initial zero-length simulation versus longer run.
     /// Probably this is not critical.
-    match runCanvasStateChecksAndBuildGraph canvasState loadedDependencies with
-    | Error err -> Error err
-    | Ok graph ->
+    match runCanvasStateChecksAndBuildGraph canvasState loadedDependencies, failedASTs with
+    | Error err, _-> Error err
+    | _, err::_ -> err // only return first error from compilation of assertions
+    | Ok graph, [] ->
         match mergeDependencies diagramName graph
                                 canvasState loadedDependencies with
         | Error err -> Error err

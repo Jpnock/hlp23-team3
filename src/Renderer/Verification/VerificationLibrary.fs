@@ -73,14 +73,14 @@ let private defaultComps : DefaultComponent list = [
         Name = "Multiply"
         Class = ClassTwoInputOperator "Multiplies the two inputs"
         SymbolName = "A*B"
-        Builder = astMapper TMul
+        Builder = astMapper TMul 
         SignedAndUnsigned = true
      }
      {
         Name = "Divide"
         Class = ClassTwoInputOperator "Divides A by B"
         SymbolName = "A / B"
-        Builder = astMapper TDiv
+        Builder = astMapper TDiv 
         SignedAndUnsigned = true
      }
      {
@@ -101,14 +101,14 @@ let private defaultComps : DefaultComponent list = [
          Name = "Add"
          Class = ClassTwoInputOperator "Outputs the sum of A and B"
          SymbolName = "A + B"
-         Builder = astMapper TAdd
+         Builder = astMapper TAdd 
          SignedAndUnsigned = false
      }
      {
          Name = "Subtract"
          Class = ClassTwoInputOperator "Outputs the value of B subtracted from A"
          SymbolName = "A - B"
-         Builder = astMapper TSub
+         Builder = astMapper TSub 
          SignedAndUnsigned = false
      }
      {

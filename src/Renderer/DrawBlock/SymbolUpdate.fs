@@ -759,7 +759,7 @@ let storeLayoutInfoInComponent _ symbol =
 let checkSymbolIntegrity (sym: Symbol) =
     failwithf ""
 
-let rec private updatePluginState (mapper : VerificationComponents.ComponentState -> VerificationComponents.ComponentState) (model : Model) compId =
+let rec private updatePluginState (mapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) (model : Model) compId =
     let oldSymbol = Map.find compId model.Symbols
     let newCompType = 
         match oldSymbol.Component.Type with
@@ -835,17 +835,18 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     | ChangeAssertionText (compId, newText) ->
         updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
     
-    | ChangeInputSignedness (compId, portNum, signed) ->
+    | ChangeInputDataType (compId, portNum, dataType) ->
         updatePluginState (fun state ->
-            let updateSign (target: VerificationComponents.ComponentInput) = {target with Signed = Some signed}
+            let updateSign (target: VerificationComponents.ComponentInput) = {target with DataType = dataType}
             let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
             {state with Inputs = newInputs}) model compId
     
-    | ChangeComponentState (compId, stateMapper) ->
-        updatePluginState stateMapper model compId
+    | ChangeComponentConfig (compId, cfgMapper) ->
+        updatePluginState cfgMapper model compId
     
-    | ChangeComparatorType (compId, typ) ->
-        updatePluginState (fun state -> {state with ComparatorType = Some typ}) model compId
+    | ChangeMultiComponentType (compId, typ) ->
+        // TODO(jpnock): consider what happens when number of inputs changes
+        updatePluginState (fun state -> {state with MultiComponentType = Some typ}) model compId
     
     | ChangeScale (compId,newScale,whichScale) ->
         let symbol = Map.find compId model.Symbols

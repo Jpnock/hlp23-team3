@@ -120,14 +120,13 @@ let portSheetPort (compsWithIds:Map<ComponentId,Component>) (name:string)  port 
 /// diagramName: name of current open sheet.
 /// save all needed by simulation ldcs in the FastSimulation record.
 /// The top sheet name must be saved separately - since if a simulation is being refreshed it must not change
-let saveStateInSimulation (canvasState:CanvasState) (openFileName: string) (loadedComponents: LoadedComponent list) (fs:FastSimulation) =
+let saveStateInSimulation (canvasState:CanvasState) (openFileName: string) (loadedComponents: LoadedComponent list) =
     let diagramName = openFileName
     let ldcs = getUpdatedLoadedComponentState diagramName canvasState loadedComponents
     //printfn $"diagramName={diagramName}, sheetNames = {ldcs |> List.map (fun ldc -> ldc.Name)}"
     sheetsNeeded ldcs diagramName
     |> List.map (getSheet ldcs)
     |> (fun updatedLdcs -> 
-
         let compMap, portMap =
             updatedLdcs
             |> List.map (
@@ -160,13 +159,16 @@ let saveStateInSimulation (canvasState:CanvasState) (openFileName: string) (load
         let compMap = compMap|> Map.ofList
         let portMap = portMap |> List.concat |> Map.ofList
     
-            
-        {fs with 
+        updatedLdcs, compMap, portMap)
+
+let saveStateInSimulationFastSim (canvasState:CanvasState) (openFileName: string) (loadedComponents: LoadedComponent list) (fs:FastSimulation) =
+    let updatedLdcs, compMap, portMap = saveStateInSimulation canvasState openFileName loadedComponents
+    {
+        fs with 
             SimulatedCanvasState = updatedLdcs
             ComponentsById = compMap
             ConnectionsByPort = portMap 
-        })
-     
+    }
 
 /// Extract circuit data from inputs and return a checked SimulationData object or an error
 /// SimulationData has some technical debt, it wraps FastSimulation adding some redundant data
@@ -177,12 +179,33 @@ let rec startCircuitSimulation
         (loadedDependencies : LoadedComponent list)
         : Result<SimulationData, SimulationError> =
     
-    let canvasComps, canvasConnections = fullCanvasState 
+    let _, sheetComponentMap, sheetCanvasConnections = saveStateInSimulation fullCanvasState diagramName loadedDependencies
+    // printf $"Got all sheet ldcs \n {allSheetLoadedComps}"
+    // printf $"Got all sheet comps \n {sheetComponentMap}"
+    // printf $"Got all sheet conns \n {sheetCanvasConnections}"
+    
+    let canvasConnections =
+        sheetCanvasConnections
+        |> Map.values
+        |> Seq.concat
+        |> List.ofSeq
+    
+    let mergeMaps (maps: seq<Map<_, _>>) =
+        maps
+        |> Seq.fold (fun accMap map ->
+            Map.fold (fun newMap key value -> Map.add key value newMap) accMap map
+        ) Map.empty
     
     let componentMap =
-        canvasComps
-        |> List.map (fun el -> el.Id, el)
-        |> Map.ofList
+        sheetComponentMap
+        |> Map.values
+        |> mergeMaps
+
+    let canvasComps =
+        sheetComponentMap.Values
+        |> Seq.map Map.values
+        |> Seq.concat
+        |> List.ofSeq
     
     let isAssertionComponent (comp:Component) =
         match comp.Type with
@@ -194,11 +217,11 @@ let rec startCircuitSimulation
         List.choose isAssertionComponent canvasComps
     
     let makeState =
-        VerificationComponents.makeStateFromExternalInputComponent
+        VerificationComponents.makeConfigFromExternalInputComponent
 
-    let getPortNames comp : string List = 
+    let getPortNames comp : string list = 
         comp.OutputPorts 
-        |> List.map (fun oP -> oP.Id) 
+        |> List.map (fun oP -> oP.Id)
 
     let getSourceComponentState componentId =
         let source = componentMap[componentId]
@@ -226,7 +249,14 @@ let rec startCircuitSimulation
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
-        |> List.map (fun conn -> (conn.Target.HostId, targetIDtoPortNum conn.Target.Id, (getSourceComponentState conn.Source.HostId, targetIDtoPortNum conn.Source.Id, conn.Id)))
+        |> List.map (fun conn -> (
+                conn.Target.HostId,
+                targetIDtoPortNum conn.Target.Id,
+                (
+                    getSourceComponentState (ComponentId conn.Source.HostId),
+                    targetIDtoPortNum conn.Source.Id, conn.Id)
+                )
+        )
         |> List.groupBy (fun (hostId, _, _) -> hostId)
         |> List.map (fun (k, v) ->
             let inputMap =
@@ -335,7 +365,7 @@ let rec startCircuitSimulation
             printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
             []
     
-    let canvasState = canvasComps, canvasConnections
+    let canvasState = fullCanvasState
     
     /// Tune for performance of initial zero-length simulation versus longer run.
     /// Probably this is not critical.
@@ -357,7 +387,7 @@ let rec startCircuitSimulation
                 try
                     match FastRun.buildFastSimulation simulationArraySize diagramName graph finalAssertions with
                     | Ok fs ->
-                        let fs = saveStateInSimulation canvasState diagramName loadedDependencies fs   
+                        let fs = saveStateInSimulationFastSim canvasState diagramName loadedDependencies fs   
                         Ok {
                             FastSim = fs                           
                             Graph = graph // NB graph is now not initialised with data

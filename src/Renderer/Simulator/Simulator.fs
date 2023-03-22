@@ -297,13 +297,14 @@ let rec startCircuitSimulation
                 let componentId = 
                     match el.InstanceID with
                     | Some id -> id
-                    | _ -> failwithf "What - assertion comps should have ids at this point"
+                    | _ -> failwithf "What? Assertion comps should have ids at this point"
                 let assertionLabel = componentMap[ComponentId componentId].Label
                 let assertionSheet = componentToSheet[ComponentId componentId]
                 Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId; Sheet = Some assertionSheet; Description = el.AssertionDescription})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with
+<<<<<<< Updated upstream
         | Plugin state -> state.AssertionText
         | _ -> None
     
@@ -313,6 +314,45 @@ let rec startCircuitSimulation
         List.map AssertionParser.parseAssertion assertionTexts
     
     let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
+=======
+        | Plugin state -> 
+            match state.AssertionText with
+            | Some text -> Some (state, text, comp)
+            | None -> None
+        | _ -> None 
+    
+    let assertionTextComps = canvasComps |> List.choose isAssertionTextComp
+
+    let parsedAssertionTexts =
+        let parseAndLink (state:VerificationComponents.ComponentConfig, assertText:string, comp:Component) =
+            printfn "portmap: %A ////  %A" componentIDToInputPortState state.InstanceID.Value
+            let portMap = componentIDToInputPortState[state.InstanceID.Value]
+
+            let inputPorts = List.ofSeq state.Inputs.Keys
+            let undrivenInput =
+                List.exists (fun key ->
+                    match Map.tryFind key portMap with
+                    | None -> true
+                    | Some _ -> false 
+                ) inputPorts
+
+            match undrivenInput with
+            | true -> undrivenError
+            | false ->
+                let assertionSheet = componentToSheet[ComponentId comp.Id]
+                let inputLinks = 
+                    inputPorts
+                    |> List.map (fun pn -> 
+                        let (driverState, driverPn, connId) = portMap[pn]
+                        let idData = {Name = driverState.Outputs[driverPn].HostLabel; PortNumber = driverPn; ConnId = connId}
+                        state.Inputs[pn].Name, idData
+                    ) |> Map.ofList
+                AssertionParser.parseAssertion assertText <| Some inputLinks
+                |> Result.bind (fun a -> Ok {a with Name = Some comp.Label; Id = Some comp.Id; Sheet = Some assertionSheet; Description = state.AssertionDescription})
+        List.map parseAndLink assertionTextComps
+
+    let allASTs = List.concat [assertionCompASTs; parsedAssertionTexts]
+>>>>>>> Stashed changes
     
     let resultFolder state result =
         match result with 

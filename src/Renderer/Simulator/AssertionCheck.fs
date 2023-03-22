@@ -32,6 +32,8 @@ let (|IsBoolExpr|_|) (expr: ExprInfo) =
         | Lt(BinOp(l, r))
         | Gt(BinOp(l, r))
         | Lte(BinOp(l,r))
+        | LogAnd(BinOp(l,r))
+        | LogOr(BinOp(l,r))
         | Gte(BinOp(l,r)) -> Some(l, r, pos)
         | _ -> None
     | _ -> None
@@ -124,7 +126,16 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
+    printf "checking ast %A" tree
     match tree with
+    | BoolExpr (LogNot(UnOp e)), pos -> 
+        let check = checkAST e components
+        match check with 
+        | TypeInfo BoolType -> check
+        | ErrLst err -> check
+        | TypeInfo typeUn -> 
+            printf "making error"
+            makeTypeError invTypesErr typeUn None pos
     | IsUnary op -> 
         let opRes = checkAST op components
         match opRes with 
@@ -140,7 +151,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             else makeTypeError invTypesErr typeL (Some typeR) pos
         | _ -> ErrLst (propagateError leftRes rightRes)
     | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
-    | IsBinExpr (l, r, pos) -> checkBin l r pos false false
+    | IsBinExpr (l, r, pos) -> checkBin l r pos true false
     | Lit lit, pos -> 
         match checkLitExistance components lit with 
             | Ok(litType) -> TypeInfo litType

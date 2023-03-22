@@ -30,6 +30,12 @@ let private binaryOp (exprs : PortExprs) =
    (getExprInfo exprs 0, getExprInfo exprs 1)
    |> BinOp
 
+let private unaryOp (exprs: PortExprs) =
+    printf "trying to create log not %A" exprs
+    let expr1 = (getExprInfo exprs 0)
+    printf "expr %A" expr1
+    expr1 |> UnOp 
+
 let noAssertion _ =
     None
 
@@ -48,7 +54,7 @@ let astMapper (typ : TokenType) (exprs : PortExprs) : Expr option =
     | TDiv -> Div (binaryOp exprs) |> Some
     | TRem -> Rem (binaryOp exprs) |> Some
     | TBitAnd -> BitAnd (binaryOp exprs) |> Some
-    | TBitNot -> BitNot (binaryOp exprs) |> Some 
+    | TBitNot -> BitNot (unaryOp exprs) |> Some 
     | TBitOr -> BitOr (binaryOp exprs) |> Some
     | TEq -> BoolExpr (Eq (binaryOp exprs)) |> Some 
     | TNeq -> BoolExpr (Neq (binaryOp exprs)) |> Some
@@ -57,7 +63,7 @@ let astMapper (typ : TokenType) (exprs : PortExprs) : Expr option =
     | TGte -> BoolExpr (Gte (binaryOp exprs)) |> Some  
     | TLte -> BoolExpr (Lte (binaryOp exprs)) |> Some  
     | TLogAnd -> BoolExpr (LogAnd (binaryOp exprs)) |> Some  
-    | TLogNot -> BoolExpr (LogNot (binaryOp exprs)) |> Some  
+    | TLogNot -> BoolExpr (LogNot (unaryOp exprs)) |> Some  
     | TLogOr -> BoolExpr (LogOr (binaryOp exprs)) |> Some  
     | TLParen -> None 
     | TRParen -> None

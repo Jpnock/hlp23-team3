@@ -169,15 +169,18 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             value 
         | UnOp op ->
             let opEvald = evaluate op fs step connectionsWidth
+            printf "unary op %A" opEvald
 
             match opEvald with
-            | Ok(Int op, size) ->
+            | Ok(Int op, Size size) ->
                 match fInt with
-                | Some(ItIUn f) -> Ok(Int(f op), size)
+                | Some(ItIUn f) -> Ok(Int(resizeSigned (f op) size),Size size)
                 | _ -> Error("should not happen")
-            | Ok(Uint op, size) ->
+            | Ok(Uint op, Size size) ->
                 match fUint with
-                | Some(UtUUn f) -> Ok(Uint(f op), size)
+                | Some(UtUUn f) -> 
+                    printf "result %A" ((f op) &&& (mask size) )
+                    Ok(Uint((f op) &&& (mask size)), Size size)
                 | _ ->Error("should not happen" )
             | Ok(Bool op, size)->
                 match fBool with

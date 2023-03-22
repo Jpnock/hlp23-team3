@@ -396,7 +396,7 @@ type LogicalOpComponent =
                 | LogicalOpTypeNot -> astMapper TLogNot signedExprPortMap
             | None -> failwith "Tried to build assertion AST for logical operator without config set"
             | _ -> failwith "what? Tried to build assertion AST for logical operator but wrong multi-component type was set"
-            |> Option.defaultValue (failwithf $"Unable to CreateAST for logical operator {cfg.MultiComponentType}")
+            |> Option.defaultWith (fun () -> failwithf $"Unable to CreateAST for logical operator {cfg.MultiComponentType} {cfg}")
 
 type BitwiseOpComponent =
     { LibraryID: string }

@@ -56,6 +56,7 @@ let childrenOf (ldcs: LoadedComponent list) (sheet:string) =
 let rec sheetsNeeded (ldcs: LoadedComponent list) (sheet:string): string list =
     let children = childrenOf ldcs sheet |> List.map snd
     children
+    |> List.filter (fun dep -> dep <> sheet)
     |> List.map (sheetsNeeded ldcs)
     |> List.concat
     |> List.append children
@@ -271,13 +272,18 @@ let rec startCircuitSimulation
     // TODO(jpnock): Fix uses of this
     let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
     
-    let assertionComps = List.map snd assertionCompsAndIDs
-
     let undrivenError = Error {
         Msg = "An assertion component was not driven by any inputs"
         Pos = emptyPos
         ExtraErrors = None } 
+    let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
     
+    let componentToSheet =
+        componentMap
+        |> Map.map (fun id _ ->
+            sheetComponentMap
+            |> Map.findKey (fun _ compMap -> compMap.ContainsKey id))
+
     let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
         |> List.map (fun el ->
@@ -289,7 +295,13 @@ let rec startCircuitSimulation
                 let (assertionInput, _, _) = connectedTo[0]
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
                 let assertion = ast, emptyPos
-                Ok {AssertExpr = assertion; InputNames = Set.empty})
+                let componentId = 
+                    match el.InstanceID with
+                    | Some id -> id
+                    | _ -> failwithf "What - assertion comps should have ids at this point"
+                let assertionLabel = componentMap[ComponentId componentId].Label
+                let assertionSheet = componentToSheet[ComponentId componentId]
+                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId; Sheet = Some assertionSheet; Description = el.AssertionDescription})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with

@@ -673,6 +673,7 @@ type WaveSimButtonOptions = {
 let endButtonAction canvasState model dispatch ev =
     printf "endbuttonaction"
     removeHighlights model dispatch
+    dispatch <| Sheet (DrawModelType.SheetT.RemoveFailedAssertionHighlights)
     dispatch <| EndWaveSim
 
 /// Return info about current state of waveform simulator

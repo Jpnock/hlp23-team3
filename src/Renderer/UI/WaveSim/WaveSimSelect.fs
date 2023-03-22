@@ -601,10 +601,10 @@ let  selectWaves (ws: WaveSimModel) (subSheet: string list) (dispatch: Msg -> un
 
 
 /// Button to activate wave selection modal
-let selectWavesButton (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
+let selectWavesButton (simRunning  : bool) (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
     let waveCount = Map.count wsModel.AllWaves
     let props, buttonFunc =
-        if waveCount > 0 && wsModel.State=Success then
+        if waveCount > 0 && wsModel.State=Success && simRunning then
             selectWavesButtonProps, (fun _ -> dispatch <| UpdateWSModel (fun ws -> {wsModel with WaveModalActive = true}))
         else selectWavesButtonPropsLight, (fun _ -> ())
     button 
@@ -678,10 +678,10 @@ let selectWavesModal (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElem
 //--------------------------------------------------------------------------------------------------------//
 
 /// Button to activate RAM selection modal.
-let selectRamButton (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
+let selectRamButton (simRunning) (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
     let ramCount = List.length wsModel.RamComps
     let props, buttonFunc =
-        if ramCount > 0 && wsModel.State=Success then
+        if ramCount > 0 && wsModel.State=Success && simRunning then
             selectRamButtonProps, (fun _ -> dispatch <| UpdateWSModel (fun ws -> {wsModel with RamModalActive = true}))
         else selectRamButtonPropsLight, (fun _ -> ())
     button 

@@ -207,4 +207,8 @@ type Precedence = Precedence of int option
 type Assertion = {
     InputNames: string Set;
     AssertExpr: ExprInfo;
+    Name: string Option;
+    Id: string Option;
+    Sheet: string Option;
+    Description: string Option
 }

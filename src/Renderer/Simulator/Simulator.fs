@@ -190,18 +190,28 @@ let rec startCircuitSimulation
         |> Map.values
         |> Seq.concat
         |> List.ofSeq
-    
+        
     let mergeMaps (maps: seq<Map<_, _>>) =
         maps
         |> Seq.fold (fun accMap map ->
             Map.fold (fun newMap key value -> Map.add key value newMap) accMap map
         ) Map.empty
     
+    let componentNoIDMap =
+        sheetComponentMap
+        |> Map.map (fun k -> Map.values >> List.ofSeq)
+    
     let componentMap =
         sheetComponentMap
         |> Map.values
         |> mergeMaps
 
+    let componentToSheet =
+        componentMap
+        |> Map.map (fun id _ ->
+            sheetComponentMap
+            |> Map.findKey (fun _ compMap -> compMap.ContainsKey id))
+    
     let canvasComps =
         sheetComponentMap.Values
         |> Seq.map Map.values
@@ -225,14 +235,16 @@ let rec startCircuitSimulation
         |> List.map (fun oP -> oP.Id)
 
     let getSourceComponentState componentId =
-        let source = componentMap[componentId]
-        match source.Type with
-        | Plugin state -> state
-        | Input1 (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
-        | IOLabel -> makeState source.Id [None] [source.OutputPorts.Head.Id] source.Label
-        | Viewer busWidth -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
-        | Constant (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id] source.Label
-        | _ -> makeState source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source) source.Label
+        let source, sourceSheet = componentMap[componentId], componentToSheet[componentId]
+        let sourceFun =
+            match source.Type with
+            | Plugin state -> fun _ _ -> state
+            | Input1 (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+            | IOLabel -> makeState source.Id [None] [source.OutputPorts.Head.Id]
+            | Viewer busWidth -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+            | Constant (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+            | _ -> makeState source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source)
+        sourceFun source.Label sourceSheet
         
     // Problem : port number is None on components
     // Solution : make a mapping between port Id and number
@@ -247,6 +259,7 @@ let rec startCircuitSimulation
         // printf $"Looking up {id}"
         inputPortIDToNumber[id]
     
+    printf $"Got canvas {canvasComps}\n{canvasConnections}"
     // HostId -> Map<input port number, state>
     let componentIDToInputPortState =
         canvasConnections
@@ -278,12 +291,6 @@ let rec startCircuitSimulation
         ExtraErrors = None } 
     let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
     
-    let componentToSheet =
-        componentMap
-        |> Map.map (fun id _ ->
-            sheetComponentMap
-            |> Map.findKey (fun _ compMap -> compMap.ContainsKey id))
-
     let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
         |> List.map (fun el ->
@@ -305,9 +312,9 @@ let rec startCircuitSimulation
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with
-        | Plugin state -> 
-            match state.AssertionText with
-            | Some text -> Some (state, text)
+        | Plugin cfg -> 
+            match cfg.AssertionText with
+            | Some text -> Some (cfg, text)
             | None -> None
         | _ -> None 
     
@@ -362,7 +369,7 @@ let rec startCircuitSimulation
     
     let checkedASTs =
         validASTs
-        |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr canvasComps)
+        |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr componentNoIDMap)
     
     printfn "checked asts %A" checkedASTs 
     let checkedASTsWithSimErrors: Result<CheckRes, SimulationError> list = 

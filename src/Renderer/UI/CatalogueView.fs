@@ -652,7 +652,8 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                     match parseAssertion code None with
                     | Error e -> [e]
                     | Ok assertion ->
-                        let checkRes = AssertionCheck.checkAST assertion.AssertExpr components
+                        // TODO(jpnock): pass correct comps here
+                        let checkRes = AssertionCheck.checkAST assertion.AssertExpr (Map [])
                         match checkRes with
                         | AssertionTypes.ErrLst eLst -> eLst
                         | AssertionTypes.TypeInfo _ -> []

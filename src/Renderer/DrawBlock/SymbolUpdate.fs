@@ -287,7 +287,10 @@ let getEquivalentCopiedPorts (model: Model) (copiedIds) (pastedIds) (InputPortId
 
 /// Creates and adds a symbol into model, returns the updated model and the component id
 let addSymbol (ldcs: LoadedComponent list) (model: Model) pos compType lbl =
+    // TODO(jpnock): make sure this is called on paste
+    printf "addSymbol called {compType}"
     let newSym = createNewSymbol ldcs pos compType lbl model.Theme
+    printf $"got newSym {newSym}"
     let newPorts = addToPortModel model newSym
     let newSymModel = Map.add newSym.Id newSym model.Symbols
     { model with Symbols = newSymModel; Ports = newPorts }, newSym.Id

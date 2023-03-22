@@ -219,7 +219,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                 | Data{Dat = fb; Width = _}, Some(width) ->  
                     match fb with 
                     | Word w -> Ok(Uint (uint64 w), Size width)
-                    | _ -> Error("failed to retrieve width or value of literal")
+                    | BigWord w -> Ok(Uint (uint64 w), Size width)
                 | _ -> Error("dev error")
             | _ -> failwith $"Tried to match on non existent Lit pattern {lit}"
         value

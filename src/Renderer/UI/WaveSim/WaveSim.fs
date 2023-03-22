@@ -342,7 +342,7 @@ let nameRows (model: Model) (wsModel: WaveSimModel) dispatch: ReactElement list 
                                 |> List.map (fun (_,sym) -> sym.Component)
                                 |> List.filter (function | {Type=IOLabel;Label = lab'} when lab' = lab -> true |_ -> false)
                                 |> List.map (fun comp -> ComponentId comp.Id)
-                            highlightCircuit wsModel.FastSim labelComps wave dispatch                            
+                            highlightCircuit wsModel.FastSim labelComps wave dispatch
                         | Some sym ->
                             highlightCircuit wsModel.FastSim [fst wave.WaveId.Id] wave dispatch
                         | None -> ()
@@ -988,10 +988,10 @@ let topHalf canvasState (model: Model) dispatch : ReactElement =
                     Level.level [] [
                         Level.item [ ] [
                             Button.list [] [
-                                selectWavesButton wsModel dispatch
+                                selectWavesButton wbo.IsRunning wsModel dispatch
                                 selectWavesModal wsModel dispatch
 
-                                selectRamButton wsModel dispatch
+                                selectRamButton wbo.IsRunning wsModel dispatch
                                 selectRamModal wsModel dispatch
                             ]
                         ]
@@ -1023,8 +1023,7 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
         div [ errorMessageStyle ]
             [ SimulationView.viewSimulationError e ]
     
-    let assertionFaliersElement =
-        SimulationView.viewFailedAssertions (getCurrAssertionFailuresWaveSim(wsModel)) model dispatch
+    
 
     div [] [
         div [ viewWaveSimStyle ]
@@ -1057,8 +1056,16 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                         ]
 
                     match getCurrAssertionFailuresWaveSim(wsModel) with
-                    | [] -> reactChildren
-                    | _ -> [assertionFaliersElement] @ [hr []] @ reactChildren
+                    | [] -> 
+                        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
+                        reactChildren
+                    | assertionList -> 
+                        highlightFailedAssertionComps model assertionList dispatch
+                        
+                        let assertionFaliersElement =
+                            SimulationView.viewFailedAssertions (getCurrAssertionFailuresWaveSim(wsModel)) model dispatch
+                        
+                        [assertionFaliersElement] @ [hr []] @ reactChildren
                     |> div [showWaveformsAndRamStyle] 
                         
                 hr []

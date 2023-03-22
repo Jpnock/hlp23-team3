@@ -314,17 +314,17 @@ let rec startCircuitSimulation
         match comp.Type with
         | Plugin cfg -> 
             match cfg.AssertionText with
-            | Some text -> Some (cfg, text)
+            | Some text -> Some (comp, cfg, text)
             | None -> None
         | _ -> None 
     
     let assertionTextComps = canvasComps |> List.choose isAssertionTextComp
 
     let parsedAssertionTexts =
-        let parseAndLink (state:VerificationComponents.ComponentConfig, assertText:string) =
-            let portMap = componentIDToInputPortState.TryFind state.InstanceID.Value |> Option.get
+        let parseAndLink (comp:Component, cfg:VerificationComponents.ComponentConfig, assertText:string) =
+            let portMap = componentIDToInputPortState.TryFind cfg.InstanceID.Value |> Option.get
 
-            let inputPorts = List.ofSeq state.Inputs.Keys
+            let inputPorts = List.ofSeq cfg.Inputs.Keys
             let undrivenInput =
                 List.exists (fun key ->
                     match Map.tryFind key portMap with
@@ -339,8 +339,13 @@ let rec startCircuitSimulation
                     inputPorts
                     |> List.map (fun pn -> 
                         let (driverState, driverPn, connId) = portMap[pn]
-                        let idData = {Name = driverState.Outputs[driverPn].HostLabel; PortNumber = driverPn; ConnId = connId}
-                        state.Inputs[pn].Name, idData
+                        let idData = {
+                            Name = driverState.Outputs[driverPn].HostLabel
+                            Sheet = componentToSheet[ComponentId comp.Id]
+                            PortNumber = driverPn
+                            ConnId = connId
+                        }
+                        cfg.Inputs[pn].Name, idData
                     ) |> Map.ofList
                 AssertionParser.parseAssertion assertText <| Some inputLinks
         List.map parseAndLink assertionTextComps

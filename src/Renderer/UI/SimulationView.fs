@@ -647,13 +647,23 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
         |> List.map (fun (_, width, _) -> width)
     let outputWidthList =
         simData.Outputs 
-        |> List.map (fun (_,_,w) -> w)       
+        |> List.map (fun (_,_,w) -> w)
+    let inputWidthList =
+        simData.Inputs 
+        |> List.map (fun (_,_,w) -> w)
+  
+    let hasMultiBitIO =
+        List.map ((>) 1) >> List.isEmpty >> not
+    let hasMultiBitInputs =
+        hasMultiBitIO inputWidthList
     let hasMultiBitOutputs =
-        (List.append outputWidthList viewerWidthList)|> List.map ((>) 1) |> List.isEmpty |> not
+        (List.append outputWidthList viewerWidthList)|> hasMultiBitIO
+    
     let maybeBaseSelector =
-        match hasMultiBitOutputs with
+        match hasMultiBitInputs || hasMultiBitOutputs with
         | false -> div [] []
         | true -> baseSelector simData.NumberBase (changeBase dispatch)
+        
     let maybeClockTickBtn =
         let step = simData.ClockTickNumber
         match simData.IsSynchronous with

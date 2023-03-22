@@ -7,6 +7,7 @@
 module CatalogueView
 
 open AssertionTypes
+open AssertionASTMap
 open EEExtensions
 open VerilogTypes
 open Fulma
@@ -579,7 +580,11 @@ let createCodeEditorPopup title preamble saveAction updateAction compileAction a
 let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch =
     let title = "Create assertions to verify your sheet" 
     
-    let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
+    let initContents = 
+        match origin with 
+        | NewCodeFile -> Some "// Get started by writing your assertions below! Here's a few examples: \n\n signed(5'b) >= (a - 25) * 2 \n\n" 
+        | ExistingCodeFile data -> Some data.Code
+
     let assertionCode = {
         Type = AssertionCode
         Contents = initContents 
@@ -600,10 +605,38 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
     let updateAction = 
         fun (dialogData : PopupDialogData) ->
             dispatch (StartUICmd SaveSheet)        
-            
+
             let code = getCodeContents dialogData
             model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
             
+            // Get the inputs for the assertion code. Check if they have been updated and if so,
+            // change the component to reflect these changes.
+            let newInputNames = 
+                match parseAssertion code None with
+                | Ok assertion ->
+                    assertion.InputNames
+                | _ -> failwithf "What? Impossible to press update on assertion text component that can't compile"
+            
+            let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
+            let assertState = 
+                match assertComponent.Type with
+                | Plugin p -> p
+                | _ -> failwithf "What? Not possible for a text assertion component not to be a verification component."
+
+            let oldInputNames = 
+                assertState.Inputs 
+                |> Map.toList
+                |> List.map (fun (_, i) -> i.Name)
+                |> Set.ofList
+
+            if newInputNames <> oldInputNames then
+                model.Sheet.SetAssertionInputs (Sheet >> dispatch) (ComponentId compId) newInputNames
+
+            printfn "catalogue conns: %A" (snd <| model.Sheet.GetCanvasState ())
+
+            SetHasUnsavedChanges false
+            |> JSDiagramMsg
+            |> dispatch
             dispatch FinishUICmd     
             dispatch <| Sheet(SheetT.DoNothing)
 
@@ -616,21 +649,13 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                 let components = fst model.LastDetailedSavedState
                 
                 let errorList = 
-                    match parseAssertion code with
+                    match parseAssertion code None with
                     | Error e -> [e]
                     | Ok assertion ->
                         let checkRes = AssertionCheck.checkAST assertion.AssertExpr components
                         match checkRes with
                         | AssertionTypes.ErrLst eLst -> eLst
                         | AssertionTypes.TypeInfo _ -> []
-
-                let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
-                match assertComponent.Type with
-                | Plugin state -> printf "%A" state.Inputs
-                // TODO(jlsand): Not currently possible, although certainly possible in the future that someone may pass in an invalid component ID.
-                // Might make sense to return a result? Not sure.
-                | _ -> failwithf "What? Not possible for a text assertion component not to be a verification component."
-
 
                 let dialogData' = Optic.set code_errors_ errorList dialogData
                 dispatch <| SetPopupDialogCode dialogData'.Code
@@ -650,7 +675,10 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
 let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
     let title = sprintf "Create Combinational Logic Components using Verilog" 
     
-    let initContents = match origin with | NewCodeFile -> None | ExistingCodeFile data -> Some data.Code
+    let initContents = 
+        match origin with 
+        | NewCodeFile -> Some "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" 
+        | ExistingCodeFile data -> Some data.Code
     let verilogCode = {
         Type = VerilogCode {ModuleName = "NAME"}
         Contents = initContents

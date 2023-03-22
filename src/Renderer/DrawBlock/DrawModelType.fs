@@ -223,6 +223,7 @@ module SymbolT =
         | ErrorSymbols of errorIds: ComponentId list * selectIds: ComponentId list * isDragAndDrop: bool
         | ChangeNumberOfBits of compId:ComponentId * NewBits:int
         | ChangeAssertionText of compId:ComponentId * string
+        | SetAssertionInputs of compId:ComponentId * Inputs: string Set
         | ChangeInputDataType of compId:ComponentId * AssertionASTMap.InputPortNumber * VerificationComponents.DataType
         | ChangeComponentConfig of compId:ComponentId * (VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig)
         | ChangeMultiComponentType of compId:ComponentId * VerificationComponents.MultiComponentType
@@ -500,6 +501,9 @@ module SheetT =
         | ResetModel
         | UpdateSelectedWires of ConnectionId list * bool
         | ColourSelection of compIds : ComponentId list * connIds : ConnectionId list * colour : HighLightColor
+        | HighlightFailedAssertions of compIds : ComponentId list
+        | RemoveFailedAssertionHighlights
+        | SetDisplayedAssertionIndex of int
         | PortMovementStart
         | PortMovementEnd
         | ResetSelection
@@ -554,6 +558,8 @@ module SheetT =
         SelectedLabel: CommonTypes.ComponentId option
         SelectedComponents: CommonTypes.ComponentId List
         SelectedWires: CommonTypes.ConnectionId list
+        FailedAssertionsHighlighted : ComponentId list
+        DisplayedAssertionIndex : int
         NearbyComponents: CommonTypes.ComponentId list
         ErrorComponents: CommonTypes.ComponentId list
         DragToSelectBox: BoundingBox

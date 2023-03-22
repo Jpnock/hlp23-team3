@@ -73,14 +73,14 @@ let private defaultComps : DefaultComponent list = [
         Name = "Multiply"
         Class = ClassTwoInputOperator "Multiplies the two inputs"
         SymbolName = "A*B"
-        Builder = astMapper TMul
+        Builder = astMapper TMul 
         SignedAndUnsigned = true
      }
      {
         Name = "Divide"
         Class = ClassTwoInputOperator "Divides A by B"
         SymbolName = "A / B"
-        Builder = astMapper TDiv
+        Builder = astMapper TDiv 
         SignedAndUnsigned = true
      }
      {
@@ -101,14 +101,14 @@ let private defaultComps : DefaultComponent list = [
          Name = "Add"
          Class = ClassTwoInputOperator "Outputs the sum of A and B"
          SymbolName = "A + B"
-         Builder = astMapper TAdd
+         Builder = astMapper TAdd 
          SignedAndUnsigned = false
      }
      {
          Name = "Subtract"
          Class = ClassTwoInputOperator "Outputs the value of B subtracted from A"
          SymbolName = "A - B"
-         Builder = astMapper TSub
+         Builder = astMapper TSub 
          SignedAndUnsigned = false
      }
      {
@@ -126,12 +126,14 @@ let private makeTextAssertion : IComponent =
         {
             Name = "Assert HIGH (Text)"
             Class = ClassNoIO "Evaluates the provided expression and raises an assertion if the result is not HIGH"
-            SymbolName = "Text\nAssertion"
+            SymbolName = "Text Assert"
             Builder = noAssertion
             SignedAndUnsigned = false
         }.makeSimpleComponents[0]
+    let defaultText = 
+        "// Get started by writing your assertions below! Here's a few examples: \n\ninput a; input b; \n a == b \n//a >= b + 5 \n//signed(5'b) >= (a - 25) * 2 \n\n"
     {
-        comp with DefaultConfig = { comp.DefaultConfig with AssertionText = Some ""; AssertionDescription = Some "" }
+        comp with DefaultConfig = { comp.DefaultConfig with AssertionText = Some defaultText ; AssertionDescription = Some "" }
     }
 
 let private comparatorComp : IComponent =

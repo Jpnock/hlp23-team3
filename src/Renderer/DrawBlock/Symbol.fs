@@ -500,17 +500,15 @@ let getCustomCompArgs (x:CustomComponentType) (label:string) =
     let w = max scaledW (Constants.gridSize * 4) //Ensures a minimum width if the labels are very small
     ( List.length x.InputLabels, List.length x.OutputLabels, h ,  w)
 *)
-/// obtain map from port IDs to port names for Custom Component.
+/// obtain map from port IDs to port names for Custom Component or Plugin Component.
 /// for other components types this returns empty map
 let getCustomPortIdMap (comp: Component)  =
         let label = comp.Label
-        match comp.Type with
-        | Custom customType ->
+        let makeIdMap inputLabels outputLabels =
             let inputPorts = comp.InputPorts
             let outputPorts = comp.OutputPorts
-            let inputPortIdLabels = List.zip inputPorts customType.InputLabels
-            let outputPortIdLabels = List.zip outputPorts customType.OutputLabels
-
+            let inputPortIdLabels = List.zip inputPorts inputLabels
+            let outputPortIdLabels = List.zip outputPorts outputLabels
             let inputMap =
                 (Map.empty, inputPortIdLabels) 
                 ||> List.fold (fun currMap (port,label) -> Map.add port.Id (fst label) currMap)
@@ -519,6 +517,19 @@ let getCustomPortIdMap (comp: Component)  =
                 ||> List.fold (fun currMap (port, label) -> Map.add port.Id (fst label) currMap)
 
             finalMap
+
+        match comp.Type with
+        | Custom customType ->
+            makeIdMap customType.InputLabels customType.OutputLabels
+        | Plugin p ->
+            let inputLabels = 
+                Map.toList p.Inputs
+                |> List.map ( fun (pn, input) -> (input.Name, pn) )
+            let outputLabels = 
+                Map.toList p.Outputs
+                |> List.map ( fun (pn, input) -> (input.Name, pn) )
+            makeIdMap inputLabels outputLabels
+
         | _ -> Map.empty
 
 /// Needed because the I/Os of a custom component can be changed on anotehr sheet.
@@ -540,51 +551,57 @@ let makeMapsConsistent (portIdMap: Map<string,string>) (sym: Symbol) =
     |> (fun maps -> maps, deletedPortIds)
     ||> Set.fold (fun maps port -> deletePortFromMaps port maps )
 
-/// adjust symbol (and component) dimensions based on current ports and labels of a custom component.
-/// leaves other symbols unchanged
+/// adjust symbol (and component) dimensions based on current ports and labels of a custom component
+/// or a plugin component. Leaves other symbols unchanged
 let autoScaleHAndW (sym:Symbol) : Symbol =
     //height same as before, just take max of left and right
         printfn "autoscaling..."
+        let autoScaleWithName (name:string) =
+
+            let portIdMap = getCustomPortIdMap sym.Component
+            let portMaps = makeMapsConsistent portIdMap sym
+            let convertIdsToLbls currMap edge idList =
+                let lblLst = List.map (fun id -> portIdMap[id]) idList
+                Map.add edge lblLst currMap
+            let portLabels = 
+                (Map.empty, portMaps.Order) ||> Map.fold convertIdsToLbls
+            let h = float Constants.gridSize + Constants.customPortSpacing * float (max portLabels[Left].Length portLabels[Right].Length)
+            let getHorizontalSpace side =
+                let labs = portLabels[side]
+                match labs.Length % 2 with
+                | 0 -> 0. // no space needed because we have even number of connections
+                | _ -> // odd number
+                    labs[labs.Length / 2]
+                    |> fun s -> customStringToLength [s]
+                    
+            let leftSpace = getHorizontalSpace Left
+            let rightSpace = getHorizontalSpace Right
+
+            //need to check the sum of the lengths of top and bottom
+            let topLength = customStringToLength portLabels[Top] 
+            let bottomLength = customStringToLength portLabels[Bottom]
+            let labelLength = customStringToLength [name]
+            //Divide by 5 is just abitrary as otherwise the symbols would be too wide 
+            let maxW = 
+                [
+                    (2.0*(max leftSpace rightSpace) + labelLength*1.333 + 10.) // 1.6 should be a constant - ratio of sizes - TODO. Also 10.
+                    float (portLabels[Top].Length + 1) * topLength
+                    float (portLabels[Bottom].Length + 1) * bottomLength
+                ] |> List.max |> (*) 1.1
+            let w = maxW
+            printfn $"MaxW = {maxW}"
+            let scaledW = max w (float Constants.gridSize * 4.) //Ensures a minimum width if the labels are very small
+            let scaledH = max h (float Constants.gridSize*2.)
+            {sym with
+                PortMaps = portMaps
+                Component = {sym.Component with H= float scaledH; W = float scaledW; X = sym.Pos.X; Y=sym.Pos.Y}}
+        
         match sym.Component.Type with
         | Custom ct ->
-                let portIdMap = getCustomPortIdMap sym.Component
-                let portMaps = makeMapsConsistent portIdMap sym
-                let convertIdsToLbls currMap edge idList =
-                    let lblLst = List.map (fun id -> portIdMap[id]) idList
-                    Map.add edge lblLst currMap
-                let portLabels = 
-                    (Map.empty, portMaps.Order) ||> Map.fold convertIdsToLbls
-                let h = float Constants.gridSize + Constants.customPortSpacing * float (max portLabels[Left].Length portLabels[Right].Length)
-                let getHorizontalSpace side =
-                    let labs = portLabels[side]
-                    match labs.Length % 2 with
-                    | 0 -> 0. // no space needed because we have even number of connections
-                    | _ -> // odd number
-                        labs[labs.Length / 2]
-                        |> fun s -> customStringToLength [s]
-                        
-                let leftSpace = getHorizontalSpace Left
-                let rightSpace = getHorizontalSpace Right
-
-                //need to check the sum of the lengths of top and bottom
-                let topLength = customStringToLength portLabels[Top] 
-                let bottomLength = customStringToLength portLabels[Bottom]
-                let labelLength = customStringToLength [ct.Name]
-                //Divide by 5 is just abitrary as otherwise the symbols would be too wide 
-                let maxW = 
-                    [
-                        (2.0*(max leftSpace rightSpace) + labelLength*1.333 + 10.) // 1.6 should be a constant - ratio of sizes - TODO. Also 10.
-                        float (portLabels[Top].Length + 1) * topLength
-                        float (portLabels[Bottom].Length + 1) * bottomLength
-                    ] |> List.max |> (*) 1.1
-                let w = maxW
-                printfn $"MaxW = {maxW}"
-                let scaledW = max w (float Constants.gridSize * 4.) //Ensures a minimum width if the labels are very small
-                let scaledH = max h (float Constants.gridSize*2.)
-                {sym with
-                    PortMaps = portMaps
-                    Component = {sym.Component with H= float scaledH; W = float scaledW; X = sym.Pos.X; Y=sym.Pos.Y}}
-
+            autoScaleWithName ct.Name 
+        | Plugin p when p.AssertionDescription.IsSome && p.LibraryID <> "PLUGIN_CLASSASSERT_ASSERT_HIGH__VISUAL_" ->
+            let comp = VerificationLibrary.library.Components[p.LibraryID]
+            autoScaleWithName (comp.GetSymbolDetails p).Name
         | _ -> 
             let comp = sym.Component
             {sym with Component = {comp with X = sym.Pos.X; Y = sym.Pos.Y}}
@@ -641,6 +658,7 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | Plugin p -> (
         let comp = VerificationLibrary.library.Components[p.LibraryID]
         let symbolProps = comp.GetSymbolDetails p
+        printfn "sumbolprops%A" symbolProps
         p.Inputs.Count, p.Outputs.Count, symbolProps.Height, symbolProps.Width)
 
 /// make a completely new component

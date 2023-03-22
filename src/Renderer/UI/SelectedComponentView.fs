@@ -696,6 +696,7 @@ let private makeDescription (comp:Component) model dispatch =
                  br []
                 ]
             | _ -> []
+
         div [] ([
             str (VerificationLibrary.library.Components[p.LibraryID].GetDescription p)
         ]  @ assertionEditButton)
@@ -1002,9 +1003,15 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
                 )
                 |> Some
             | _ -> None
-
+        
+        let emptyIfAssertionComp m =
+            match p.AssertionDescription with
+            | Some _ -> Map []
+            | None -> m
+        
         let dataTypeDropdown =
             p.Inputs
+            |> emptyIfAssertionComp
             |> Map.map (makeDataTypeDropdown model dispatch comp)
             |> Map.values
             |> List.ofSeq

@@ -62,7 +62,8 @@ let getType value =
 let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
     | Value value -> Ok(getType value)
-    | Id (id, _, _) -> 
+    | Id (id, _, _) -> Ok(UintType)
+        (*
         let isRightComponent (comp: Component) = 
             match comp.Label with 
             | idComp when idComp = id -> true
@@ -73,6 +74,7 @@ let checkLitExistance (components: Component List) (lit: Lit) : Result<Assertion
             | [c] -> Ok(UintType) 
             | [] -> Error($"the ID {id} does not exist") 
             | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
+        *)
 
 
 /// check that the verification AST obeys the type system 
@@ -113,17 +115,12 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
     let checkBin l r pos supportsBool makesBool =
         let leftChecked = checkAST l components
         let rightChecked= checkAST r components  
-        match leftChecked, rightChecked with
-        | TypeInfo typeL, TypeInfo typeR -> 
-            if typeL = typeR && typeL = BoolType
-            then
-                if supportsBool 
-                then leftChecked
-                else makeTypeError invTypesErr typeL (Some typeR) pos
-            elif typeL <> BoolType && typeR <> BoolType 
-            //then checkSize l r leftChecked rightChecked pos makesBool
-            then leftChecked 
-            else makeTypeError hetTypesErr typeL (Some typeR) pos //not same type error
+        match leftChecked, rightChecked, supportsBool, makesBool with
+        | TypeInfo _, TypeInfo _, _, true -> TypeInfo BoolType
+        | TypeInfo BoolType, TypeInfo BoolType, true, false -> leftChecked
+        | TypeInfo BoolType, TypeInfo BoolType, false, _ -> makeTypeError invTypesErr BoolType (Some BoolType) pos
+        | TypeInfo leftT,TypeInfo rightT, _, _ when leftT = BoolType || rightT = BoolType -> makeTypeError hetTypesErr leftT (Some rightT) pos //not same type error
+        | TypeInfo _, TypeInfo _, _, _ -> leftChecked
         | _ ->  ErrLst (propagateError leftChecked rightChecked)
 
     printf "checking ast %A" tree
@@ -150,8 +147,12 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
             then leftRes // it's not important what is passed, it's enough to pass type and size information 
             else makeTypeError invTypesErr typeL (Some typeR) pos
         | _ -> ErrLst (propagateError leftRes rightRes)
-    | IsBoolExpr (l, r, pos) -> checkBin l r pos true true
-    | IsBinExpr (l, r, pos) -> checkBin l r pos true false
+    | IsBoolExpr (l, r, pos) -> 
+        printfn "is bool expr: %A" tree 
+        checkBin l r pos true true
+    | IsBinExpr (l, r, pos) -> 
+        printfn "ledt: %A right %A" l r
+        checkBin l r pos false false
     | Lit lit, pos -> 
         match checkLitExistance components lit with 
             | Ok(litType) -> TypeInfo litType

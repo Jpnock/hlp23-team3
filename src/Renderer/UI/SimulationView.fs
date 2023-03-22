@@ -203,6 +203,7 @@ let prepareSimulationMemoized
             diagramName = simCache.Name &&
             cacheIsEqual simCache ldcs
     if  isSame then
+        printfn "memoised"
         simCache.StoredResult, canvasState
     else
         printfn "New simulation"
@@ -427,13 +428,19 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
             "Goto sheet with failure"
 
     let onClickFunc (_ : Browser.Types.MouseEvent) =
+        printf($"{fa.Sheet}")
+        dispatch CloseSimulationNotification // Close error notifications.
+        dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
+        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
+        dispatch EndSimulation // End simulation.
+        dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
         dispatch (StartUICmd ChangeSheet)
         printfn "Starting UI Cmd"
         dispatch <| ExecFuncInMessage(
             (fun model dispatch -> 
                 let p = Option.get model.CurrentProj
                 FileMenuView.openFileInProject fa.Sheet p model dispatch), dispatch)
-
+        
     let buttonProps = [
         Button.Color IsInfo
         Button.Disabled(fa.Sheet = project.OpenFileName)
@@ -443,15 +450,14 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
     let failureLines = fa.FailureMessage.Split "\n"
     let failureMessageElements =
         failureLines
-        |> Seq.collect (fun line -> [str line ; br []])
+        |> Seq.collect (fun line -> [br [] ; str line ; br []])
         |> List.ofSeq
-    failureMessageElements @
+    div [] (failureMessageElements @
     [
         br []
         Button.button buttonProps [ str buttonString ]
         br []
-    ]
-
+    ])
 /// Turns failed assertion list into a react element
 /// Authored by djj120
 let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Model) dispatch =
@@ -460,12 +466,61 @@ let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Mode
         | Some p -> p
         | None -> failwith "What - Project shouldn't be empty here"
     
-    let failedAssertionElements = List.collect (fun fa -> viewFailedAssertion fa project dispatch) failedAssertions 
+    let protectedDisplayedIndex = 
+        match model.Sheet.DisplayedAssertionIndex < failedAssertions.Length && model.Sheet.DisplayedAssertionIndex >= 0 with
+        | true -> model.Sheet.DisplayedAssertionIndex
+        | false -> 0
+    
+    let menuItem idx fa =
+        Menu.Item.li [
+            Menu.Item.IsActive (failedAssertions[protectedDisplayedIndex] = fa)
+            Menu.Item.OnClick (fun _ ->
+                    dispatch <| Sheet (SheetT.SetDisplayedAssertionIndex idx)
+                )
+            ] [fa.Name |> str]
 
-    div [] [
-        Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
-        div [] failedAssertionElements
-    ]
+    let creatDropdown (faList : FailedAssertion List)  =
+        Dropdown.dropdown [
+                Dropdown.IsHoverable
+                Dropdown.Option.Props [
+                    Style [
+                        BorderRadius "4px"
+                        BoxShadow "inset 0 0.0625em 0.125em rgba(10, 10, 10, 0.05)"
+                        BackgroundColor "white"
+                        Color "#363636"
+                        Border "1px solid"
+                        BorderColor "#dbdbdb"
+                        Width "100%"
+                    ]
+                ]
+            ] [
+            
+            let selectedDisplay = faList[protectedDisplayedIndex].Sheet + " - " + faList[protectedDisplayedIndex].Name
+            Navbar.Link.a [
+                Navbar.Link.Option.Props [
+                    Style [Width "100%"]
+                ]
+            ] [ selectedDisplay |> str ]
+            Dropdown.menu [Props [Style [Width "100%"]]] [
+                Dropdown.content [Props [Style [ZIndex 1000]]] [
+                    Dropdown.Item.div [] [
+                        Menu.menu [Props [Style [OverflowY OverflowOptions.Scroll]]] [
+                            Menu.list [] (
+                                faList
+                                |> Seq.mapi menuItem
+                                |> List.ofSeq)
+                        ]]]]]
+
+
+    match failedAssertions with
+    | [] -> div [] []
+    | _ -> div [] [
+            Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
+            creatDropdown failedAssertions
+            viewFailedAssertion failedAssertions[protectedDisplayedIndex] project dispatch
+        ]
+
+    
 
 let private simulationClockChangePopup (simData: SimulationData) (dispatch: Msg -> Unit) (dialog:PopupDialogData) =
     let step = simData.ClockTickNumber
@@ -770,6 +825,7 @@ let viewSimulation canvasState model dispatch =
         let endSimulation _ =
             dispatch CloseSimulationNotification // Close error notifications.
             dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
+            dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
             dispatch EndSimulation // End simulation.
             dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
             
@@ -778,8 +834,12 @@ let viewSimulation canvasState model dispatch =
             | Error _ -> div [] []
             | Ok simData ->
                 match getCurrAssertionFailuresStepSim(simData) with
-                | [] -> div [] []
-                | assertionList -> viewFailedAssertions assertionList model dispatch
+                | [] -> 
+                    dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
+                    div [] []
+                | assertionList -> 
+                    ModelHelpers.highlightFailedAssertionComps model assertionList dispatch
+                    viewFailedAssertions assertionList model dispatch
 
         div [Style [Height "100%"]] [
                 Button.button

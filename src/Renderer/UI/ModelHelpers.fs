@@ -312,3 +312,21 @@ let getFailedAssertionCycles (failedAssertions: FailedAssertion list)=
 let getCurrAssertionFailuresStepSim (simData : SimulationData) =
     let failedAssertions = evaluateAssertionsInWindow simData.ClockTickNumber simData.ClockTickNumber simData.FastSim
     List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions
+
+// Highlights the failed assertions given in a list that exist on the current sheet
+let highlightFailedAssertionComps (model: Model) failedAssertions dispatch = 
+    let symbols = model.Sheet.Wire.Symbol.Symbols
+    let filter compId= 
+        match Map.tryFind compId symbols with
+        | Some _ -> true
+        | _ -> false
+
+    let filteredCompIds = 
+        failedAssertions
+        |> List.map (fun fa -> fa.CompId)
+        |> List.filter filter 
+    
+    match filteredCompIds with
+    | [] -> ()
+    | _ ->
+        dispatch <| Sheet (DrawModelType.SheetT.HighlightFailedAssertions filteredCompIds)

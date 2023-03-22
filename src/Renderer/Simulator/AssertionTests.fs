@@ -92,20 +92,20 @@ let makeComp id label cType =
 /// test compilation of AST: size error
 let testCheck1 () : Result<string, string>= 
     // ((3+2)>5)<true
-    let lit3 = Lit(Value(Int(3))), {Line = 0; Col = 10; Length = 1}
-    let lit2 = Lit(Value(Int(2))), {Line = 0; Col = 8; Length = 1}
-    let lit5 = Lit(Value(Int(5))), {Line = 0; Col = 13; Length = 1}
-    let addExpr = Add(BinOp(lit3, lit2)), {Line = 0; Col = 7; Length = 5}
-    let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5))), {Line = 0; Col = 7; Length = 8}
-    let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5}
+    let lit3 = Lit(Value(Int(3))), {Line = 0; Col = 10; Length = 1; CompId = ""}
+    let lit2 = Lit(Value(Int(2))), {Line = 0; Col = 8; Length = 1; CompId = ""}
+    let lit5 = Lit(Value(Int(5))), {Line = 0; Col = 13; Length = 1; CompId = ""}
+    let addExpr = Add(BinOp(lit3, lit2)), {Line = 0; Col = 7; Length = 5; CompId = ""}
+    let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5))), {Line = 0; Col = 7; Length = 8; CompId = ""}
+    let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5; CompId = ""}
     
-    let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16} 
+    let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16; CompId = ""} 
     let compile = checkAST tree []
     match compile with 
     | ErrLst eLst -> 
         match eLst with 
         | e::_ -> 
-            if (e = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 4"; Pos = {Line = 0; Col = 7; Length = 8}; ExtraErrors = None})
+            if (e = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 4"; Pos = {Line = 0; Col = 7; Length = 8; CompId = ""}; ExtraErrors = None })
             then Ok($"The following expr: {print tree}, should not compile because {e.Msg}")
             else Error($"wrong error returned for the following expr: {print tree}: {e}")
         | lst -> Error($"too many errors: {lst}")
@@ -115,14 +115,14 @@ let testCheck1 () : Result<string, string>=
 /// test compilation of AST: width checking of bus
 let testCheck2 (): Result<string, string> = 
     // true < ((3+4)>5)
-    let lit3u = Lit(Value(Uint(3UL))), {Line = 0; Col = 10; Length = 1}
-    let litA = Lit(Id("a", 0, "")), {Line = 0; Col = 8; Length = 1}
-    let lit5u = Lit(Value(Uint(5UL))), {Line = 0; Col = 13; Length = 1}
-    let addExpr = Add(BinOp(lit3u, litA)), {Line = 0; Col = 7; Length = 5}
-    let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5u))), {Line = 0; Col = 7; Length = 8}
-    let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5}
+    let lit3u = Lit(Value(Uint(3UL))), {Line = 0; Col = 10; Length = 1; CompId = ""}
+    let litA = Lit(makeId "a" 0 ""), {Line = 0; Col = 8; Length = 1; CompId = ""}
+    let lit5u = Lit(Value(Uint(5UL))), {Line = 0; Col = 13; Length = 1; CompId = ""}
+    let addExpr = Add(BinOp(lit3u, litA)), {Line = 0; Col = 7; Length = 5; CompId = ""}
+    let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5u))), {Line = 0; Col = 7; Length = 8; CompId = ""}
+    let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5; CompId = ""}
     let comp = makeComp "compA" "a" (Viewer 3)
-    let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16} 
+    let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16; CompId = ""} 
     let compile = checkAST tree [comp]
     match compile with
     | TypeInfo t  when t = BoolType -> Ok($"The expr: {print tree} was successfully compiled. It has type {t}")
@@ -132,11 +132,11 @@ let testCheck2 (): Result<string, string> =
 
 let testCheck3 (): Result<string, string> = 
     // (a + b) == 0 (with a and b being of different widths)
-    let lit0u = Lit(Value(Uint(0UL))), {Line = 0; Col = 10; Length = 1}
-    let litA = Lit(Id("a", 0, "")), {Line = 0; Col = 1; Length = 1}
-    let litB = Lit(Id("b", 0, "")), {Line = 0; Col = 3; Length = 1}
-    let addExpr = Add(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5}
-    let eqExpr = BoolExpr(Eq(BinOp(addExpr, lit0u))), {Line = 0; Col = 7; Length = 8}
+    let lit0u = Lit(Value(Uint(0UL))), {Line = 0; Col = 10; Length = 1; CompId = "c"}
+    let litA = Lit(makeId "a" 0 ""), {Line = 0; Col = 1; Length = 1; CompId = ""}
+    let litB = Lit(makeId "b" 0 ""), {Line = 0; Col = 3; Length = 1; CompId = ""}
+    let addExpr = Add(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5; CompId = ""}
+    let eqExpr = BoolExpr(Eq(BinOp(addExpr, lit0u))), {Line = 0; Col = 7; Length = 8; CompId = ""}
 
     let compA = makeComp "compA" "a" (Viewer 3)
     let compB = makeComp "compB" "b" (Viewer 5)
@@ -145,17 +145,17 @@ let testCheck3 (): Result<string, string> =
     match compile with
     | TypeInfo  t-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
-        if e.Head = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 5"; Pos = {Line = 0; Col = 7; Length = 5}; ExtraErrors = None} 
+        if e.Head = {Msg = "The buses have different widths. Left expr is of size: 3. Right expr is of size: 5"; Pos = {Line = 0; Col = 7; Length = 5; CompId = ""}; ExtraErrors = None} 
         then Ok($"the expression: {print eqExpr} does not compile as it is trying to add buses of different widths")
         else Error($"wrong error message {e} for the expression {print eqExpr}")
 
 let testCheck4 (): Result<string, string> = 
     // (a + b) == true (with a and b being of different widths)
-    let litTrue = Lit(Value(Bool(true))), {Line = 0; Col = 10; Length = 1}
-    let litA = Lit(Id("a", 0, "")), {Line = 0; Col = 1; Length = 1}
-    let litB = Lit(Id("b", 0, "")), {Line = 0; Col = 3; Length = 1}
-    let mulExpr = Mul(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5}
-    let eqExpr = BoolExpr(Eq(BinOp(mulExpr, litTrue))), {Line = 0; Col = 7; Length = 8}
+    let litTrue = Lit(Value(Bool(true))), {Line = 0; Col = 10; Length = 1; CompId = ""}
+    let litA = Lit(makeId "a" 0 ""), {Line = 0; Col = 1; Length = 1; CompId = ""}
+    let litB = Lit(makeId "b" 0 ""), {Line = 0; Col = 3; Length = 1; CompId = ""}
+    let mulExpr = Mul(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5; CompId = ""}
+    let eqExpr = BoolExpr(Eq(BinOp(mulExpr, litTrue))), {Line = 0; Col = 7; Length = 8; CompId = ""}
 
     let compA = makeComp "compA" "a" (Viewer 5)
     let compB = makeComp "compB" "b" (Viewer 5)
@@ -164,7 +164,7 @@ let testCheck4 (): Result<string, string> =
     match compile with
     |  TypeInfo t -> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
-        if e.Head = {Msg = "This function can't be applied on value of different types. left expr is of type: UintType. Right expr is of type: BoolType"; Pos = {Line = 0; Col = 7; Length = 8}; ExtraErrors = None} 
+        if e.Head = {Msg = "This function can't be applied on value of different types. left expr is of type: UintType. Right expr is of type: BoolType"; Pos = {Line = 0; Col = 7; Length = 8; CompId = ""}; ExtraErrors = None} 
         then Ok($"the expression: {print eqExpr} does not compile as it is trying to add buses of different widths")
         else Error($"wrong error message {e} for the expression {print eqExpr}")
 

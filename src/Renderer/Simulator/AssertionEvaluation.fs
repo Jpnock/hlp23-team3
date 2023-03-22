@@ -276,9 +276,11 @@ and cast expr castType fs step connectionsWidth=
 /// Sheet: string - represents a string value that indicates the sheet on which the assertion failed
 /// Authored by djj120
 type FailedAssertion = {
+    Name: string
     Cycle: int
     FailureMessage: string
     Sheet: string
+    CompId: ComponentId
 }
 
 //function created by Lu for now will have place holder of fake data
@@ -294,19 +296,45 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         |> Map.ofList
         // need to collect the maps in one map
 
-    let evalTree step assertion = 
+    let evalTree step (assertion: Assertion) = 
         let value = evaluate assertion.AssertExpr fs step connectionsWidth 
-        match value with 
-        | Ok(Bool true, _) -> None 
+        let assertionName = 
+            match assertion.Name with
+            | Some name -> name
+            | _ -> failwithf "What - assertion should have name"
+        let assertionId = 
+            match assertion.Id with
+            | Some id -> id
+            | _ -> failwithf "What - assertion should have id"
+        let assertionSheet = 
+            match assertion.Sheet with
+            | Some sheet -> sheet
+            | _ -> failwithf "What - assertion should have Sheet"
+        let assertionDesc = 
+            match assertion.Description with
+            | Some description -> description
+            | _ -> failwithf "What - assertion should have description"
+        match value with
+        | Ok(Bool true, _) ->
+            None
         | Ok(Bool false, _) ->
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
-            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = "Not implemented"} 
+            Some {Name = assertionName; Cycle = step; FailureMessage = assertionDesc; Sheet = assertionSheet; CompId = ComponentId assertionId} 
         | Ok(e, _) -> 
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
-            Some {Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return a bool but it returned: {e}s\n"; Sheet = "Not implemented"} 
+            Some {Name = assertionName; Cycle = step; FailureMessage = $"The assertion was supposed to return a bool but it returned: {e}s\n"; Sheet = assertionSheet; CompId = ComponentId assertionId}
         | Error(e) -> 
-            let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
-            Some {Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = "Not implemented"} 
+            Some {Name = assertionName; Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion"; Sheet = assertionSheet; CompId = ComponentId assertionId} 
+        // match value with  
+        // | Ok(Bool true, _) -> None 
+        // | 
+        // | Ok(Bool false, _) ->
+        //     let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
+        //     Some {Name = assertionName; Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return true but it returned false\n"; Sheet = assertionSheet; CompId = ComponentId assertionId} 
+        // | Ok(e, _) -> 
+        //     let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
+        //     Some {Name = assertionName; Cycle = step; FailureMessage = $"The assertion \n{prettyAST}\nwas supposed to return a bool but it returned: {e}s\n"; Sheet = assertionSheet; CompId = ComponentId assertionId} 
+        // | Error(e) -> 
+        //     let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
+        //     Some {Name = assertionName; Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = assertionSheet; CompId = ComponentId assertionId} 
     let evalAllAssertions assertions n = 
         assertions
         |> List.choose (evalTree n)

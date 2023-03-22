@@ -251,17 +251,17 @@ let inputPortLabels (cfg: ComponentConfig) =
             | Some port -> Some port.Name
             | None -> None)
 
-let emptyExprInfo expr =
-    expr, { Line = 0; Col = 0; Length = 0 }
+let emptyExprInfo expr compId=
+    expr, { Line = 0; Col = 0; Length = 0; CompId = compId}
 
 let addSignInfoToAST (cfg : ComponentConfig) (exprPortMap : PortExprs) =
     let addSignInfoToPort inputPortNum expr =
         match cfg.Inputs.TryFind inputPortNum with
         | Some inputPort ->
             match inputPort.DataType with
-            | DataTypeInt -> Cast (ToSigned (emptyExprInfo expr))
+            | DataTypeInt -> Cast (ToSigned (emptyExprInfo expr cfg.InstanceID.Value))
             | DataTypeUInt -> expr
-            | DataTypeFloat32 -> Cast (ToFloat (emptyExprInfo expr))
+            | DataTypeFloat32 -> Cast (ToFloat (emptyExprInfo expr cfg.InstanceID.Value))
             | DataTypeAssertionInput -> expr
         | _ -> failwith $"what? could not find port #{inputPortNum} for {cfg.LibraryID} : {cfg.InstanceID}"
     
@@ -305,7 +305,7 @@ type SimpleComponent =
             largestOutputWidthForAllPorts cfg inputPortWidths
         member this.CreateAST cfg exprPortMap =
             let signedExprPortMap = addSignInfoToAST cfg exprPortMap
-            let built = this.AssertionBuilder signedExprPortMap
+            let built = this.AssertionBuilder cfg.InstanceID.Value signedExprPortMap
             printfn "verification port name %A" this.DefaultConfig.Outputs
             match built with
             | Some b -> b
@@ -347,11 +347,11 @@ type ComparatorComponent =
                 | None -> failwith "Tried to build assertion AST for comparator without config set"
                 | Some (ComparatorType typ) ->
                     match typ with
-                    | ComparatorTypeEq -> astMapper TEq signedExprPortMap
-                    | ComparatorTypeLt -> astMapper TLt signedExprPortMap
-                    | ComparatorTypeGt -> astMapper TGt signedExprPortMap
-                    | ComparatorTypeLte -> astMapper TLte signedExprPortMap
-                    | ComparatorTypeGte -> astMapper TGte signedExprPortMap
+                    | ComparatorTypeEq -> astMapper TEq cfg.InstanceID.Value signedExprPortMap 
+                    | ComparatorTypeLt -> astMapper TLt cfg.InstanceID.Value signedExprPortMap 
+                    | ComparatorTypeGt -> astMapper TGt cfg.InstanceID.Value signedExprPortMap 
+                    | ComparatorTypeLte -> astMapper TLte cfg.InstanceID.Value signedExprPortMap
+                    | ComparatorTypeGte -> astMapper TGte cfg.InstanceID.Value signedExprPortMap
                 | _ -> None
             match built with
             | Some b -> b
@@ -391,9 +391,9 @@ type LogicalOpComponent =
             match cfg.MultiComponentType with
             | Some (LogicalOpType logicalOpType) ->
                 match logicalOpType with
-                | LogicalOpTypeAnd -> astMapper TLogAnd signedExprPortMap
-                | LogicalOpTypeOr -> astMapper TLogOr signedExprPortMap
-                | LogicalOpTypeNot -> astMapper TLogNot signedExprPortMap
+                | LogicalOpTypeAnd -> astMapper TLogAnd cfg.InstanceID.Value signedExprPortMap
+                | LogicalOpTypeOr -> astMapper TLogOr cfg.InstanceID.Value signedExprPortMap
+                | LogicalOpTypeNot -> astMapper TLogNot cfg.InstanceID.Value signedExprPortMap
             | None -> failwith "Tried to build assertion AST for logical operator without config set"
             | _ -> failwith "what? Tried to build assertion AST for logical operator but wrong multi-component type was set"
             |> Option.defaultWith (fun () -> failwithf $"Unable to CreateAST for logical operator {cfg.MultiComponentType} {cfg}")
@@ -434,9 +434,9 @@ type BitwiseOpComponent =
             match cfg.MultiComponentType with
             | Some (BitwiseOpType bitwiseOpType) ->
                 match bitwiseOpType with
-                | BitwiseOpTypeAnd -> astMapper TBitAnd signedExprPortMap
-                | BitwiseOpTypeOr -> astMapper TBitOr signedExprPortMap
-                | BitwiseOpTypeNot -> astMapper TBitNot signedExprPortMap
+                | BitwiseOpTypeAnd -> astMapper TBitAnd cfg.InstanceID.Value signedExprPortMap
+                | BitwiseOpTypeOr -> astMapper TBitOr cfg.InstanceID.Value signedExprPortMap
+                | BitwiseOpTypeNot -> astMapper TBitNot cfg.InstanceID.Value signedExprPortMap
             | None -> failwith "Tried to build assertion AST for bitwise without config set"
             | _ -> failwith "what? Tried to build assertion AST for bitwise operator but wrong multi-component type was set"
             |> Option.defaultWith (fun () -> failwithf $"Unable to CreateAST for bitwise operator {cfg.MultiComponentType}")

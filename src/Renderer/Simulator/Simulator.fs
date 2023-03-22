@@ -286,7 +286,7 @@ let rec startCircuitSimulation
     let emptyPos compId = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; CompId = compId}
     
     let undrivenError = Error {
-        Msg = "An assertion component was not driven by any inputs"
+        Msg = "One or more assertion component inputs were not driven"
         Pos = emptyPos "Undriven"
         ExtraErrors = None } 
     let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
@@ -322,32 +322,42 @@ let rec startCircuitSimulation
 
     let parsedAssertionTexts =
         let parseAndLink (comp:Component, cfg:VerificationComponents.ComponentConfig, assertText:string) =
-            let portMap = componentIDToInputPortState.TryFind cfg.InstanceID.Value |> Option.get
+            match componentIDToInputPortState.TryFind cfg.InstanceID.Value with
+            | Some portMap ->
+                printf $"ABCDEFGHI"
+                let inputPorts = List.ofSeq cfg.Inputs.Keys
+                let undrivenInput =
+                    List.exists (fun key ->
+                        match Map.tryFind key portMap with
+                        | None -> true
+                        | Some _ -> false 
+                    ) inputPorts
 
-            let inputPorts = List.ofSeq cfg.Inputs.Keys
-            let undrivenInput =
-                List.exists (fun key ->
-                    match Map.tryFind key portMap with
-                    | None -> true
-                    | Some _ -> false 
-                ) inputPorts
-
-            match undrivenInput with
-            | true -> undrivenError
-            | false ->
-                let inputLinks = 
-                    inputPorts
-                    |> List.map (fun pn -> 
-                        let (driverState, driverPn, connId) = portMap[pn]
-                        let idData = {
-                            Name = driverState.Outputs[driverPn].HostLabel
-                            Sheet = componentToSheet[ComponentId comp.Id]
-                            PortNumber = driverPn
-                            ConnId = connId
-                        }
-                        cfg.Inputs[pn].Name, idData
-                    ) |> Map.ofList
-                AssertionParser.parseAssertion assertText <| Some inputLinks
+                match undrivenInput with
+                | true -> undrivenError
+                | false ->
+                    let assertionSheet = componentToSheet[ComponentId comp.Id]
+                    let inputLinks = 
+                        inputPorts
+                        |> List.map (fun pn -> 
+                            let (driverState, driverPn, connId) = portMap[pn]
+                            let idData = {
+                                Name = driverState.Outputs[driverPn].HostLabel
+                                Sheet = assertionSheet
+                                PortNumber = driverPn
+                                ConnId = connId
+                            }
+                            cfg.Inputs[pn].Name, idData
+                        ) |> Map.ofList
+                    AssertionParser.parseAssertion assertText <| Some inputLinks
+                    |> Result.bind (fun a -> Ok {
+                        a with
+                            Name = Some comp.Label
+                            Id = Some comp.Id
+                            Sheet = Some assertionSheet
+                            Description = cfg.AssertionDescription
+                    })
+            | _ -> undrivenError
         List.map parseAndLink assertionTextComps
 
     let allASTs = List.concat [assertionCompASTs; parsedAssertionTexts]

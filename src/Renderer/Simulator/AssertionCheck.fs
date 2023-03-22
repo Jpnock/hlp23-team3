@@ -61,6 +61,7 @@ let checkLitExistance (sheetComps: Map<string, Component list>) (lit: Lit) : Res
     match lit with
     | Value value -> Ok(getType value)
     | Id (label, sheet, _, _) -> Ok(UintType)
+    | _ -> failwith $"Tried to match on non existent Lit pattern {lit}"
         (*
         let isRightComponent (comp: Component) = 
             match comp.Label with 

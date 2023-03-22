@@ -22,6 +22,7 @@ let rec print(tree: ExprInfo) : string=
             | Float f -> string f 
 
         | Id (id, sheet, _, _) -> $"{sheet}::{id}"
+        | _ -> failwith $"Tried to match on non existent Lit pattern {lit}"
 
     | Cast c, pos ->
 

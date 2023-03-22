@@ -69,26 +69,27 @@ let convertCIDToFID (comps: FastComponent list) (cid: ComponentId) : FComponentI
     | None -> failwithf "Failed to find fast component for component"
 
 /// get FComponentId for component that is in the sheet where it's currently being simulated 
-let getComponentId label (sheet:string) sheetComps : ComponentId = 
+let getComponentId label (sheet:string) (sheetComps : Map<string, Component list>) : ComponentId = 
     let isRightComponent (comp: Component) = 
         match comp.Label with 
         | labelComp when labelComp = label -> Some(ComponentId comp.Id)
         | _ -> None
-        
+    
     sheetComps
-    |> Map.tryFind sheet
+    |> Map.tryFind sheet 
     |> Option.map (List.choose isRightComponent)
     |> Option.map (
         function 
         | [a] -> a
         | _ -> failwithf "should not happen")
-    |> Option.defaultWith (failwith $"Component {label} could not be found on Sheet {sheet}")
+    |> Option.defaultWith (fun () -> failwith $"Component '{label}' could not be found on Sheet '{sheet}'")
 
 /// extract type information from Lit 
 let getLitType (components: FastComponent List) lit = 
     match lit with
     | Value value -> getType value
     | Id _ -> UintType // the existance of the id has been checked in the compilation
+    | _ -> failwith $"Tried to match on non existent Lit pattern {lit}"
 
 ///create bitwise mask of size n
 let mask n : uint64 = 
@@ -220,6 +221,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     | Word w -> Ok(Uint (uint64 w), Size width)
                     | _ -> Error("failed to retrieve width or value of literal")
                 | _ -> Error("dev error")
+            | _ -> failwith $"Tried to match on non existent Lit pattern {lit}"
         value
 
     | Cast c, _ ->
@@ -349,6 +351,7 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         // | Error(e) -> 
         //     let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
         //     Some {Name = assertionName; Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = assertionSheet; CompId = ComponentId assertionId} 
+    printf $"{fs.Assertions}"
     let evalAllAssertions assertions n = 
         assertions
         |> List.choose (evalTree n)

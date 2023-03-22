@@ -427,7 +427,12 @@ let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
             "Goto sheet with failure"
 
     let onClickFunc (_ : Browser.Types.MouseEvent) =
+        printf($"{fa.Sheet}")
+        dispatch CloseSimulationNotification // Close error notifications.
+        dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
         dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
+        dispatch EndSimulation // End simulation.
+        dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
         dispatch (StartUICmd ChangeSheet)
         printfn "Starting UI Cmd"
         dispatch <| ExecFuncInMessage(

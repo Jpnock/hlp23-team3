@@ -2,6 +2,41 @@
 
 This project implements assertion logic, improving how designs can be verified inside Issie.
 
+
+
+# Implemented functionality
+
+The following features are implemented:
+
+## Text based assertions 
+
+* supports simple assertion language 
+* deals with inputs in a similar way to Verilog component
+* features code examples 
+* performs compilation before save, so invalid assertions can't be saved 
+* can have an optional description 
+* display parsing and compilation errors in the text editor 
+
+## Display and handling of failed assertions
+
+* when an assertion fails, its name and (optional) user defined description are displayed in the simulator interface
+* when an assertion fails it is highlighted in yellow on its sheet
+* if the failing assertion is not on the current sheet a button can link to the sheet that contains it 
+* if there are multiple failing assertions they are grouped in a dropdown menu and each of them can be selected to visualise their description and access the button linking to their sheet (if it's not the current one)
+
+## Visual Assertions 
+
+* feature drop down menu to configure similar kinds of blocks (such as comparators or logic blocks)
+* support any kind of driver 
+* are not allowed to drive a normal issie component 
+* support different input widths, the "shorter" input will be sign/ zero (depending on signedness) extended to match the longer one 
+* support different signedness for each port 
+* support floating point operations
+* can have an optional description
+* if the compilation fails starting the simulation is not allowed and the failing blocks are highlighted
+
+
+
 ## Work breakdown 
 
 

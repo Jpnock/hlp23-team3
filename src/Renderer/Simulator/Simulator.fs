@@ -56,6 +56,7 @@ let childrenOf (ldcs: LoadedComponent list) (sheet:string) =
 let rec sheetsNeeded (ldcs: LoadedComponent list) (sheet:string): string list =
     let children = childrenOf ldcs sheet |> List.map snd
     children
+    |> List.filter (fun dep -> dep <> sheet)
     |> List.map (sheetsNeeded ldcs)
     |> List.concat
     |> List.append children
@@ -273,6 +274,12 @@ let rec startCircuitSimulation
     
     let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
     
+    let componentToSheet =
+        componentMap
+        |> Map.map (fun id _ ->
+            sheetComponentMap
+            |> Map.findKey (fun _ compMap -> compMap.ContainsKey id))
+
     let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
         |> List.map (fun el ->
@@ -292,7 +299,8 @@ let rec startCircuitSimulation
                     | Some id -> id
                     | _ -> failwithf "What - assertion comps should have ids at this point"
                 let assertionLabel = componentMap[ComponentId componentId].Label
-                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId})
+                let assertionSheet = componentToSheet[ComponentId componentId]
+                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId; Sheet = Some assertionSheet})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with

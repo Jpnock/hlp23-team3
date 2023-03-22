@@ -91,13 +91,6 @@ let private defaultComps : DefaultComponent list = [
         SignedAndUnsigned = true
      }
      {
-        Name = "Power"
-        Class = ClassTwoInputOperator "Raises A to the power of B"
-        SymbolName = "pow(A, B)"
-        Builder = noAssertion
-        SignedAndUnsigned = true
-     }
-     {
          Name = "Add"
          Class = ClassTwoInputOperator "Outputs the sum of A and B"
          SymbolName = "A + B"

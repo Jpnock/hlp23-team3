@@ -60,7 +60,8 @@ let getType value =
 let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
     | Value value -> Ok(getType value)
-    | Id (id, _, _) -> 
+    | Id (id, _, _) -> Ok(UintType)
+        (*
         let isRightComponent (comp: Component) = 
             match comp.Label with 
             | idComp when idComp = id -> true
@@ -71,6 +72,7 @@ let checkLitExistance (components: Component List) (lit: Lit) : Result<Assertion
             | [c] -> Ok(UintType) 
             | [] -> Error($"the ID {id} does not exist") 
             | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
+        *)
 
 
 /// check that the verification AST obeys the type system 

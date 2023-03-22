@@ -272,6 +272,10 @@ let rec startCircuitSimulation
     // TODO(jpnock): Fix uses of this
     let emptyPos compId = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; CompId = compId}
     
+    let undrivenError = Error {
+        Msg = "An assertion component was not driven by any inputs"
+        Pos = emptyPos "Undriven"
+        ExtraErrors = None } 
     let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
     
     let componentToSheet =
@@ -286,10 +290,7 @@ let rec startCircuitSimulation
             // TODO(jpnock): Currently assuming assert HIGH
             let connectedToPort = componentIDToInputPortState.TryFind el.InstanceID.Value
             match connectedToPort with
-            | None -> Error {
-                Msg = "An assertion component was not driven by any inputs"
-                Pos = emptyPos ""
-                ExtraErrors = None }
+            | None -> undrivenError
             | Some connectedTo ->               
                 let (assertionInput, _, _) = connectedTo[0]
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
@@ -304,15 +305,40 @@ let rec startCircuitSimulation
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with
-        | Plugin state -> state.AssertionText
-        | _ -> None
+        | Plugin state -> 
+            match state.AssertionText with
+            | Some text -> Some (state, text)
+            | None -> None
+        | _ -> None 
     
-    let assertionTexts = canvasComps |> List.choose isAssertionTextComp
-    
-    let assertionTextASTs =
-        List.map AssertionParser.parseAssertion assertionTexts
-    
-    let allASTs = List.concat [assertionCompASTs; assertionTextASTs]
+    let assertionTextComps = canvasComps |> List.choose isAssertionTextComp
+
+    let parsedAssertionTexts =
+        let parseAndLink (state:VerificationComponents.ComponentConfig, assertText:string) =
+            let portMap = componentIDToInputPortState.TryFind state.InstanceID.Value |> Option.get
+
+            let inputPorts = List.ofSeq state.Inputs.Keys
+            let undrivenInput =
+                List.exists (fun key ->
+                    match Map.tryFind key portMap with
+                    | None -> true
+                    | Some _ -> false 
+                ) inputPorts
+
+            match undrivenInput with
+            | true -> undrivenError
+            | false ->
+                let inputLinks = 
+                    inputPorts
+                    |> List.map (fun pn -> 
+                        let (driverState, driverPn, connId) = portMap[pn]
+                        let idData = {Name = driverState.Outputs[driverPn].HostLabel; PortNumber = driverPn; ConnId = connId}
+                        state.Inputs[pn].Name, idData
+                    ) |> Map.ofList
+                AssertionParser.parseAssertion assertText <| Some inputLinks
+        List.map parseAndLink assertionTextComps
+
+    let allASTs = List.concat [assertionCompASTs; parsedAssertionTexts]
     
     let resultFolder state result =
         match result with 

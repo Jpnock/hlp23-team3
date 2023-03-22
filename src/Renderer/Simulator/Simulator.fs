@@ -242,6 +242,11 @@ let rec startCircuitSimulation
     let emptyPos = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; }
     
     let assertionComps = List.map snd assertionCompsAndIDs
+
+    let undrivenError = Error {
+        Msg = "An assertion component was not driven by any inputs"
+        Pos = emptyPos
+        ExtraErrors = None } 
     
     let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
@@ -249,10 +254,7 @@ let rec startCircuitSimulation
             // TODO(jpnock): Currently assuming assert HIGH
             let connectedToPort = componentIDToInputPortState.TryFind el.InstanceID.Value
             match connectedToPort with
-            | None -> Error {
-                Msg = "An assertion component was not driven by any inputs"
-                Pos = emptyPos
-                ExtraErrors = None }
+            | None -> undrivenError
             | Some connectedTo ->               
                 let (assertionInput, _, _) = connectedTo[0]
                 let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
@@ -263,42 +265,35 @@ let rec startCircuitSimulation
         match comp.Type with
         | Plugin state -> 
             match state.AssertionText with
-            | Some text -> Some (state, text, comp)
+            | Some text -> Some (state, text)
             | None -> None
         | _ -> None 
     
     let assertionTextComps = canvasComps |> List.choose isAssertionTextComp
-    //printfn "Assertion text components %A" assertionTextComps
-    printfn "SimConns: %A" <| snd fullCanvasState  
 
     let parsedAssertionTexts =
-        let parseAndLink (state:VerificationComponents.ComponentState,assertText:string, comp:Component) =
+        let parseAndLink (state:VerificationComponents.ComponentState, assertText:string) =
+            let portMap = componentIDToInputPortState.TryFind state.InstanceID.Value |> Option.get
 
-            printfn "state: %A" state
-            printfn "comp: %A" comp
-            let hostIds = comp.InputPorts |> List.map (fun p -> p.HostId) |> Set.ofList
+            let inputPorts = List.ofSeq state.Inputs.Keys
+            let undrivenInput =
+                List.exists (fun key ->
+                    match Map.tryFind key portMap with
+                    | None -> true
+                    | Some _ -> false 
+                ) inputPorts
 
-            let t = componentIDToInputPortState.TryFind state.InstanceID.Value
-            
-            // Get all the inputs going to the text assertion component
-            let inputLinks =
-                List.choose (fun (conn:Connection) ->
-                    let isConnected = Set.contains conn.Target.HostId hostIds 
-                    if isConnected then
-                        printfn "Conn: %A" conn
-                        Some (conn.Target.PortNumber.Value, conn.Id)
-                    else 
-                        None
-                ) (snd fullCanvasState)
-                |> List.map ( fun (pn, connId) -> 
-                    let inputName = state.Inputs[pn].Name 
-                    inputName, {Name = inputName; PortNumber = pn; ConnId = connId} 
-                )
-                |> Map.ofList
-            printfn "Input links: %A" inputLinks
-
-            Some inputLinks 
-            |> AssertionParser.parseAssertion assertText 
+            match undrivenInput with
+            | true -> undrivenError
+            | false ->
+                let inputLinks = 
+                    inputPorts
+                    |> List.map (fun pn -> 
+                        let (driverState, driverPn, connId) = portMap[pn]
+                        let idData = {Name = driverState.Outputs[driverPn].HostLabel; PortNumber = driverPn; ConnId = connId}
+                        state.Inputs[pn].Name, idData
+                    ) |> Map.ofList
+                AssertionParser.parseAssertion assertText <| Some inputLinks
         List.map parseAndLink assertionTextComps
 
     let allASTs = List.concat [assertionCompASTs; parsedAssertionTexts]

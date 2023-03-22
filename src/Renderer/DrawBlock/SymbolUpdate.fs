@@ -862,7 +862,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
         let addPort index _ =
             {
                 Id = JSHelpers.uuid ()
-                PortNumber = index + comp.InputPorts.Length |> Some
+                PortNumber = index |> Some
                 HostId = comp.Id
                 PortType = PortType.Input
             }
@@ -878,6 +878,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
             | Some si -> {si with PortOrder = newPortMaps.Order; PortOrientation = newPortMaps.Orientation}
             | None -> failwithf "What? Symbol info can not be none here."
         let newComp = {comp with InputPorts = newPorts; Type = Plugin newAssertState; SymbolInfo = Some newSymbolInfo}
+        printfn "newcomp: %A" newComp
 
         let newSymbol = autoScaleHAndW {symbol with Component = newComp; PortMaps = newPortMaps}
         let newModel = {model with Ports = addToPortModel model newSymbol}

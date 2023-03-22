@@ -612,7 +612,7 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             // Get the inputs for the assertion code. Check if they have been updated and if so,
             // change the component to reflect these changes.
             let newInputNames = 
-                match parseAssertion code with
+                match parseAssertion code None with
                 | Ok assertion ->
                     assertion.InputNames
                 | _ -> failwithf "What? Impossible to press update on assertion text component that can't compile"
@@ -632,6 +632,8 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
             if newInputNames <> oldInputNames then
                 model.Sheet.SetAssertionInputs (Sheet >> dispatch) (ComponentId compId) newInputNames
 
+            printfn "catalogue conns: %A" (snd <| model.Sheet.GetCanvasState ())
+
             SetHasUnsavedChanges false
             |> JSDiagramMsg
             |> dispatch
@@ -647,22 +649,13 @@ let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch
                 let components = fst model.LastDetailedSavedState
                 
                 let errorList = 
-                    match parseAssertion code with
+                    match parseAssertion code None with
                     | Error e -> [e]
                     | Ok assertion ->
                         let checkRes = AssertionCheck.checkAST assertion.AssertExpr components
                         match checkRes with
                         | AssertionTypes.ErrLst eLst -> eLst
                         | AssertionTypes.TypeInfo _ -> []
-
-
-                let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
-                match assertComponent.Type with
-                | Plugin state -> printf "%A" state.Inputs
-                // TODO(jlsand): Not currently possible, although certainly possible in the future that someone may pass in an invalid component ID.
-                // Might make sense to return a result? Not sure.
-                | _ -> failwithf "What? Not possible for a text assertion component not to be a verification component."
-
 
                 let dialogData' = Optic.set code_errors_ errorList dialogData
                 dispatch <| SetPopupDialogCode dialogData'.Code

@@ -268,6 +268,21 @@ let private viewSimulationInputs
         dispatch =
 
     let simulationGraph = simulationData.Graph
+    
+    let updateValue matcher inputId numToBits =
+        match matcher with
+        | Error err ->
+            let note = errorPropsNotification err
+            dispatch  <| SetSimulationNotification note
+        | Ok num ->
+            let bits = numToBits num
+            // Close simulation notifications.
+            CloseSimulationNotification |> dispatch
+            // Feed input.
+            let graph = simulationGraph
+            FastRun.changeInput (ComponentId inputId) (IData bits) simulationData.ClockTickNumber simulationData.FastSim
+            dispatch <| SetSimulationGraph(graph, simulationData.FastSim)
+    
     let makeInputLine ((ComponentId inputId, ComponentLabel inputLabel, width), inputVals) =
         let valueHandle =
             match inputVals with
@@ -293,18 +308,13 @@ let private viewSimulationInputs
                     Input.Props [
                         simulationNumberStyle
                         OnChange (getTextEventValue >> (fun text ->
-                            match strToIntCheckWidth width text with
-                            | Error err ->
-                                let note = errorPropsNotification err
-                                dispatch  <| SetSimulationNotification note
-                            | Ok num ->
-                                let bits = convertInt64ToFastData width num
-                                // Close simulation notifications.
-                                CloseSimulationNotification |> dispatch
-                                // Feed input.
-                                let graph = simulationGraph
-                                FastRun.changeInput (ComponentId inputId) (IData bits) simulationData.ClockTickNumber simulationData.FastSim
-                                dispatch <| SetSimulationGraph(graph, simulationData.FastSim)
+                            match simulationData.NumberBase with
+                            | Float32 ->
+                                NumberHelpers.convertFloat32ToIEEE754UInt >> int64 >> convertInt64ToFastData 32
+                                |> updateValue (strToFloat32CheckWidth width text) inputId 
+                            | _ ->
+                                convertInt64ToFastData width
+                                |> updateValue (strToIntCheckWidth width text) inputId
                         ))
                     ]
                 ]

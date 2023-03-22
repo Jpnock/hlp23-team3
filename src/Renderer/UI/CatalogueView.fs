@@ -943,7 +943,7 @@ let viewCatalogue model dispatch =
                 VerificationLibrary.library.Components.Values
                 |> Seq.sortBy (fun el -> el.GetName)
                 |> Seq.map (fun el ->
-                    let factory = (fun _ -> createComponent (Plugin el.GetDefaultState) "" model dispatch)
+                    let factory = (fun _ -> createComponent (Plugin el.GetDefaultConfig) "" model dispatch)
                     catTip1 el.GetName factory el.GetTooltipText)
                 |> List.ofSeq                
 

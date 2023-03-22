@@ -19,6 +19,7 @@ let rec print(tree: ExprInfo) : string=
             | Int int -> string int  
             | Uint uint -> string uint
             | Bool bool -> string bool  
+            | Float f -> string f 
 
         | Id (id, _, _) -> id
 
@@ -28,6 +29,7 @@ let rec print(tree: ExprInfo) : string=
         | ToSigned e -> "int(" + (print e) + ")"
         | ToUnsigned e -> "uint" + (print e) + ")" 
         | ToBool e -> "bool" + (print e) + ")" 
+        | ToFloat e -> "float" + (print e) + ")"
 
     | Add (BinOp(l, r)), pos -> "(" + print l + "+" + (print r) + ")"
 

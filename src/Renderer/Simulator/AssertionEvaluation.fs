@@ -7,6 +7,7 @@ open CommonTypes
 open SimulatorTypes
 open BusWidthInferer
 open System
+open NumberHelpers
 
 type IntToBool = int64 -> int64 -> bool
 type IntToInt = int64 -> int64 -> int64
@@ -16,6 +17,8 @@ type BoolToBool = bool -> bool -> bool
 type IntToIntUn = int64 -> int64
 type UintToUintUn = uint64 -> uint64
 type BoolToBoolUn = bool -> bool
+type FloatToFloat = float32->float32->float32
+type FloatToBool = float32->float32->bool
 
 type Functions =
     | ItB of IntToBool
@@ -26,6 +29,8 @@ type Functions =
     | ItIUn of IntToIntUn
     | UtUUn of UintToUintUn
     | BtBUn of BoolToBoolUn
+    | FtF of FloatToFloat 
+    | FtB of FloatToBool
 
 let boolToInt =
     function
@@ -37,8 +42,10 @@ let boolToUint =
     | true -> 1UL
     | false -> 0UL
 
-let intToBool n = if n = 0L then false else true
-let uintToBool n = if n = 0UL then false else true
+let intToBool n = not (n = 0L)
+let uintToBool n = not (n = 0UL)
+
+
 
 /// get the smallest possible number of bits that a lit would need, 
 /// this provides the width for literals that are not buses
@@ -50,7 +57,8 @@ let getLitMinSize lit =
     | Uint uint -> 
         let n = float uint 
         (ceil >> int) (Math.Log (n, 2.) + 0.1)
-    | Bool bool -> 1 //technically not needed but will be returned, otherwise can put size as an option bt a bit of a pain
+    | Bool bool -> 1
+    | Float f -> 32
 
 
 /// get FComponentId for component that is in the sheet where it's currently being simulated 
@@ -84,20 +92,17 @@ let resizeSigned (n: int64) width =
     let signExtended = if isNegative then (-1L <<< width) ||| n else n
     signExtended
 
+let handleFP op1 op2 operand =
+    operand op1 op2
+    |> convertFloat32ToIEEE754UInt
+
+ // make it convert it back to uint64
 // assume that the AST is correct (as it will be checked upon creation of the component)
 /// evaluate an assertion in a given cycle. Uses simulation data and up to date width inference information
 let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: ConnectionsWidth): Result<Value * Size, string> =
-    let resizeRes (size: Size) res = 
-        match res, size with 
-        | Int neg, Size s when neg < 0 -> Int (max neg (int (-(2. ** float (s- 1)))))
-        | Int pos, Size s -> Int (min pos (int64 (2. ** float (s- 1)) - 1L))
-        | Uint v, Size s -> Uint (min v (uint64 (2. ** float s) - 1UL))
-        | _ -> res
-
-
-
+   
     /// evaluate a binary or unary expression
-    let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fBool: Option<Functions>) ops=
+    let ExprEval (fInt: Option<Functions>) (fUint: Option<Functions>) (fFloat: Option<Functions>) (fBool: Option<Functions>) ops=
         match ops with
         | BinOp(l, r) ->
             let leftRes= evaluate l fs step connectionsWidth 
@@ -132,6 +137,31 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
                     match fBool with
                     | Some(BtB f) -> Ok(Bool(f op1 op2), Size(max sizeL sizeR))
                     | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok (Float op1, Size sizeL), Ok (Float op2, Size sizeR) ->
+                    match fFloat with 
+                    | Some(FtB f) -> Ok(Bool( f (convertIEEE754ToFloat32 op1) (convertIEEE754ToFloat32 op2)), Size(max sizeL sizeR))
+                    | Some(FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 op1) (convertIEEE754ToFloat32 op2) f), Size(max sizeL sizeR))
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Float opF, sizeF), Ok(Uint opU, _) -> 
+                    match fFloat with 
+                    | Some (FtB f) -> Ok(Bool(f (convertIEEE754ToFloat32 opF) (float32 opU)), sizeF)
+                    | Some (FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 opF) (float32 opU) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Float opF, sizeF), Ok(Int opU, _) -> 
+                    match fFloat with 
+                    | Some (FtB f) -> Ok(Bool(f (convertIEEE754ToFloat32 opF) (float32 opU)), sizeF)
+                    | Some (FtF f) -> Ok(Uint(handleFP (convertIEEE754ToFloat32 opF) (float32 opU) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Uint opU, sizeU), Ok (Float opF, sizeF) -> 
+                    match fFloat with 
+                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (convertIEEE754ToFloat32 opF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (convertIEEE754ToFloat32 opF) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
+                | Ok(Int opU, sizeU), Ok (Float opF, sizeF) -> 
+                    match fFloat with 
+                    | Some(FtB f) -> Ok(Bool(f (float32 opU) (convertIEEE754ToFloat32 opF)), sizeF)
+                    | Some(FtF f) -> Ok(Uint (handleFP (float32 opU) (convertIEEE754ToFloat32 opF) f), sizeF)
+                    | _ -> Error("Dev error: no function provided for the needed type")
                 | Error(e1), Error(e2) -> Error(e1+e2)
                 | Error(e1), _ -> Error(e1)
                 | _, Error(e2)  -> Error(e2)
@@ -162,6 +192,7 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             | Value (Int int)->  Ok(Int int, Size (getLitMinSize (Int int)))
             | Value (Uint uint) -> Ok(Uint uint, Size (getLitMinSize (Uint uint)))
             | Value (Bool bool) -> Ok(Bool bool, Size 1)
+            | Value (Float uint) -> Ok(Float uint, Size (getLitMinSize (Uint uint)))
             | Id (id, portNumber, connId) -> 
                 let fCompId = getFComponentId id (List.ofSeq fs.FComps.Values)
                 let data = fs.getSimulationData step fCompId (OutputPortNumber portNumber)
@@ -179,14 +210,15 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
         | ToSigned e -> cast e "int" fs step connectionsWidth// this might require some sort of manipulation? or will it be done automatically
         | ToUnsigned e -> cast e "uint" fs step connectionsWidth
         | ToBool e -> cast e "bool" fs step connectionsWidth
+        | ToFloat e -> cast e "float32" fs step connectionsWidth
 
     | BusCast (destSize, e), _-> 
         let value= evaluate e fs step connectionsWidth
         value
 
-    | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) None ops  
-    | Sub ops, _ -> ExprEval (Some(ItI (-))) (Some(UtU (-))) None ops  
-    | Mul ops, _ -> ExprEval (Some(ItI (*))) (Some(UtU (*))) None ops  
+    | Add ops, _ -> ExprEval (Some(ItI (+))) (Some(UtU (+))) (Some(FtF (+))) None ops  
+    | Sub ops, _ -> ExprEval (Some(ItI (-))) (Some(UtU (-))) (Some(FtF (-))) None ops  
+    | Mul ops, _ -> ExprEval (Some(ItI (*))) (Some(UtU (*))) (Some(FtF (*))) None ops  
     | Div ops, _ -> 
         match ops with 
         | BinOp (l, r) -> 
@@ -195,24 +227,24 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             match left, right with 
             | _, Ok(Int 0L, _) -> Error("division by 0 attempted")
             | _, Ok(Uint 0UL, _) -> Error("division by 0 attempted")
-            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) None ops 
+            | _, _ -> ExprEval (Some(ItI (/))) (Some(UtU (/))) (Some(FtF(/))) None ops 
         | UnOp _ -> Error("should not be a unary operator") 
-    | Rem ops, _ -> ExprEval (Some(ItI (%))) (Some(UtU (%))) None ops  
-    | BitAnd ops, _ -> ExprEval (Some(ItI (&&&))) (Some(UtU (&&&))) None ops 
-    | BitOr ops, _ -> ExprEval (Some(ItI (|||))) (Some(UtU (|||))) None ops 
-    | BitNot op, _ -> ExprEval (Some(ItIUn(~~~))) (Some(UtUUn(~~~))) None op 
+    | Rem ops, _ -> ExprEval (Some(ItI (%))) (Some(UtU (%)))(Some(FtF(%))) None ops  
+    | BitAnd ops, _ -> ExprEval (Some(ItI (&&&))) (Some(UtU (&&&))) None None ops 
+    | BitOr ops, _ -> ExprEval (Some(ItI (|||))) (Some(UtU (|||))) None None ops 
+    | BitNot op, _ -> ExprEval (Some(ItIUn(~~~))) (Some(UtUUn(~~~))) None None op 
 
     | BoolExpr boolExpr, _ ->
         match boolExpr with
-        | Eq(ops) -> ExprEval (Some(ItB (=))) (Some(UtB (=))) (Some(BtB (=))) ops 
-        | Neq(ops) -> ExprEval (Some(ItB (<>))) (Some(UtB (<>))) (Some(BtB (<>))) ops 
-        | LogAnd(ops) -> ExprEval None None (Some(BtB (&&))) ops 
-        | LogOr(ops) -> ExprEval None None (Some(BtB (||))) ops 
-        | Lt(ops) -> ExprEval (Some(ItB (<))) (Some(UtB (<))) (Some(BtB (<))) ops 
-        | Gt(ops) -> ExprEval (Some(ItB (>))) (Some(UtB (>))) (Some(BtB (>))) ops 
-        | Gte(ops) -> ExprEval (Some(ItB (>=))) (Some(UtB (>=))) (Some(BtB (>=))) ops 
-        | Lte(ops) -> ExprEval (Some(ItB (<=))) (Some(UtB (<=))) (Some(BtB (<=))) ops 
-        | LogNot(op) -> ExprEval None None (Some(BtBUn (not) )) op 
+        | Eq(ops) -> ExprEval (Some(ItB (=))) (Some(UtB (=))) (Some(FtB (=))) (Some(BtB (=))) ops 
+        | Neq(ops) -> ExprEval (Some(ItB (<>))) (Some(UtB (<>))) (Some(FtB (<>)))(Some(BtB (<>))) ops 
+        | LogAnd(ops) -> ExprEval None None None (Some(BtB (&&))) ops 
+        | LogOr(ops) -> ExprEval None None None (Some(BtB (||))) ops 
+        | Lt(ops) -> ExprEval (Some(ItB (<))) (Some(UtB (<))) (Some(FtB (<))) (Some(BtB (<))) ops 
+        | Gt(ops) -> ExprEval (Some(ItB (>))) (Some(UtB (>))) (Some(FtB(>))) (Some(BtB (>))) ops 
+        | Gte(ops) -> ExprEval (Some(ItB (>=))) (Some(UtB (>=))) (Some(FtB(>=))) (Some(BtB (>=))) ops 
+        | Lte(ops) -> ExprEval (Some(ItB (<=))) (Some(UtB (<=))) (Some(FtB(>=))) (Some(BtB (<=))) ops 
+        | LogNot(op) -> ExprEval None None None (Some(BtBUn (not) )) op 
 
     // what is the difference between and and let inside the linked function
     // i think that it's better probably to do and (for efficiency reasons i wonder)
@@ -222,6 +254,8 @@ and cast expr castType fs step connectionsWidth=
     let castExprEvaluated= evaluate expr fs step connectionsWidth
     let value = 
         match castExprEvaluated, castType with
+        | Ok(Uint uint, Size size), "float32" -> (Float(uint), Size 32) |> Ok
+        | Ok(Int int, Size size), "float32" -> (Float(uint64 int), Size 32) |> Ok
         | Ok(Int int, size ), "uint" -> Ok(Uint(uint64 (int &&& -1L)), size)
         | Ok(Int int, size), "bool" -> Ok(Bool(intToBool int), size)
         | Ok(Bool bool, size), "uint" -> Ok(Uint(boolToUint bool), size)

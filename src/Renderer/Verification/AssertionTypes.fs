@@ -33,6 +33,8 @@ type Value =
     | Int of int64
     | Bool of bool 
     | Uint of uint64
+    /// wraps a uint64, the actual conversion happens during the evaluation of the operation
+    | Float of uint64 // the conversion only happens at time of evaluation, for the rest floats travel around as uints 
 
 /// Type containing all the necessary information evaluate
 /// an identifier in the simulation
@@ -64,6 +66,7 @@ type Cast =
     | ToSigned of ExprInfo
     | ToUnsigned of ExprInfo 
     | ToBool of ExprInfo 
+    | ToFloat of ExprInfo
 
 // authored by ln220
 /// outermost level for AST 
@@ -114,6 +117,7 @@ type Type =
     | IntType
     | UintType 
     | BoolType 
+    | FloatType
 
 
 

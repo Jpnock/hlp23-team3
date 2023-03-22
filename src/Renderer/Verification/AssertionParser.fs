@@ -301,11 +301,12 @@ and parseBinaryOp minPrecedence expectParen (inputs: string Set) (lhs:ParsedExpr
             let rhsRes = parseExpr (precedence + 1) expectParen inputs <| advanceStream lhs.Stream
             
             let createBinaryExpr rhs =
-                let binaryOperands = BinOp ((lhs.Expr, token.Pos), (rhs.Expr, token.Pos))
-                let binaryExpr = mapBinaryOpToExpr token.Type binaryOperands
-
                 // The resulting Expr of the binary operation becomes the lhs for the next call!
-                parseBinaryOp minPrecedence expectParen inputs <| {Expr = binaryExpr; Stream = rhs.Stream}
+                BinOp ((lhs.Expr, token.Pos), (rhs.Expr, token.Pos))
+                |> mapBinaryOpToExpr token.Type 
+                |> (fun binExpr -> {Expr = binExpr; Stream = rhs.Stream})
+                |> parseBinaryOp minPrecedence expectParen inputs
+
 
             Result.bind createBinaryExpr rhsRes
 
@@ -401,7 +402,7 @@ let rec prettyPrintAST expr prevPrefix isLast:string =
                 boolOpInfo + printTypeName bExpr, boolOpAST
         | Lit l -> sprintf "%A" l, ""
         | Cast c ->
-            let (ToSigned info| ToUnsigned info | ToBool info) = c
+            let (ToSigned info| ToUnsigned info | ToBool info |ToFloat info) = c
             let castInfo = printTypeName c
             let castAST = prettyPrintAST (fst info) newPrefix true
             castInfo, castAST 

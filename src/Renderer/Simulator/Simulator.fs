@@ -300,7 +300,7 @@ let rec startCircuitSimulation
                     | _ -> failwithf "What - assertion comps should have ids at this point"
                 let assertionLabel = componentMap[ComponentId componentId].Label
                 let assertionSheet = componentToSheet[ComponentId componentId]
-                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId; Sheet = Some assertionSheet})
+                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId; Sheet = Some assertionSheet; Description = el.AssertionDescription})
     
     let isAssertionTextComp (comp:Component) =
         match comp.Type with

@@ -210,4 +210,5 @@ type Assertion = {
     Name: string Option;
     Id: string Option;
     Sheet: string Option;
+    Description: string Option
 }

@@ -297,7 +297,7 @@ and parseExpr (minPrecedence:int) expectParen (inputs: string Set) (stream: Toke
 let startParseExpr (parsedInputs: ParsedInputs): Result<Assertion, CodeError> =
     parseExpr 0 false parsedInputs.InputNames parsedInputs.Stream
     |> Result.bind ( fun pExpr -> 
-        Ok {AssertExpr = pExpr.Expr,pExpr.Stream.CurToken.Pos; InputNames = parsedInputs.InputNames; Name = None; Id = None; Sheet = None}
+        Ok {AssertExpr = pExpr.Expr,pExpr.Stream.CurToken.Pos; InputNames = parsedInputs.InputNames; Name = None; Id = None; Sheet = None; Description = None}
     )
 
 let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInputs, CodeError> =

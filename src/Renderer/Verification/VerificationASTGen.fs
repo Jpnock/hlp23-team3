@@ -24,8 +24,8 @@ let rec generateAST (componentPortSources: Map<string, Map<int, (ComponentConfig
     match cfg.IsInput with
     | Some true -> 
         printf $"making lit : {cfg}"
-
-        Id { Name = cfg.Outputs[sourcePortN].HostLabel; PortNumber = sourcePortN; ConnId = connId}
+        let outputPort = cfg.Outputs[sourcePortN]
+        Id { Name = outputPort.HostLabel; Sheet = outputPort.HostSheet; PortNumber = sourcePortN; ConnId = connId }
         |> Lit
     | _ ->
         printf $"Getting state for {cfg}"

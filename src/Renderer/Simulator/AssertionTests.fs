@@ -21,7 +21,7 @@ let rec print(tree: ExprInfo) : string=
             | Bool bool -> string bool  
             | Float f -> string f 
 
-        | Id (id, _, _) -> id
+        | Id (id, sheet, _, _) -> $"{sheet}::{id}"
 
     | Cast c, pos ->
 
@@ -100,7 +100,7 @@ let testCheck1 () : Result<string, string>=
     let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5; CompId = ""}
     
     let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16; CompId = ""} 
-    let compile = checkAST tree []
+    let compile = checkAST tree (Map [])
     match compile with 
     | ErrLst eLst -> 
         match eLst with 
@@ -116,14 +116,14 @@ let testCheck1 () : Result<string, string>=
 let testCheck2 (): Result<string, string> = 
     // true < ((3+4)>5)
     let lit3u = Lit(Value(Uint(3UL))), {Line = 0; Col = 10; Length = 1; CompId = ""}
-    let litA = Lit(makeId "a" 0 ""), {Line = 0; Col = 8; Length = 1; CompId = ""}
+    let litA = Lit(makeId "a" "sheet1" 0 ""), {Line = 0; Col = 8; Length = 1; CompId = ""}
     let lit5u = Lit(Value(Uint(5UL))), {Line = 0; Col = 13; Length = 1; CompId = ""}
     let addExpr = Add(BinOp(lit3u, litA)), {Line = 0; Col = 7; Length = 5; CompId = ""}
     let gtExpr = BoolExpr(Gt(BinOp(addExpr, lit5u))), {Line = 0; Col = 7; Length = 8; CompId = ""}
     let litTrue = Lit(Value(Bool true)), {Line = 0; Col = 1; Length= 5; CompId = ""}
     let comp = makeComp "compA" "a" (Viewer 3)
     let tree = BoolExpr(Lt(BinOp(litTrue, gtExpr))), {Line = 0; Col = 0; Length = 16; CompId = ""} 
-    let compile = checkAST tree [comp]
+    let compile = checkAST tree ( Map [ ("sheet1", [comp] ) ] )
     match compile with
     | TypeInfo t  when t = BoolType -> Ok($"The expr: {print tree} was successfully compiled. It has type {t}")
     | TypeInfo  t -> Error($"Wrong evaluation of the following expression: {print tree}. It was expected to have type Bool and size 1, but it has type {t} instead ")
@@ -133,15 +133,15 @@ let testCheck2 (): Result<string, string> =
 let testCheck3 (): Result<string, string> = 
     // (a + b) == 0 (with a and b being of different widths)
     let lit0u = Lit(Value(Uint(0UL))), {Line = 0; Col = 10; Length = 1; CompId = "c"}
-    let litA = Lit(makeId "a" 0 ""), {Line = 0; Col = 1; Length = 1; CompId = ""}
-    let litB = Lit(makeId "b" 0 ""), {Line = 0; Col = 3; Length = 1; CompId = ""}
+    let litA = Lit(makeId "a" "sheet1" 0 ""), {Line = 0; Col = 1; Length = 1; CompId = ""}
+    let litB = Lit(makeId "b" "sheet1" 0 ""), {Line = 0; Col = 3; Length = 1; CompId = ""}
     let addExpr = Add(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5; CompId = ""}
     let eqExpr = BoolExpr(Eq(BinOp(addExpr, lit0u))), {Line = 0; Col = 7; Length = 8; CompId = ""}
 
     let compA = makeComp "compA" "a" (Viewer 3)
     let compB = makeComp "compB" "b" (Viewer 5)
 
-    let compile = checkAST eqExpr [compA; compB]
+    let compile = checkAST eqExpr ( Map [ ("sheet1", [compA; compB] ) ] )
     match compile with
     | TypeInfo  t-> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 
@@ -152,15 +152,15 @@ let testCheck3 (): Result<string, string> =
 let testCheck4 (): Result<string, string> = 
     // (a + b) == true (with a and b being of different widths)
     let litTrue = Lit(Value(Bool(true))), {Line = 0; Col = 10; Length = 1; CompId = ""}
-    let litA = Lit(makeId "a" 0 ""), {Line = 0; Col = 1; Length = 1; CompId = ""}
-    let litB = Lit(makeId "b" 0 ""), {Line = 0; Col = 3; Length = 1; CompId = ""}
+    let litA = Lit(makeId "a" "sheet1" 0 ""), {Line = 0; Col = 1; Length = 1; CompId = ""}
+    let litB = Lit(makeId "b" "sheet1" 0 ""), {Line = 0; Col = 3; Length = 1; CompId = ""}
     let mulExpr = Mul(BinOp(litA, litB)), {Line = 0; Col = 7; Length = 5; CompId = ""}
     let eqExpr = BoolExpr(Eq(BinOp(mulExpr, litTrue))), {Line = 0; Col = 7; Length = 8; CompId = ""}
 
     let compA = makeComp "compA" "a" (Viewer 5)
     let compB = makeComp "compB" "b" (Viewer 5)
 
-    let compile = checkAST eqExpr [compA; compB]
+    let compile = checkAST eqExpr ( Map [ ("sheet1", [compA; compB] ) ] )
     match compile with
     |  TypeInfo t -> Error($"the expr {print eqExpr} should not compile as a and b are of different widths") 
     | ErrLst e -> 

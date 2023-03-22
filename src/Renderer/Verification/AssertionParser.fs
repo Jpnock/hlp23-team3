@@ -99,8 +99,9 @@ let rec lexAssertion (code: string) (inputLinks: Map<string, Id> option) curLine
         let idTok = 
             match inputLinks with 
             | None -> 
-                // No inputs specified, we do not link the identifiers to anything 
-                Id {Name = m.Value; PortNumber= 0; ConnId = ""} |> TLit
+                // No inputs specified, we do not link the identifiers to anything
+                // TODO(jpnock): Do we need the sheet name here?
+                Id {Name = m.Value; Sheet = ""; PortNumber= 0; ConnId = ""} |> TLit
             | Some inputs ->
                 inputs[m.Value] |> Id |> TLit
         addToken idTok m.Length
@@ -251,7 +252,7 @@ let rec parseOperand expectParen (inputs: string Set) (stream: TokenStream) : Pa
             let litExpr = Expr.Lit lit
             let res = Ok {Expr = litExpr ; Stream = stream'}
             match lit with
-            | Id (name, _, _) -> 
+            | Id (name, _, _, _) ->
                 if Set.contains name inputs then
                     res
                 else 
@@ -336,7 +337,7 @@ let rec parseInputs (inputs:string Set) (stream:TokenStream) : Result<ParsedInpu
         match stream'.CurToken.Type with
         | TLit l ->
             match l with
-            | Id (name, _,_) -> 
+            | Id (name, _, _, _) -> 
                 advanceIfNotEmpty "semicolon" stream'
                 |> Result.bind (advanceIfCorrectToken "semicolon" TSemicolon)
                 |> Result.bind ( fun stream ->

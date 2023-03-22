@@ -91,8 +91,10 @@ type ComponentOutput =
       // The output width; set to Some (value) for static width-inference.
       // If None, then automatic width-inference is applied.
       FixedWidth: int option
-      // Used in evaluation 
+      // TODO(jpnock): Move elsewhere... Used in evaluation 
       HostLabel: string
+      // TODO(jpnock): Move elsewhere... Used in evaluation 
+      HostSheet: string
     }
 
 /// Represents the ID of a component in the Component Library.
@@ -200,7 +202,7 @@ module IODefaults =
         Map [ (0, {InputA with FixedWidth = Some 1; DataType = DataTypeAssertionInput}) ]
     
     /// A single output named X, with no initialised fixed width.
-    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; HostLabel = ""}
+    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; HostLabel = ""; HostSheet = ""}
     
     /// A single output named X at port 0, with no initialised fixed width.
     let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
@@ -505,10 +507,11 @@ let implementsVariableWidth (cfg : ComponentConfig) =
         input.FixedWidth.IsSome && not (inputIsAssertion input) -> input.FixedWidth
     | _ -> None
 
-let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput> =
+let makeOutputs portIds widths hostLabel hostSheet : Map<OutputPortNumber, ComponentOutput> =
     portIds
     |> List.zip widths 
-    |> List.mapi (fun i (width, name) -> (i, {IODefaults.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel}))
+    |> List.mapi (fun i (width, name) -> (
+        i, {IODefaults.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel; HostSheet = hostSheet}))
     |> Map.ofList 
 
 /// Allows for components not registered in the library to be
@@ -516,10 +519,10 @@ let makeOutputs portIds widths hostLabel : Map<OutputPortNumber, ComponentOutput
 /// TODO(jpnock): refactor this such that these components are
 /// supported by natively.
 // TODO ln220 make it so that it actually holds the component outputs 
-let makeConfigFromExternalInputComponent id widths portsIds hostLabel: ComponentConfig =
+let makeConfigFromExternalInputComponent id widths portsIds hostLabel hostSheet: ComponentConfig =
     {
         ComponentConfig.Default with
             InstanceID = Some id
-            Outputs = makeOutputs portsIds widths hostLabel
+            Outputs = makeOutputs portsIds widths hostLabel hostSheet
             IsInput = Some true
     }

@@ -41,6 +41,7 @@ type Value =
 /// an identifier in the simulation
 type Id = {
     Name: string
+    Sheet: string
     PortNumber: int
     ConnId: string
 }
@@ -55,11 +56,11 @@ type Lit =
 // Pattern to make matches on Ids more ergonomic
 let (|Id|_|) expr =
     match expr with
-    | Id idVal -> Some (idVal.Name, idVal.PortNumber, idVal.ConnId)
+    | Id idVal -> Some (idVal.Name, idVal.Sheet, idVal.PortNumber, idVal.ConnId)
     | _ -> None
 
-let makeId name portNumber connId =
-    Id {Name = name; PortNumber = portNumber; ConnId = connId}
+let makeId name sheet portNumber connId =
+    Id {Name = name; Sheet = sheet; PortNumber = portNumber; ConnId = connId}
 
 // authored by ln220
 /// Different kinds of type casting supported

@@ -60,19 +60,29 @@ let getLitMinSize lit =
     | Bool bool -> 1
     | Float f -> 32
 
+let convertCIDToFID (comps: FastComponent list) (cid: ComponentId) : FComponentId =
+    let fComp =
+        comps
+        |> List.tryFind (fun el -> el.cId = cid)
+    match fComp with
+    | Some f -> f.fId
+    | None -> failwithf "Failed to find fast component for component"
 
 /// get FComponentId for component that is in the sheet where it's currently being simulated 
-let getFComponentId label components = 
-    let isRightComponent (comp: FastComponent) = 
-        match comp.FLabel with 
-        | labelComp when labelComp = label -> Some(comp.fId)
+let getComponentId label (sheet:string) sheetComps : ComponentId = 
+    let isRightComponent (comp: Component) = 
+        match comp.Label with 
+        | labelComp when labelComp = label -> Some(ComponentId comp.Id)
         | _ -> None
-    let compId = 
-        List.choose isRightComponent components 
-        |> function 
-            | [a] -> a
-            | _ -> failwithf "should not happen"
-    compId
+        
+    sheetComps
+    |> Map.tryFind sheet
+    |> Option.map (List.choose isRightComponent)
+    |> Option.map (
+        function 
+        | [a] -> a
+        | _ -> failwithf "should not happen")
+    |> Option.defaultWith (failwith $"Component {label} could not be found on Sheet {sheet}")
 
 /// extract type information from Lit 
 let getLitType (components: FastComponent List) lit = 
@@ -193,8 +203,15 @@ let rec evaluate (tree: ExprInfo) (fs:FastSimulation) step (connectionsWidth: Co
             | Value (Uint uint) -> Ok(Uint uint, Size (getLitMinSize (Uint uint)))
             | Value (Bool bool) -> Ok(Bool bool, Size 1)
             | Value (Float uint) -> Ok(Float uint, Size (getLitMinSize (Uint uint)))
-            | Id (id, portNumber, connId) -> 
-                let fCompId = getFComponentId id (List.ofSeq fs.FComps.Values)
+            | Id (label, sheet, portNumber, connId) ->
+                let fComps = (List.ofSeq fs.FComps.Values)
+                let fCompsMap =
+                    fs.ComponentsById
+                    |> Map.map (fun k v -> v.Values |> List.ofSeq)
+                let fCompId =
+                    getComponentId label sheet fCompsMap
+                    |> convertCIDToFID fComps 
+                
                 let data = fs.getSimulationData step fCompId (OutputPortNumber portNumber)
                 let size = connectionsWidth[ConnectionId connId]
                 match data, size with 

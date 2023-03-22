@@ -699,8 +699,8 @@ let createNewSymbol (ldcs: LoadedComponent list) (pos: XYPos) (ctype: ComponentT
     
     let comptype =
         match ctype with
-        | Plugin state ->
-            Plugin {state with InstanceID = Some id}
+        | Plugin cfg ->
+            Plugin {cfg with InstanceID = Some id}
         | _ -> ctype
     
     let style = Constants.componentLabelStyle

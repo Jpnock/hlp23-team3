@@ -57,26 +57,28 @@ let getType value =
 
 /// Check if the lit name that is being used refers to an existing component.
 /// Mainly relevant for text based assertions
-let checkLitExistance (components: Component List) (lit: Lit) : Result<AssertionTypes.Type, string> = 
+let checkLitExistance (sheetComps: Map<string, Component list>) (lit: Lit) : Result<AssertionTypes.Type, string> = 
     match lit with
     | Value value -> Ok(getType value)
-    | Id (id, _, _) -> Ok(UintType)
+    | Id (label, sheet, _, _) -> Ok(UintType)
         (*
         let isRightComponent (comp: Component) = 
             match comp.Label with 
-            | idComp when idComp = id -> true
-            | _ -> false 
-
-        List.filter isRightComponent components 
-        |> function 
+            | idComp when idComp = label -> true
+            | _ -> false
+        sheetComps
+        |> Map.tryFind sheet
+        |> Option.map (List.filter isRightComponent)
+        |> Option.map (
+            function 
             | [c] -> Ok(UintType) 
             | [] -> Error($"the ID {id} does not exist") 
-            | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)"
+            | _ -> failwithf "there are one or more components that match this description (should not happen, dev error not user error)")
+        |> Option.defaultWith (failwith $"Component {label} could not be found on Sheet {sheet}")
         *)
 
-
 /// check that the verification AST obeys the type system 
-let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes = 
+let rec checkAST (tree: ExprInfo) (sheetComps: Map<string, Component list>): CheckRes = 
     /// Create one error from errors retunred by the evaluation of two operands 
     let propagateError (leftRes: CheckRes) (rightRes: CheckRes) =
         let toErr =
@@ -100,7 +102,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
 
     /// Check that cast function is applied appropriately
     let checkCast (castExpr: ExprInfo) castType (castSize: Option<int>) pos = 
-        let exprRes = checkAST castExpr components
+        let exprRes = checkAST castExpr sheetComps
         match exprRes with 
         | TypeInfo BoolType when castSize.IsSome -> 
             makeTypeError invTypesErr BoolType None pos
@@ -111,8 +113,8 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
 
     /// Check adherence of binary expressions to the type system
     let checkBin l r pos supportsBool makesBool =
-        let leftChecked = checkAST l components
-        let rightChecked= checkAST r components  
+        let leftChecked = checkAST l sheetComps
+        let rightChecked= checkAST r sheetComps  
         match leftChecked, rightChecked, supportsBool, makesBool with
         | TypeInfo _, TypeInfo _, _, true -> TypeInfo BoolType
         | TypeInfo BoolType, TypeInfo BoolType, true, false -> leftChecked
@@ -123,13 +125,13 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
 
     match tree with
     | IsUnary op -> 
-        let opRes = checkAST op components
+        let opRes = checkAST op sheetComps
         match opRes with 
         | TypeInfo _ -> opRes 
         | _ -> failwithf "should not happen" 
     | RequiresBool (l, r, pos) -> // check that operand(s) are bool 
-        let leftRes = checkAST l components
-        let rightRes = checkAST r components 
+        let leftRes = checkAST l sheetComps
+        let rightRes = checkAST r sheetComps 
         match leftRes, rightRes with 
         | TypeInfo typeL, TypeInfo typeR -> 
             if typeL = BoolType && typeL = typeR 
@@ -143,7 +145,7 @@ let rec checkAST (tree: ExprInfo) (components: Component List): CheckRes =
         printfn "ledt: %A right %A" l r
         checkBin l r pos false false
     | Lit lit, pos -> 
-        match checkLitExistance components lit with 
+        match checkLitExistance sheetComps lit with 
             | Ok(litType) -> TypeInfo litType
             | Error(msg) -> ErrLst [ { Msg = msg; Pos = pos; ExtraErrors = None } ]
     | Cast cast, pos -> 

@@ -1060,6 +1060,8 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                         dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
                         reactChildren
                     | assertionList -> 
+                        //remove old highlights
+                        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
                         highlightFailedAssertionComps model assertionList dispatch
                         
                         let assertionFaliersElement =

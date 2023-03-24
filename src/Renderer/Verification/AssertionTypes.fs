@@ -230,3 +230,20 @@ type Assertion = {
     Sheet: string Option;
     Description: string Option
 }
+
+/// Represents the port number (0..N) of an input on a given
+/// component.
+type InputPortNumber = int
+
+/// Represents the port number (0..N) of an output on a given
+/// component.
+type OutputPortNumber = int
+
+/// Helper type which represents an Assertion AST Expression for the
+/// connection that feeds into a given InputPortNumber of a component.
+type PortExprs = Map<InputPortNumber, Expr>
+
+/// Helper type for functions that accept the current map of built Assertion
+/// AST Expressions for all inputs of a component; the functions should return
+/// a new Expression representing the AST including the component.
+type ASTBuilder = string -> PortExprs -> Expr option

@@ -98,10 +98,10 @@ module SheetInterface =
             dispatch <| (Wire (BusWireT.Msg.DeleteWires connectedWires))
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.SetAssertionInputs (compId, inputs) ) ) )
         
-        member this.ChangeInputDataType (dispatch: Dispatch<Msg>) (compId: ComponentId) (portNum : AssertionASTMap.InputPortNumber) (dataType : VerificationComponents.DataType) =
+        member this.ChangeInputDataType (dispatch: Dispatch<Msg>) (compId: ComponentId) (portNum : AssertionTypes.InputPortNumber) (dataType : VerificationTypes.DataType) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeInputDataType (compId, portNum, dataType) ) ) )
         
-        member this.ChangeComponentConfig (dispatch: Dispatch<Msg>) (compId: ComponentId) (cfgMapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) =
+        member this.ChangeComponentConfig (dispatch: Dispatch<Msg>) (compId: ComponentId) (cfgMapper : VerificationTypes.ComponentConfig -> VerificationTypes.ComponentConfig) =
             dispatch <| (Wire (BusWireT.Symbol (SymbolT.ChangeComponentConfig (compId, cfgMapper) ) ) )
         
         member this.ChangeMultiComponentType (dispatch: Dispatch<Msg>) (compId: ComponentId) typ =

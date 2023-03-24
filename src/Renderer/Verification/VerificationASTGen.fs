@@ -5,7 +5,7 @@
 module VerificationASTGen
 
 open AssertionTypes
-open VerificationComponents
+open VerificationTypes
 open VerificationLibrary
 
 /// Returns the component config at a given input port number.

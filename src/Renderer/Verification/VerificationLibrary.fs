@@ -6,6 +6,7 @@ module VerificationLibrary
 
 open AssertionTypes
 open AssertionASTMap
+open VerificationTypes
 open VerificationComponents
 
 type ComponentClass =
@@ -35,10 +36,10 @@ type DefaultComponent = {
     member this.makeSimpleComponents : SimpleComponent list =
         let inputs, outputs =
             match this.Class with
-            | ClassComparator _ -> IODefaults.TwoInputs, IODefaults.OneFixedWidthOutputX 1
-            | ClassTwoInputOperator _ -> IODefaults.TwoInputs, IODefaults.OneOutput
+            | ClassComparator _ -> IOConstants.TwoInputs, IOConstants.OneFixedWidthOutputX 1
+            | ClassTwoInputOperator _ -> IOConstants.TwoInputs, IOConstants.OneOutput
             | ClassNoIO _ -> Map.empty, Map.empty
-            | ClassAssert _ -> IODefaults.OneAssertionInputA, Map.empty
+            | ClassAssert _ -> IOConstants.OneAssertionInputA, Map.empty
             | ClassMultiComponent (_, multiTyp) ->
                 match multiTyp with
                 | ComparatorType _ -> defaultIO ({ LibraryID = "" } : ComparatorComponent)

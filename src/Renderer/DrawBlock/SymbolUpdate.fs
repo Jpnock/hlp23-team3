@@ -11,7 +11,7 @@ open DrawModelType.SymbolT
 open Symbol
 open SymbolUpdatePortHelpers
 open SymbolReplaceHelpers
-open VerificationComponents
+open VerificationTypes
 open Optics
 open Optic
 open Operators
@@ -765,12 +765,12 @@ let storeLayoutInfoInComponent _ symbol =
 let checkSymbolIntegrity (sym: Symbol) =
     failwithf ""
 
-let rec private updatePluginState (mapper : VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig) (model : Model) compId =
+let rec private updatePluginConfig (mapper : VerificationTypes.ComponentConfig -> VerificationTypes.ComponentConfig) (model : Model) compId =
     let oldSymbol = Map.find compId model.Symbols
     let newCompType = 
         match oldSymbol.Component.Type with
         | Plugin state -> Plugin (mapper state)
-        | _ -> failwithf "Tried to update plugin state of non plugin component"
+        | _ -> failwithf "Tried to update plugin config of non plugin component"
     let newSymbol = set (component_ >-> type_) newCompType oldSymbol
     (replaceSymbol model newSymbol compId), Cmd.none
 
@@ -839,7 +839,7 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
         (replaceSymbol model newsymbol compId), Cmd.none
     
     | ChangeAssertionText (compId, newText) ->
-        updatePluginState (fun state -> {state with AssertionText = Some newText}) model compId
+        updatePluginConfig (fun state -> {state with AssertionText = Some newText}) model compId
 
     | SetAssertionInputs (compId, newInputNames) ->
         // Basic idea: If the inputs to the text assertion block have changed,
@@ -889,17 +889,17 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
         (replaceSymbol newModel newSymbol compId), Cmd.none
     
     | ChangeInputDataType (compId, portNum, dataType) ->
-        updatePluginState (fun state ->
-            let updateSign (target: VerificationComponents.ComponentInput) = {target with DataType = dataType}
+        updatePluginConfig (fun state ->
+            let updateSign (target: VerificationTypes.ComponentInput) = {target with DataType = dataType}
             let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
             {state with Inputs = newInputs}) model compId
     
     | ChangeComponentConfig (compId, cfgMapper) ->
-        updatePluginState cfgMapper model compId
+        updatePluginConfig cfgMapper model compId
     
     | ChangeMultiComponentType (compId, typ) ->
         // TODO(jpnock): consider what happens when number of inputs changes
-        updatePluginState (fun state -> {state with MultiComponentType = Some typ}) model compId
+        updatePluginConfig (fun state -> {state with MultiComponentType = Some typ}) model compId
     
     | ChangeScale (compId,newScale,whichScale) ->
         let symbol = Map.find compId model.Symbols

@@ -7,7 +7,7 @@
 module SelectedComponentView
 open EEExtensions
 open Microsoft.FSharp.Reflection
-open VerificationComponents
+open VerificationTypes
 open VerilogTypes
 open Fulma
 open Fable.React
@@ -910,7 +910,7 @@ let inline private makeMultiComponentDropdown<'T> model dispatch (comp: Componen
     |> List.ofSeq
     |> makeDropdown sectionName (typeNamer currentTyp)
 
-let private makeDataTypeDropdown model dispatch (comp: Component) (inpPort : AssertionASTMap.InputPortNumber) (inp: ComponentInput) =
+let private makeDataTypeDropdown model dispatch (comp: Component) (inpPort : AssertionTypes.InputPortNumber) (inp: ComponentInput) =
     match inp.DataType with
     | DataTypeAssertionInput -> None
     | dt ->

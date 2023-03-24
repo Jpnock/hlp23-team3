@@ -7,223 +7,13 @@ module VerificationComponents
 open System
 open AssertionTypes
 open AssertionASTMap
-
-type ComparatorType =
-    | ComparatorTypeEq
-    | ComparatorTypeLt
-    | ComparatorTypeLte
-    | ComparatorTypeGt
-    | ComparatorTypeGte
-    
-let comparatorTypeName typ =
-    match typ with
-    | ComparatorTypeLt -> "Less than"
-    | ComparatorTypeLte -> "Less than or equals"
-    | ComparatorTypeGt -> "Greater than"
-    | ComparatorTypeGte -> "Greater than or equals"
-    | ComparatorTypeEq -> "Equal"
-
-let comparatorTypeSymbolName typ =
-    match typ with
-    | ComparatorTypeLt -> "A < B"
-    | ComparatorTypeLte -> "A <= B"
-    | ComparatorTypeGt -> "A > B"
-    | ComparatorTypeGte -> "A >= B"
-    | ComparatorTypeEq -> "A == B"
-
-type DataType =
-    | DataTypeInt
-    | DataTypeUInt
-    | DataTypeFloat32
-    | DataTypeAssertionInput
-
-let dataTypeName =
-    function
-    | DataTypeInt -> "Signed Integer"
-    | DataTypeUInt -> "Unsigned Integer (default)"
-    | DataTypeFloat32 -> "32-bit Float (IEEE-754)"
-    | DataTypeAssertionInput -> "Assertion Input"
-
-type LogicalOpType =
-    | LogicalOpTypeAnd
-    | LogicalOpTypeOr
-    | LogicalOpTypeNot
-
-let logicalOpTypeName =
-    function
-    | LogicalOpTypeAnd -> "L. AND"
-    | LogicalOpTypeOr -> "L. OR"
-    | LogicalOpTypeNot -> "L. NOT"
-
-type BitwiseOpType =
-    | BitwiseOpTypeAnd
-    | BitwiseOpTypeOr
-    | BitwiseOpTypeNot
-
-let bitwiseOpTypeName =
-    function
-    | BitwiseOpTypeAnd -> "B. AND"
-    | BitwiseOpTypeOr -> "B. OR"
-    | BitwiseOpTypeNot -> "B. NOT"
-
-type MultiComponentType =
-    | ComparatorType of ComparatorType
-    | BitwiseOpType of BitwiseOpType
-    | LogicalOpType of LogicalOpType
-
-/// Represents stored data about a component input.
-type ComponentInput =
-    {
-      // Port label / name
-      Name: string
-      // The output width; set to Some (value) for static width-inference.
-      // If None, then automatic width-inference is applied.
-      FixedWidth: int option
-      // The type of the data represented by this input
-      DataType: DataType
-    }
-
-/// Represents stored data about a component output.
-type ComponentOutput =
-    {
-      // Port label / name
-      Name: string
-      // The output width; set to Some (value) for static width-inference.
-      // If None, then automatic width-inference is applied.
-      FixedWidth: int option
-      // TODO(jpnock): Move elsewhere... Used in evaluation 
-      HostLabel: string
-      // TODO(jpnock): Move elsewhere... Used in evaluation 
-      HostSheet: string
-    }
-
-/// Represents the ID of a component in the Component Library.
-type LibraryID = string
-
-/// Represents all stored data for a component. All newly added
-/// fields should be optional where possible, such that they can
-/// be initialised to None in the default constructor; this
-/// allows for new fields to be added without changing the code
-/// in many places.
-type ComponentConfig =
-    { InstanceID: string option
-      LibraryID: LibraryID
-      Inputs: Map<InputPortNumber, ComponentInput>
-      Outputs: Map<OutputPortNumber, ComponentOutput>
-      AssertionText: string option
-      AssertionDescription: string option
-      IsInput: bool option
-      MultiComponentType: MultiComponentType option }
-    static member Default : ComponentConfig = {
-        InstanceID = Some (Guid.NewGuid().ToString())
-        LibraryID = ""
-        Inputs = Map.empty
-        Outputs = Map.empty
-        AssertionText = None
-        AssertionDescription = None
-        IsInput = None
-        MultiComponentType = None
-    }
-
-/// Represents stored data about a Symbol for a component.
-type SymbolDetails =
-    {
-      // The text displayed on a symbol.
-      Name: string
-      // The prefix used above the symbol, when not given a name manually.
-      Prefix: string
-      // The height of the symbol.
-      Height: float
-      // The width of the symbol.
-      Width: float
-      // The colour of the symbol.
-      Colour: string
-      // The port labels for each input.
-      InputLabels: string list
-      // The port labels for each output.
-      OutputLabels: string list
-    }
-    
-/// Abstracts the behaviour of any component behind an interface. This allows
-/// for maximum flexibility -- including the ability to define components outside
-/// of this module -- such that components with complex behaviour do not pollute
-/// a single file. This was chosen to avoid the current Issie model of matching
-/// on the ComponentType DU, which forces you to currently change more than 10
-/// files in multiple places to add a single component.
-type IComponent =
-    /// Returns the ID of the library entry describing this component.
-    abstract member GetLibraryID: LibraryID
-    /// Returns the catalogue name of the component
-    abstract member GetName: string
-    /// Returns tooltip text displayed when creating a component.
-    abstract member GetTooltipText: string
-    /// Returns the initial config of a component, which determines its
-    /// behaviour and the type of component. User modifications are
-    /// not reflected here.
-    abstract member GetDefaultConfig : ComponentConfig
-    /// Retrieves the details of the component symbol, given the config,
-    /// such that this can dynamically be generated with different
-    /// behaviour per each component-type instance.
-    abstract member GetSymbolDetails : ComponentConfig -> SymbolDetails
-    /// Retrieves the description of the component based on the config.
-    /// Providing the config is useful if the description needs to be
-    /// dynamically updated based on the component config, such as
-    /// changing "N-bit adder" to "10-bit adder" when the user configures this.
-    abstract member GetDescription : ComponentConfig -> string
-    /// Returns the output widths of each output port. Used by the width-inference
-    /// engine to automatically deduce bus-widths.
-    abstract member GetOutputWidths : ComponentConfig -> Map<InputPortNumber, int> -> Map<OutputPortNumber, int>
-    /// Creates the Assertion AST for this component, when the ASTs
-    /// corresponding to each input port are provided.
-    abstract member CreateAST : ComponentConfig -> Map<InputPortNumber, Expr> -> Expr
+open VerificationTypes
   
-/// Defines helper defaults that are useful when constructing Component IO ports.
-module IODefaults =
-    /// A single input named A, with no initialised fixed with.
-    let InputA: ComponentInput = { Name = "A"; FixedWidth = None; DataType = DataTypeUInt; }
-    
-    /// A single input named B, with no initialised fixed with.
-    let InputB: ComponentInput = { InputA with Name = "B" }
-    
-    /// A single input named A at port 0, with no initialised fixed width.
-    let OneInput: Map<InputPortNumber, ComponentInput> = Map [
-        (0, InputA)
-    ]
-    
-    /// Two inputs named A and B, at ports 0 and 1 respectively, with no
-    /// initialised fixed width.
-    let TwoInputs = OneInput.Add (1, InputB)
-    
-    /// A single input named A at port 0, with fixed width of `width`.
-    let OneFixedWidthInputA width =
-        Map [ (0, {InputA with FixedWidth = Some width}) ]
-
-    let OneAssertionInputA =
-        Map [ (0, {InputA with FixedWidth = Some 1; DataType = DataTypeAssertionInput}) ]
-    
-    /// A single output named X, with no initialised fixed width.
-    let OutputX: ComponentOutput = { Name = "X"; FixedWidth = None; HostLabel = ""; HostSheet = ""}
-    
-    /// A single output named X at port 0, with no initialised fixed width.
-    let OneOutput: Map<OutputPortNumber, ComponentOutput> = Map [
-        (0, OutputX)
-    ]
-    
-    /// A single output named X at port 0, with fixed width of `width`.
-    let OneFixedWidthOutputX width =
-        Map [ (0, {OutputX with FixedWidth = Some width}) ]
 
 let convertAllToDataTypeAssertion inputs =
     inputs
     |> Map.map (fun _ input -> {input with DataType = DataTypeAssertionInput})
 
-/// Defines helper defaults that are useful when constructing Component symbols.
-module SymbolDefaults =
-    let GridSize = 30.0
-    let Width = 3.5 * GridSize
-    let Height = 2.0 * GridSize
-    let Prefix = "VERI"
-    let Colour = "rgb(175,220,120)"
 
 /// Returns the maximum value of a collection, or the default value if
 /// the list is empty.
@@ -296,10 +86,10 @@ type SimpleComponent =
         member this.GetDefaultConfig = this.DefaultConfig
         member this.GetSymbolDetails cfg =
             { Name = this.SymbolName
-              Prefix = SymbolDefaults.Prefix
-              Height = SymbolDefaults.Height
-              Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour
+              Prefix = SymbolConstants.Prefix
+              Height = SymbolConstants.Height
+              Width = SymbolConstants.Width
+              Colour = SymbolConstants.Colour
               InputLabels = inputPortLabels cfg
               OutputLabels = [] }
         member this.GetDescription cfg = this.DescriptionFunc this cfg
@@ -324,8 +114,8 @@ type ComparatorComponent =
         member this.GetDefaultConfig = {
             ComponentConfig.Default with
                 MultiComponentType = Some (ComparatorType ComparatorTypeEq)
-                Inputs = IODefaults.TwoInputs
-                Outputs = IODefaults.OneFixedWidthOutputX 1
+                Inputs = IOConstants.TwoInputs
+                Outputs = IOConstants.OneFixedWidthOutputX 1
                 LibraryID = this.LibraryID }
         member this.GetSymbolDetails cfg =
             let comparatorTyp =
@@ -333,10 +123,10 @@ type ComparatorComponent =
                 | Some (ComparatorType typ) -> typ
                 | _ -> failwithf "Tried to get the comparator type of a non-comparator"
             { Name = comparatorTypeSymbolName comparatorTyp
-              Prefix = SymbolDefaults.Prefix
-              Height = SymbolDefaults.Height
-              Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour
+              Prefix = SymbolConstants.Prefix
+              Height = SymbolConstants.Height
+              Width = SymbolConstants.Width
+              Colour = SymbolConstants.Colour
               InputLabels = inputPortLabels cfg
               OutputLabels = [] }
         member this.GetDescription _ =
@@ -369,8 +159,8 @@ type LogicalOpComponent =
             "Applies logical operations to the inputs, such as the AND (&&); OR (||) and NOT (!) operators"
         member this.GetDefaultConfig = {
             ComponentConfig.Default with
-                Inputs = IODefaults.TwoInputs |> convertAllToDataTypeAssertion
-                Outputs = IODefaults.OneFixedWidthOutputX 1
+                Inputs = IOConstants.TwoInputs |> convertAllToDataTypeAssertion
+                Outputs = IOConstants.OneFixedWidthOutputX 1
                 LibraryID = this.LibraryID
                 MultiComponentType = Some (LogicalOpType LogicalOpTypeAnd)}
         member this.GetSymbolDetails cfg =
@@ -379,10 +169,10 @@ type LogicalOpComponent =
                 | Some (LogicalOpType logicalOpType) -> logicalOpType
                 | _ -> failwithf "Tried to get the logical-operator type of a non-logical-operator"
             { Name = logicalOpTypeName typ
-              Prefix = SymbolDefaults.Prefix
-              Height = SymbolDefaults.Height
-              Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour
+              Prefix = SymbolConstants.Prefix
+              Height = SymbolConstants.Height
+              Width = SymbolConstants.Width
+              Colour = SymbolConstants.Colour
               InputLabels = inputPortLabels cfg
               OutputLabels = [] }
         member this.GetDescription _ =
@@ -411,8 +201,8 @@ type BitwiseOpComponent =
             Zero extends the smaller of the two inputs."
         member this.GetDefaultConfig = {
             ComponentConfig.Default with
-                Inputs = IODefaults.TwoInputs |> convertAllToDataTypeAssertion
-                Outputs = IODefaults.OneOutput
+                Inputs = IOConstants.TwoInputs |> convertAllToDataTypeAssertion
+                Outputs = IOConstants.OneOutput
                 LibraryID = this.LibraryID
                 MultiComponentType = Some (BitwiseOpType BitwiseOpTypeAnd)}
         member this.GetSymbolDetails cfg =
@@ -421,10 +211,10 @@ type BitwiseOpComponent =
                 | Some (BitwiseOpType bitwiseTyp) -> bitwiseTyp
                 | _ -> failwithf "Tried to get the bitwise-operator type of a non-bitwise-operator"
             { Name = bitwiseOpTypeName typ
-              Prefix = SymbolDefaults.Prefix
-              Height = SymbolDefaults.Height
-              Width = SymbolDefaults.Width
-              Colour = SymbolDefaults.Colour
+              Prefix = SymbolConstants.Prefix
+              Height = SymbolConstants.Height
+              Width = SymbolConstants.Width
+              Colour = SymbolConstants.Colour
               InputLabels = inputPortLabels cfg
               OutputLabels = [] }
         member this.GetDescription _ =
@@ -492,10 +282,10 @@ let makeSimpleComponent outputs inputs name baseLibraryID symbolName description
 /// Helper functions, which are partial applications of makeSimpleComponent, to
 /// allow for easier creation of common component configurations.
 module ComponentDefaults =
-    let makeOneOutputComponent = makeSimpleComponent IODefaults.OneOutput
-    let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IODefaults.OneFixedWidthInputA 1)
-    let makeOneInputOneOutputComponent = makeOneOutputComponent IODefaults.OneInput
-    let makeTwoInputOneOutputComponent = makeOneOutputComponent IODefaults.TwoInputs
+    let makeOneOutputComponent = makeSimpleComponent IOConstants.OneOutput
+    let makeOneInputOneBitComponent = makeSimpleComponent Map.empty (IOConstants.OneFixedWidthInputA 1)
+    let makeOneInputOneOutputComponent = makeOneOutputComponent IOConstants.OneInput
+    let makeTwoInputOneOutputComponent = makeOneOutputComponent IOConstants.TwoInputs
 
 /// Returns whether the component specifies a user-controllable
 /// input port 0 width.
@@ -511,7 +301,7 @@ let makeOutputs portIds widths hostLabel hostSheet : Map<OutputPortNumber, Compo
     portIds
     |> List.zip widths 
     |> List.mapi (fun i (width, name) -> (
-        i, {IODefaults.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel; HostSheet = hostSheet}))
+        i, {IOConstants.OutputX with Name = name; FixedWidth = width; HostLabel = hostLabel; HostSheet = hostSheet}))
     |> Map.ofList 
 
 /// Allows for components not registered in the library to be

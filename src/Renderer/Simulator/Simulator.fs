@@ -171,6 +171,32 @@ let saveStateInSimulationFastSim (canvasState:CanvasState) (openFileName: string
             ConnectionsByPort = portMap 
     }
 
+/// Merges a sequence of maps together to form one map. If multiple
+/// maps contain the same key, the value from the last map in the
+/// sequence is returned in the result.
+let mergeMaps (maps: seq<Map<_, _>>) =
+    maps
+    |> Seq.fold (fun accMap map ->
+        Map.fold (fun newMap key value -> Map.add key value newMap) accMap map
+    ) Map.empty
+
+/// Returns whether a component is an Assertion Text or Assert (TRUE)
+/// block.
+let isAssertionComponent (comp:Component) =
+    match comp.Type with
+    | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
+        Some (comp.Id, state)
+    | _ -> None
+
+/// Returns whether a component is an Assertion Text block.
+let isAssertionTextComp (comp:Component) =
+    match comp.Type with
+    | Plugin cfg -> 
+        match cfg.AssertionText with
+        | Some text -> Some (comp, cfg, text)
+        | None -> None
+    | _ -> None 
+
 /// Extract circuit data from inputs and return a checked SimulationData object or an error
 /// SimulationData has some technical debt, it wraps FastSimulation adding some redundant data
 let rec startCircuitSimulation
@@ -181,21 +207,12 @@ let rec startCircuitSimulation
         : Result<SimulationData, SimulationError> =
     
     let _, sheetComponentMap, sheetCanvasConnections = saveStateInSimulation fullCanvasState diagramName loadedDependencies
-    // printf $"Got all sheet ldcs \n {allSheetLoadedComps}"
-    // printf $"Got all sheet comps \n {sheetComponentMap}"
-    // printf $"Got all sheet conns \n {sheetCanvasConnections}"
     
     let canvasConnections =
         sheetCanvasConnections
         |> Map.values
         |> Seq.concat
         |> List.ofSeq
-        
-    let mergeMaps (maps: seq<Map<_, _>>) =
-        maps
-        |> Seq.fold (fun accMap map ->
-            Map.fold (fun newMap key value -> Map.add key value newMap) accMap map
-        ) Map.empty
     
     let componentNoIDMap =
         sheetComponentMap
@@ -218,16 +235,10 @@ let rec startCircuitSimulation
         |> Seq.concat
         |> List.ofSeq
     
-    let isAssertionComponent (comp:Component) =
-        match comp.Type with
-        | Plugin state when state.Inputs.Count = 1 && state.Outputs.Count = 0 ->
-            Some (comp.Id, state)
-        | _ -> None
-    
     let assertionCompsAndIDs =
         List.choose isAssertionComponent canvasComps
     
-    let makeState =
+    let makeConfig =
         VerificationComponents.makeConfigFromExternalInputComponent
 
     let getPortNames comp : string list = 
@@ -239,11 +250,11 @@ let rec startCircuitSimulation
         let sourceFun =
             match source.Type with
             | Plugin state -> fun _ _ -> state
-            | Input1 (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
-            | IOLabel -> makeState source.Id [None] [source.OutputPorts.Head.Id]
-            | Viewer busWidth -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
-            | Constant (busWidth, _) -> makeState source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
-            | _ -> makeState source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source)
+            | Input1 (busWidth, _) -> makeConfig source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+            | IOLabel -> makeConfig source.Id [None] [source.OutputPorts.Head.Id]
+            | Viewer busWidth -> makeConfig source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+            | Constant (busWidth, _) -> makeConfig source.Id [(Some busWidth)] [source.OutputPorts.Head.Id]
+            | _ -> makeConfig source.Id ([0..source.OutputPorts.Length] |> List.map (fun _ -> None)) (getPortNames source)
         sourceFun source.Label sourceSheet
         
     // Problem : port number is None on components
@@ -256,12 +267,12 @@ let rec startCircuitSimulation
         |> Map.ofList
     
     let targetIDtoPortNum id =
-        // printf $"Looking up {id}"
         inputPortIDToNumber[id]
     
-    printf $"Got canvas {canvasComps}\n{canvasConnections}"
-    // HostId -> Map<input port number, state>
-    let componentIDToInputPortState =
+    /// Returns a map which contains the plugin configuration of the
+    /// component which is driving each input port of the given Host ID
+    /// HostId -> Map<input port number, config>
+    let componentIDToInputPortConfig =
         canvasConnections
         |> List.map (fun conn -> (
                 conn.Target.HostId,
@@ -282,25 +293,25 @@ let rec startCircuitSimulation
             k, Map.ofList inputMap)
         |> Map.ofList
     
-    // TODO(jpnock): Fix uses of this
     let emptyPos compId = {AssertionTypes.Line = 1; AssertionTypes.Col = 1; AssertionTypes.Length = 1; CompId = compId}
     
     let undrivenError = Error {
         Msg = "One or more assertion component inputs were not driven"
         Pos = emptyPos "Undriven"
         ExtraErrors = None } 
-    let assertionComps: VerificationComponents.ComponentConfig list = List.map snd assertionCompsAndIDs
+    let assertionComps: VerificationTypes.ComponentConfig list = List.map snd assertionCompsAndIDs
     
+    // List of ASTs for each assertion comp, or their error if they failed to compile.
     let assertionCompASTs : Result<AssertionTypes.Assertion, CodeError> list =
         assertionComps
         |> List.map (fun el ->
             // TODO(jpnock): Currently assuming assert HIGH
-            let connectedToPort = componentIDToInputPortState.TryFind el.InstanceID.Value
+            let connectedToPort = componentIDToInputPortConfig.TryFind el.InstanceID.Value
             match connectedToPort with
             | None -> undrivenError
             | Some connectedTo ->               
                 let (assertionInput, _, _) = connectedTo[0]
-                let ast = VerificationASTGen.generateAST componentIDToInputPortState 0 "" assertionInput
+                let ast = VerificationASTGen.generateAST componentIDToInputPortConfig 0 "" assertionInput
                 let assertion = ast, emptyPos assertionInput.InstanceID.Value
                 let componentId = 
                     match el.InstanceID with
@@ -308,23 +319,22 @@ let rec startCircuitSimulation
                     | _ -> failwithf "What - assertion comps should have ids at this point"
                 let assertionLabel = componentMap[ComponentId componentId].Label
                 let assertionSheet = componentToSheet[ComponentId componentId]
-                Ok {AssertExpr = assertion; InputNames = Set.empty; Name = Some assertionLabel; Id = Some componentId; Sheet = Some assertionSheet; Description = el.AssertionDescription})
+                Ok {
+                    AssertExpr = assertion
+                    InputNames = Set.empty
+                    Name = Some assertionLabel
+                    Id = Some componentId
+                    Sheet = Some assertionSheet
+                    Description = el.AssertionDescription
+                })
     
-    let isAssertionTextComp (comp:Component) =
-        match comp.Type with
-        | Plugin cfg -> 
-            match cfg.AssertionText with
-            | Some text -> Some (comp, cfg, text)
-            | None -> None
-        | _ -> None 
-    
-    let assertionTextComps = canvasComps |> List.choose isAssertionTextComp
+    let assertionTextComps =
+        canvasComps |> List.choose isAssertionTextComp
 
     let parsedAssertionTexts =
-        let parseAndLink (comp:Component, cfg:VerificationComponents.ComponentConfig, assertText:string) =
-            match componentIDToInputPortState.TryFind cfg.InstanceID.Value with
+        let parseAndLink (comp:Component, cfg:VerificationTypes.ComponentConfig, assertText:string) =
+            match componentIDToInputPortConfig.TryFind cfg.InstanceID.Value with
             | Some portMap ->
-                printf $"ABCDEFGHI"
                 let inputPorts = List.ofSeq cfg.Inputs.Keys
                 let undrivenInput =
                     List.exists (fun key ->
@@ -386,7 +396,6 @@ let rec startCircuitSimulation
         validASTs
         |> List.map (fun el -> AssertionCheck.checkAST el.AssertExpr componentNoIDMap)
     
-    printfn "checked asts %A" checkedASTs 
     let checkedASTsWithSimErrors: Result<CheckRes, SimulationError> list = 
         checkedASTs
         |> List.mapi ( fun idx ast -> 
@@ -409,9 +418,6 @@ let rec startCircuitSimulation
             | Error err -> Some (Error err)
         )
 
-    printfn "failed asts %A" failedASTs
-
-    // TODO ln220: add something that, if any of the assertions don't compile, returns a simulation erro
     let goodASTs =
         checkedASTs
         |> List.choose (
@@ -422,7 +428,6 @@ let rec startCircuitSimulation
     let finalAssertions =
         if goodASTs.Length = checkedASTs.Length then validASTs
         else
-            // TODO(jpnock): improve error output
             printf $"ERROR in ASTs assertionASTs {checkedASTs} {goodASTs}"
             []
     

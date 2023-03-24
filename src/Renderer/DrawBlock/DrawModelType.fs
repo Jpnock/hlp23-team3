@@ -224,9 +224,9 @@ module SymbolT =
         | ChangeNumberOfBits of compId:ComponentId * NewBits:int
         | ChangeAssertionText of compId:ComponentId * string
         | SetAssertionInputs of compId:ComponentId * Inputs: string Set
-        | ChangeInputDataType of compId:ComponentId * AssertionASTMap.InputPortNumber * VerificationComponents.DataType
-        | ChangeComponentConfig of compId:ComponentId * (VerificationComponents.ComponentConfig -> VerificationComponents.ComponentConfig)
-        | ChangeMultiComponentType of compId:ComponentId * VerificationComponents.MultiComponentType
+        | ChangeInputDataType of compId:ComponentId * AssertionTypes.InputPortNumber * VerificationTypes.DataType
+        | ChangeComponentConfig of compId:ComponentId * (VerificationTypes.ComponentConfig -> VerificationTypes.ComponentConfig)
+        | ChangeMultiComponentType of compId:ComponentId * VerificationTypes.MultiComponentType
         | ChangeLsb of compId: ComponentId * NewBits:int64 
         | ChangeInputValue of compId: ComponentId * newVal: int
         | ChangeScale of compId:ComponentId * newScale:float * whichScale:ScaleAdjustment

@@ -174,10 +174,9 @@ let private calculateOutputPortsWidth
             inputWidths
             |> Map.exists (fun _ -> Option.isNone)
         
-        // TODO(jpnock): Tidy
-        if notAllWidthsValid then
-            Ok <| Map.empty
-        else
+        match notAllWidthsValid with
+        | true -> Ok <| Map.empty
+        | false -> 
             let emptyInputWidths: Map<AssertionTypes.InputPortNumber, int> = Map.empty
             let emptyOutputWidths: Map<OutputPortId, int> = Map.empty
             

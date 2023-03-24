@@ -4,6 +4,10 @@ This project implements assertion logic, improving how designs can be verified w
 
 # Implemented functionality
 
+## SINCE DEMO
+
+* The ability to set whether assertions will be raised based on an inclusive from-cycle to an exclusive to-cycle has been implemented. 
+
 ## Text based assertions 
 
 * Supports a simple assertion language 

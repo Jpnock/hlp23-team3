@@ -108,7 +108,9 @@ type ComponentConfig =
       AssertionText: string option
       AssertionDescription: string option
       IsInput: bool option
-      MultiComponentType: MultiComponentType option }
+      MultiComponentType: MultiComponentType option
+      AssertionValidFrom: int option
+      AssertionValidTo: int option }
     static member Default : ComponentConfig = {
         InstanceID = Some (Guid.NewGuid().ToString())
         LibraryID = ""
@@ -118,6 +120,8 @@ type ComponentConfig =
         AssertionDescription = None
         IsInput = None
         MultiComponentType = None
+        AssertionValidFrom = Some 0
+        AssertionValidTo = Some 1000
     }
 
 /// Represents stored data about a Symbol for a component.

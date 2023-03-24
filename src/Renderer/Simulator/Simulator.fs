@@ -326,6 +326,8 @@ let rec startCircuitSimulation
                     Id = Some componentId
                     Sheet = Some assertionSheet
                     Description = el.AssertionDescription
+                    ValidFrom = el.AssertionValidFrom
+                    ValidTo = el.AssertionValidTo
                 })
     
     let assertionTextComps =
@@ -366,6 +368,8 @@ let rec startCircuitSimulation
                             Id = Some comp.Id
                             Sheet = Some assertionSheet
                             Description = cfg.AssertionDescription
+                            ValidFrom = cfg.AssertionValidFrom
+                            ValidTo = cfg.AssertionValidTo
                     })
             | _ -> undrivenError
         List.map parseAndLink assertionTextComps

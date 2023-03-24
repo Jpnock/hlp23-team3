@@ -930,6 +930,35 @@ let private makeDataTypeDropdown model dispatch (comp: Component) (inpPort : Ass
         |> makeDropdown $"Input {inp.Name}" (dataTypeName dt)
         |> Some
 
+let assertionValidInput (from: bool) model dispatch (comp: Component)  = 
+    let assertionValidTitle =
+        match from with
+        | true -> "Assertion valid from (inclusive cycle)"
+        | false -> "Assertion valid to (exclusive cycle)"
+    
+    let defaultValue =
+        match comp.Type with
+        | Plugin cfg ->
+            match from with
+            | true ->
+                if cfg.AssertionValidFrom.IsSome then cfg.AssertionValidFrom.Value
+                else 0
+            | false ->
+                if cfg.AssertionValidTo.IsSome then cfg.AssertionValidTo.Value
+                else 0
+        | _ -> failwith "what? this component was not an assertion comp"
+        
+    intFormField assertionValidTitle "100%" defaultValue 0 (
+        fun newValue ->
+            match from with
+            | true ->
+                model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (
+                    fun oldCfg -> {oldCfg with AssertionValidFrom = Some newValue})
+            | false ->
+                model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (
+                    fun oldCfg -> {oldCfg with AssertionValidTo = Some newValue})
+    )
+    
 let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
     match comp.Type with
     | Input1 _ ->
@@ -1004,6 +1033,16 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
                 |> Some
             | _ -> None
         
+        let assertionValidFrom =
+            match p.AssertionDescription with
+            | Some _ -> Some (assertionValidInput true model dispatch comp)
+            | _ -> None
+        
+        let assertionValidTo =
+            match p.AssertionDescription with
+            | Some _ -> Some (assertionValidInput false model dispatch comp)
+            | _ -> None
+        
         let emptyIfAssertionComp m =
             match p.AssertionDescription with
             | Some _ -> Map []
@@ -1016,7 +1055,8 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
             |> Map.values
             |> List.ofSeq
         
-        let all = dataTypeDropdown @ [varWidth; multiComponentSelect; assertionDescription]
+            
+        let all = dataTypeDropdown @ [varWidth; multiComponentSelect; assertionDescription;assertionValidFrom;assertionValidTo]
         div [] (
            Seq.choose id all
            |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])

@@ -352,8 +352,22 @@ let evaluateAssertionsInWindow (startCycle : int) (endCycle : int) (fs: FastSimu
         //     let prettyAST = AssertionParser.prettyPrintAST (fst assertion.AssertExpr) "" false
         //     Some {Name = assertionName; Cycle = step; FailureMessage = $"There was a problem with the evaluation of the assertion \n{prettyAST}\n {e}\n"; Sheet = assertionSheet; CompId = ComponentId assertionId} 
     printf $"{fs.Assertions}"
+    
+    let assertionShouldRunInCycle n (assertion:Assertion) =
+        printf $"ABCDEF test {n} {assertion}"
+        match assertion.ValidFrom, assertion.ValidTo with
+        | Some fromVal, Some toVal ->
+            n >= fromVal && n < toVal
+        | Some fromVal, None ->
+            n >= fromVal
+        | None, Some toVal ->
+            n < toVal
+        | None, None ->
+            true
+    
     let evalAllAssertions assertions n = 
         assertions
+        |> List.filter (assertionShouldRunInCycle n)
         |> List.choose (evalTree n)
     [startCycle..endCycle]
     |> List.collect (evalAllAssertions fs.Assertions)

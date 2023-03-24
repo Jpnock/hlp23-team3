@@ -223,12 +223,14 @@ type ParseExprResult = Result<ParsedExpr, CodeError>
 type Precedence = Precedence of int option 
 
 type Assertion = {
-    InputNames: string Set;
-    AssertExpr: ExprInfo;
-    Name: string Option;
-    Id: string Option;
-    Sheet: string Option;
+    InputNames: string Set
+    AssertExpr: ExprInfo
+    Name: string Option
+    Id: string Option
+    Sheet: string Option
     Description: string Option
+    ValidFrom: int option
+    ValidTo: int option
 }
 
 /// Represents the port number (0..N) of an input on a given

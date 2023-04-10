@@ -104,8 +104,7 @@ let init() = {
         NewConstraint = None
         AlgebraInputs = None
         AlgebraError = None
-        VerilogCode = None
-        VerilogErrors = []
+        Code = None
         BadLabel = false
     }
     Notifications = {
@@ -288,8 +287,11 @@ let viewRightTabs canvasState model dispatch =
                 [ a [  OnClick (fun _ -> dispatch <| ChangeRightTab Simulation ) ] [str "Simulations"] ]
             buildTab
         ]
-        div [HTMLAttr.Id "TabBody"; belowHeaderStyle "36px"; Style [OverflowY scrollType]] [viewRightTab canvasState model dispatch]
-
+        div [
+            HTMLAttr.Id "TabBody"
+            belowHeaderStyle "36px"
+            Style [OverflowY scrollType; Height "100%"]
+        ] [viewRightTab canvasState model dispatch]
     ]
 let mutable testState:CanvasState = [],[]
 let mutable lastDragModeOn = false

@@ -1,6 +1,7 @@
 module CodeEditorHelpers
 
 open VerilogTypes
+open AssertionTypes
 open ErrorCheck
 open Fable.React
 open Fable.React.Props
@@ -50,16 +51,16 @@ let getErrorDiv errorList : ReactElement =
 
 
     /// Given a list of errors on a specific line, returns a react element with the correct underlines and on-hover messages 
-    let getErrorLine errorLineList =
-        let sortedErrors = List.sortBy (fun e -> e.Col) errorLineList
+    let getErrorLine (errorLineList:CodeError list) =
+        let sortedErrors = List.sortBy (fun (e:CodeError) -> e.Pos.Col) errorLineList
         let linechildren = 
             sortedErrors
             |> List.indexed
-            |> List.collect (fun (index,err) ->
-                let prevErrorEnd = if index = 0 then 0.0 else (float (sortedErrors[index-1].Col+sortedErrors[index-1].Length-1))*8.8
-                let spaces = sprintf "%fpx" ((float (err.Col-1))*8.8 - prevErrorEnd)
-                let _line = ("", [1..err.Length]) ||> List.fold (fun s v -> s+"-")
-                getUnderLineElement spaces _line err.Message
+            |> List.collect (fun (index,(err:CodeError)) ->
+                let prevErrorEnd = if index = 0 then 0.0 else (float (sortedErrors[index-1].Pos.Col+sortedErrors[index-1].Pos.Length-1))*8.8
+                let spaces = sprintf "%fpx" ((float (err.Pos.Col-1))*8.8 - prevErrorEnd)
+                let _line = ("", [1..err.Pos.Length]) ||> List.fold (fun s v -> s+"-")
+                getUnderLineElement spaces _line err.Msg
             )
         
         [p [] linechildren]
@@ -67,25 +68,25 @@ let getErrorDiv errorList : ReactElement =
     /// Returns a map which maps line number to list of errors (type ErrorInfo) on that line
     let getLineToErrorsMap sortedErrorList = 
         
-        let emptyMap = Map.empty<int,ErrorInfo list>
+        let emptyMap = Map.empty<int,CodeError list>
         
         (emptyMap, sortedErrorList)
-        ||> List.fold (fun state err ->
-                match Map.tryFind err.Line state with
-                | Some found -> Map.add err.Line (List.append found [err]) state
-                | None -> Map.add err.Line [err] state
+        ||> List.fold (fun state (err:CodeError) ->
+                match Map.tryFind err.Pos.Line state with
+                | Some found -> Map.add err.Pos.Line (List.append found [err]) state
+                | None -> Map.add err.Pos.Line [err] state
             )
     
     
     
-    let sortedByLineErrorList = List.sortBy (fun err -> err.Line) errorList
+    let sortedByLineErrorList = List.sortBy (fun (err:CodeError) -> err.Pos.Line) errorList
     
     let lineToErrorsMap = getLineToErrorsMap sortedByLineErrorList
     
     let childrenElements =
         match List.tryLast sortedByLineErrorList with
         | Some lastError ->
-            [1..lastError.Line]
+            [1..lastError.Pos.Line]
             |> List.collect (fun line ->
                 match Map.tryFind line lineToErrorsMap with
                 | Some errors -> getErrorLine errors
@@ -108,17 +109,15 @@ let getErrorDiv errorList : ReactElement =
 
 
 let getSyntaxErrorInfo error = 
-    if (String.exists (fun ch -> ch = ';') error.Message && not (String.exists (fun ch->ch='.') error.Message))
+    if (String.exists (fun ch -> ch = ';') error.Msg && not (String.exists (fun ch->ch='.') error.Msg))
         then {error with ExtraErrors = Some [|{Text= "Your previous line is not terminated with a semicolon (;)"; Copy= false;Replace=NoReplace}|]}
-    elif (String.exists (fun ch -> ch = '\'') error.Message)
+    elif (String.exists (fun ch -> ch = '\'') error.Msg)
         then {error with ExtraErrors = Some [|{Text= "Numbers must be of format: <size>'<radix><value>\n  e.g. 16'h3fa5;"; Copy= false;Replace=NoReplace}|]}
-    else {error with ExtraErrors = Some [|{Text= error.Message; Copy= false;Replace=NoReplace}|]}
+    else {error with ExtraErrors = Some [|{Text= error.Msg; Copy= false;Replace=NoReplace}|]}
 
 
-let getErrorTable (errorList: ErrorInfo list) addButton =
+let getErrorTable (errorList: CodeError list) addButton =
     
-
-
     let getSuggestionLine suggestions replaceType line = 
         let buttons = 
             suggestions
@@ -141,12 +140,8 @@ let getErrorTable (errorList: ErrorInfo list) addButton =
                 buttons
         
         td [Style [WhiteSpace WhiteSpaceOptions.Pre ]] line
-
-        
-        
-
     
-    let getErrorTableLine index (extraMessage:ExtraErrorInfo) line : ReactElement list =
+    let getErrorTableLine index (extraMessage:CodeExtraErrorInfo) line : ReactElement list =
         let copyable = extraMessage.Copy
         let text = extraMessage.Text
         let showLine = if index=0 then "  Line "+(string line) else ""
@@ -166,8 +161,8 @@ let getErrorTable (errorList: ErrorInfo list) addButton =
                 ]
             ]
 
-    let getErrorTableLines error = 
-        let line = error.Line   
+    let getErrorTableLines (error: CodeError) = 
+        let line = error.Pos.Line   
         // let message = 
         match isNullOrUndefined error.ExtraErrors with
         |true -> null
@@ -179,8 +174,6 @@ let getErrorTable (errorList: ErrorInfo list) addButton =
                 |> List.collect (fun (index,mess) -> getErrorTableLine index mess line)
             
             tbody [] tLine
-    
-    
     
     let tableFormat =
         [
@@ -199,7 +192,7 @@ let getErrorTable (errorList: ErrorInfo list) addButton =
     
     let tableLines =
         errorList
-        |> List.sortBy (fun err -> err.Line)
+        |> List.sortBy (fun err -> err.Pos.Line)
         |> List.collect (fun err -> [getErrorTableLines err])
     
     let tableChildren = List.append tableFormat tableLines

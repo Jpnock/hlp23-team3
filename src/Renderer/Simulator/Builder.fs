@@ -113,6 +113,7 @@ let private getDefaultState compType =
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->
         failwithf "Legacy Input component types should never occur"
+    | Plugin _ -> NoState
     | Input1 _ | Output _ | IOLabel | BusSelection _ | BusCompare _ | BusCompare1 _ | Not | And | Or | Xor | Nand | Nor | Xnor | Mux2 | Mux4 | Mux8 | Decode4 | NbitSpreader _
     | Demux2 | Demux4 | Demux8 | NbitsAdder _ | NbitsOr _ |NbitsXor _ |NbitsAnd _ |NbitsNot _ | Custom _ | MergeWires | SplitWire _ | ROM1 _  | Viewer _ 
     | NbitsAdderNoCin _ | NbitsAdderNoCout _ | NbitsAdderNoCinCout _ |Shift _ -> NoState
@@ -232,7 +233,6 @@ let private buildSimulationGraph (canvasState : CanvasState) : (SimulationGraph)
     components
     |> List.map (fun comp -> ComponentId comp.Id, mapper comp)
     |> Map.ofList
-    |> (fun m -> m)
 
 /// Validate a diagram and generate its simulation graph.
 let runCanvasStateChecksAndBuildGraph

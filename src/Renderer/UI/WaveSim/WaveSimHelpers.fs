@@ -5,6 +5,7 @@ open Fulma.Extensions.Wikiki
 open Fable.React
 open Fable.React.Props
 
+open AssertionEvaluation
 open CommonTypes
 open ModelType
 open ModelHelpers
@@ -354,6 +355,7 @@ let getCompDetails fs wave =
             failwithf "Legacy component types should not appear"
         | Shift _ ->
             "Error: Shift is an internal component that should not appear", false
+        | Plugin _ -> "Verification components are not displayed", false
     match oneLine with
     | true -> $"{label}{portBits wave.Width} {descr}"
     | false -> $"{label} {descr}"
@@ -382,6 +384,7 @@ let getCompGroup fs wave =
         failwithf "Legacy component types should not appear"
     | Shift _ ->
         failwithf "Shift is an internal-only component which should never appear on the canvas"
+    | Plugin _ -> failwithf "Verification components are not displayed"
 
 
 /// Name for summary field in details element.
@@ -670,6 +673,7 @@ type WaveSimButtonOptions = {
 let endButtonAction canvasState model dispatch ev =
     printf "endbuttonaction"
     removeHighlights model dispatch
+    dispatch <| Sheet (DrawModelType.SheetT.RemoveFailedAssertionHighlights)
     dispatch <| EndWaveSim
 
 /// Return info about current state of waveform simulator
@@ -725,6 +729,8 @@ let checkIfMemoryCompsOutOfDate (p: Project) (fs:FastSimulation) =
                 | Error _ -> false
             | _ -> true))
 
-
-        
-    
+/// returns the failed assertion occurring on the wsModel's current clk cycle
+/// Authored by djj120
+let getCurrAssertionFailuresWaveSim (wsModel: WaveSimModel) : FailedAssertion list=
+    let failedAssertions = evaluateAssertionsInWindow wsModel.CurrClkCycle wsModel.CurrClkCycle wsModel.FastSim
+    List.filter (fun assertion -> assertion.Cycle = wsModel.CurrClkCycle) failedAssertions

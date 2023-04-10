@@ -4,6 +4,7 @@ open Fulma
 open Fable.React
 open Fable.React.Props
 
+open AssertionEvaluation
 open CommonTypes
 open ModelType
 open ModelHelpers
@@ -341,7 +342,7 @@ let nameRows (model: Model) (wsModel: WaveSimModel) dispatch: ReactElement list 
                                 |> List.map (fun (_,sym) -> sym.Component)
                                 |> List.filter (function | {Type=IOLabel;Label = lab'} when lab' = lab -> true |_ -> false)
                                 |> List.map (fun comp -> ComponentId comp.Id)
-                            highlightCircuit wsModel.FastSim labelComps wave dispatch                            
+                            highlightCircuit wsModel.FastSim labelComps wave dispatch
                         | Some sym ->
                             highlightCircuit wsModel.FastSim [fst wave.WaveId.Id] wave dispatch
                         | None -> ()
@@ -480,6 +481,7 @@ let clkCycleNumberRow (wsModel: WaveSimModel) =
     |> svg (clkCycleNumberRowProps wsModel)
 
 /// Generate a column of waveforms corresponding to selected waves.
+/// Reformatted and added creation of red highlighting over failed assertions djj120
 let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
     let start = TimeHelpers.getTimeMs ()
     /// Note that this is generated after calling selectedWaves.
@@ -500,14 +502,20 @@ let waveformColumn (wsModel: WaveSimModel) dispatch : ReactElement =
                 div [] [] // the GenerateCurrentWaveforms message will soon update this
         )
 
-    div [ waveformColumnStyle ]
-        [
-            clkCycleHighlightSVG wsModel dispatch
+    let colChildren =
+        let visibleFailedAssertions = evaluateAssertionsInWindow wsModel.StartCycle (endCycle wsModel) wsModel.FastSim
+        let failedAssertionCycles = getFailedAssertionCycles(visibleFailedAssertions)
+        let failedAssertionHighlights = failedAssertionCycles |> List.map (failedAssertionsHighlight wsModel) 
+        let clkCycleNumberRowDiv = 
             div [ waveRowsStyle wsModel.WaveformColumnWidth]
                 ([ clkCycleNumberRow wsModel ] @
                     waveRows
                 )
-        ]
+
+        failedAssertionHighlights @ [clkCycleHighlightSVG wsModel dispatch] @ [clkCycleNumberRowDiv]
+
+    div [ waveformColumnStyle ]
+        colChildren
     |> TimeHelpers.instrumentInterval "waveformColumn" start
 
 /// Display the names, waveforms, and values of selected waveforms
@@ -980,10 +988,10 @@ let topHalf canvasState (model: Model) dispatch : ReactElement =
                     Level.level [] [
                         Level.item [ ] [
                             Button.list [] [
-                                selectWavesButton wsModel dispatch
+                                selectWavesButton wbo.IsRunning wsModel dispatch
                                 selectWavesModal wsModel dispatch
 
-                                selectRamButton wsModel dispatch
+                                selectRamButton wbo.IsRunning wsModel dispatch
                                 selectRamModal wsModel dispatch
                             ]
                         ]
@@ -1004,6 +1012,7 @@ let topHalf canvasState (model: Model) dispatch : ReactElement =
         ]
 
 /// Entry point to the waveform simulator.
+/// Reformate output react and add assertion failure element djj120 
 let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
     let wsModel = getWSModel model
     let notRunning = 
@@ -1013,6 +1022,9 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
         SimulationView.setSimErrorFeedback e model dispatch
         div [ errorMessageStyle ]
             [ SimulationView.viewSimulationError e ]
+    
+    
+
     div [] [
         div [ viewWaveSimStyle ]
             [
@@ -1036,12 +1048,28 @@ let viewWaveSim canvasState (model: Model) dispatch : ReactElement =
                         [ str "Please open a project to use the waveform viewer." ]
                 | _,Loading | _,Success ->
                     //printfn $"Showing waveforms: fs= {wsModel.FastSim}"
-                    div [showWaveformsAndRamStyle] [
-                        showWaveforms model wsModel dispatch
-                        hr []
-                        ramTables wsModel
+                    let reactChildren = 
+                        [
+                            showWaveforms model wsModel dispatch
+                            hr []
+                            ramTables wsModel
                         ]
 
+                    match getCurrAssertionFailuresWaveSim(wsModel) with
+                    | [] -> 
+                        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
+                        reactChildren
+                    | assertionList -> 
+                        //remove old highlights
+                        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights)
+                        highlightFailedAssertionComps model assertionList dispatch
+                        
+                        let assertionFaliersElement =
+                            SimulationView.viewFailedAssertions (getCurrAssertionFailuresWaveSim(wsModel)) model dispatch
+                        
+                        [assertionFaliersElement] @ [hr []] @ reactChildren
+                    |> div [showWaveformsAndRamStyle] 
+                        
                 hr []
             ]
         

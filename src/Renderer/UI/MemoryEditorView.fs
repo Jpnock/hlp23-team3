@@ -108,10 +108,10 @@ let private showRowWithAdrr memoryEditorData addr =
     | _ -> false
 
 let viewNum numBase =
-    match numBase with | Hex -> hex64 | Dec -> dec64 | Bin -> bin64 | SDec -> sDec64
+    match numBase with | Hex -> hex64 | Dec -> dec64 | Bin -> bin64 | SDec -> sDec64 | Float32 -> sFloat32
 
 let viewFilledNum width numBase =
-    match numBase with | Hex -> fillHex64 width | Dec -> dec64 | Bin -> fillBin64 width | SDec -> sDec64
+    match numBase with | Hex -> fillHex64 width | Dec -> dec64 | Bin -> fillBin64 width | SDec -> sDec64 | Float32 -> sFloat32
 
 // let private baseToStr b = match b with | Hex -> "hex" | Dec -> "dec" | Bin -> "bin"
 
@@ -138,6 +138,10 @@ let baseSelector numBase changeBase =
                 Button.Color (if numBase = Bin then IsPrimary else NoColor)
                 Button.OnClick (fun _ -> changeBase Bin)
             ] [ str "bin" ] ]
+            Control.div [] [ Button.button [
+                Button.Color (if numBase = Float32 then IsPrimary else NoColor)
+                Button.OnClick (fun _ -> changeBase Float32)
+            ] [ str "float32" ] ]
         ]
     ]
 

@@ -188,6 +188,10 @@ let getSymbolColour compType clocked (theme:ThemeType) =
             -> "#E8D0A9"  //dark orange: for IO
         | SplitWire _ | MergeWires _ | BusSelection _ | NbitSpreader _ | IOLabel ->
             "rgb(120,120,120)"
+        | Plugin p -> (
+            let comp = VerificationLibrary.library.Components[p.LibraryID]
+            let symbolProps = comp.GetSymbolDetails p
+            symbolProps.Colour)
         | _ -> "rgba(255,255,217,1)" //lightyellow: for combinational components
 
 
@@ -315,6 +319,9 @@ let getPrefix (compType:ComponentType) =
     | CounterNoLoad _ |CounterNoEnableLoad _ -> "CNT"
     | MergeWires -> "MW"
     | SplitWire _ -> "SW"
+    | Plugin p ->
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
+        (comp.GetSymbolDetails p).Prefix
     |_  -> ""
 
 
@@ -333,10 +340,10 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
         match rotation with
         |Degree90 |Degree270 -> busTitleAndBits "Reg" n
         |_ -> busTitleAndBits "Register" n
-    | AsyncROM1 _ -> "Async.ROM"
-    | ROM1 _ -> "Sync.ROM"
-    | RAM1 _ -> "Sync.RAM"
-    | AsyncRAM1 _ -> "Async.RAM"
+    | AsyncROM1 _ -> "Async\nROM"
+    | ROM1 _ -> "Sync\nROM"
+    | RAM1 _ -> "Sync\nRAM"
+    | AsyncRAM1 _ -> "Async\nRAM"
     | DFF -> "DFF"
     | DFFE -> "DFFE"
     | Counter n |CounterNoEnable n
@@ -347,6 +354,9 @@ let getComponentLegend (componentType:ComponentType) (rotation:Rotation) =
     | NbitsNot (x)->  nBitsGateTitle "NOT" x
     | Shift (n,_,_) -> busTitleAndBits "Shift" n
     | Custom x -> x.Name.ToUpper()
+    | Plugin p ->
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
+        (comp.GetSymbolDetails p).Name
     | _ -> ""
 
 // Input and Output names of the ports depending on their ComponentType
@@ -378,6 +388,10 @@ let portNames (componentType:ComponentType)  = //(input port names, output port 
     | NbitsNot _ -> (["IN"]@["OUT"])
     | Shift _ -> (["IN" ; "SHIFTER"]@["OUT"])
     | Custom x -> (List.map fst x.InputLabels)@ (List.map fst x.OutputLabels)
+    | Plugin p ->
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
+        let symbolProps = comp.GetSymbolDetails p
+        (symbolProps.InputLabels @ symbolProps.OutputLabels)
     | _ -> ([]@[])
    // |Demux8 -> (["IN"; "SEL"],["0"; "1"; "2" ; "3" ; "4" ; "5" ; "6" ; "7"])
    // |_ -> ([],[])
@@ -486,17 +500,15 @@ let getCustomCompArgs (x:CustomComponentType) (label:string) =
     let w = max scaledW (Constants.gridSize * 4) //Ensures a minimum width if the labels are very small
     ( List.length x.InputLabels, List.length x.OutputLabels, h ,  w)
 *)
-/// obtain map from port IDs to port names for Custom Component.
+/// obtain map from port IDs to port names for Custom Component or Plugin Component.
 /// for other components types this returns empty map
 let getCustomPortIdMap (comp: Component)  =
         let label = comp.Label
-        match comp.Type with
-        | Custom customType ->
+        let makeIdMap inputLabels outputLabels =
             let inputPorts = comp.InputPorts
             let outputPorts = comp.OutputPorts
-            let inputPortIdLabels = List.zip inputPorts customType.InputLabels
-            let outputPortIdLabels = List.zip outputPorts customType.OutputLabels
-
+            let inputPortIdLabels = List.zip inputPorts inputLabels
+            let outputPortIdLabels = List.zip outputPorts outputLabels
             let inputMap =
                 (Map.empty, inputPortIdLabels) 
                 ||> List.fold (fun currMap (port,label) -> Map.add port.Id (fst label) currMap)
@@ -505,6 +517,19 @@ let getCustomPortIdMap (comp: Component)  =
                 ||> List.fold (fun currMap (port, label) -> Map.add port.Id (fst label) currMap)
 
             finalMap
+
+        match comp.Type with
+        | Custom customType ->
+            makeIdMap customType.InputLabels customType.OutputLabels
+        | Plugin p ->
+            let inputLabels = 
+                Map.toList p.Inputs
+                |> List.map ( fun (pn, input) -> (input.Name, pn) )
+            let outputLabels = 
+                Map.toList p.Outputs
+                |> List.map ( fun (pn, input) -> (input.Name, pn) )
+            makeIdMap inputLabels outputLabels
+
         | _ -> Map.empty
 
 /// Needed because the I/Os of a custom component can be changed on anotehr sheet.
@@ -526,51 +551,57 @@ let makeMapsConsistent (portIdMap: Map<string,string>) (sym: Symbol) =
     |> (fun maps -> maps, deletedPortIds)
     ||> Set.fold (fun maps port -> deletePortFromMaps port maps )
 
-/// adjust symbol (and component) dimensions based on current ports and labels of a custom component.
-/// leaves other symbols unchanged
+/// adjust symbol (and component) dimensions based on current ports and labels of a custom component
+/// or a plugin component. Leaves other symbols unchanged
 let autoScaleHAndW (sym:Symbol) : Symbol =
     //height same as before, just take max of left and right
         printfn "autoscaling..."
+        let autoScaleWithName (name:string) =
+
+            let portIdMap = getCustomPortIdMap sym.Component
+            let portMaps = makeMapsConsistent portIdMap sym
+            let convertIdsToLbls currMap edge idList =
+                let lblLst = List.map (fun id -> portIdMap[id]) idList
+                Map.add edge lblLst currMap
+            let portLabels = 
+                (Map.empty, portMaps.Order) ||> Map.fold convertIdsToLbls
+            let h = float Constants.gridSize + Constants.customPortSpacing * float (max portLabels[Left].Length portLabels[Right].Length)
+            let getHorizontalSpace side =
+                let labs = portLabels[side]
+                match labs.Length % 2 with
+                | 0 -> 0. // no space needed because we have even number of connections
+                | _ -> // odd number
+                    labs[labs.Length / 2]
+                    |> fun s -> customStringToLength [s]
+                    
+            let leftSpace = getHorizontalSpace Left
+            let rightSpace = getHorizontalSpace Right
+
+            //need to check the sum of the lengths of top and bottom
+            let topLength = customStringToLength portLabels[Top] 
+            let bottomLength = customStringToLength portLabels[Bottom]
+            let labelLength = customStringToLength [name]
+            //Divide by 5 is just abitrary as otherwise the symbols would be too wide 
+            let maxW = 
+                [
+                    (2.0*(max leftSpace rightSpace) + labelLength*1.333 + 10.) // 1.6 should be a constant - ratio of sizes - TODO. Also 10.
+                    float (portLabels[Top].Length + 1) * topLength
+                    float (portLabels[Bottom].Length + 1) * bottomLength
+                ] |> List.max |> (*) 1.1
+            let w = maxW
+            printfn $"MaxW = {maxW}"
+            let scaledW = max w (float Constants.gridSize * 4.) //Ensures a minimum width if the labels are very small
+            let scaledH = max h (float Constants.gridSize*2.)
+            {sym with
+                PortMaps = portMaps
+                Component = {sym.Component with H= float scaledH; W = float scaledW; X = sym.Pos.X; Y=sym.Pos.Y}}
+        
         match sym.Component.Type with
         | Custom ct ->
-                let portIdMap = getCustomPortIdMap sym.Component
-                let portMaps = makeMapsConsistent portIdMap sym
-                let convertIdsToLbls currMap edge idList =
-                    let lblLst = List.map (fun id -> portIdMap[id]) idList
-                    Map.add edge lblLst currMap
-                let portLabels = 
-                    (Map.empty, portMaps.Order) ||> Map.fold convertIdsToLbls
-                let h = float Constants.gridSize + Constants.customPortSpacing * float (max portLabels[Left].Length portLabels[Right].Length)
-                let getHorizontalSpace side =
-                    let labs = portLabels[side]
-                    match labs.Length % 2 with
-                    | 0 -> 0. // no space needed because we have even number of connections
-                    | _ -> // odd number
-                        labs[labs.Length / 2]
-                        |> fun s -> customStringToLength [s]
-                        
-                let leftSpace = getHorizontalSpace Left
-                let rightSpace = getHorizontalSpace Right
-
-                //need to check the sum of the lengths of top and bottom
-                let topLength = customStringToLength portLabels[Top] 
-                let bottomLength = customStringToLength portLabels[Bottom]
-                let labelLength = customStringToLength [ct.Name]
-                //Divide by 5 is just abitrary as otherwise the symbols would be too wide 
-                let maxW = 
-                    [
-                        (2.0*(max leftSpace rightSpace) + labelLength*1.333 + 10.) // 1.6 should be a constant - ratio of sizes - TODO. Also 10.
-                        float (portLabels[Top].Length + 1) * topLength
-                        float (portLabels[Bottom].Length + 1) * bottomLength
-                    ] |> List.max |> (*) 1.1
-                let w = maxW
-                printfn $"MaxW = {maxW}"
-                let scaledW = max w (float Constants.gridSize * 4.) //Ensures a minimum width if the labels are very small
-                let scaledH = max h (float Constants.gridSize*2.)
-                {sym with
-                    PortMaps = portMaps
-                    Component = {sym.Component with H= float scaledH; W = float scaledW; X = sym.Pos.X; Y=sym.Pos.Y}}
-
+            autoScaleWithName ct.Name 
+        | Plugin p when p.AssertionDescription.IsSome && p.LibraryID <> "PLUGIN_CLASSASSERT_ASSERT_HIGH__VISUAL_" ->
+            let comp = VerificationLibrary.library.Components[p.LibraryID]
+            autoScaleWithName (comp.GetSymbolDetails p).Name
         | _ -> 
             let comp = sym.Component
             {sym with Component = {comp with X = sym.Pos.X; Y = sym.Pos.Y}}
@@ -619,11 +650,16 @@ let getComponentProperties (compType:ComponentType) (label: string)=
     | NbitsNot (n)  -> (  1 , 1, 3.*gS  , 4.*gS) 
     | NbitSpreader (n) -> (1, 1, 2.*gS, 2.*gS)
     | NbitsAdder (n) -> (  3 , 2, 3.*gS  , 4.*gS)
-    |NbitsAdderNoCin (n) -> (  2 , 2, 3.*gS  , 4.*gS)
+    | NbitsAdderNoCin (n) -> (  2 , 2, 3.*gS  , 4.*gS)
     | NbitsAdderNoCout (n)-> (  3 , 1, 3.*gS  , 4.*gS)
     | NbitsAdderNoCinCout (n) -> (  2 , 1, 3.*gS  , 4.*gS)
     | Shift _ -> (  2 , 1, 3.*gS  , 4.*gS)
     | Custom cct -> cct.InputLabels.Length, cct.OutputLabels.Length, 0., 0.
+    | Plugin p -> (
+        let comp = VerificationLibrary.library.Components[p.LibraryID]
+        let symbolProps = comp.GetSymbolDetails p
+        printfn "sumbolprops%A" symbolProps
+        p.Inputs.Count, p.Outputs.Count, symbolProps.Height, symbolProps.Width)
 
 /// make a completely new component
 let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:string) : Component =
@@ -658,8 +694,15 @@ let makeComponent (pos: XYPos) (compType: ComponentType) (id:string) (label:stri
 
 
 /// Function to generate a new symbol
-let createNewSymbol (ldcs: LoadedComponent list) (pos: XYPos) (comptype: ComponentType) (label:string) (theme:ThemeType) =
+let createNewSymbol (ldcs: LoadedComponent list) (pos: XYPos) (ctype: ComponentType) (label:string) (theme:ThemeType) =
     let id = JSHelpers.uuid ()
+    
+    let comptype =
+        match ctype with
+        | Plugin cfg ->
+            Plugin {cfg with InstanceID = Some id}
+        | _ -> ctype
+    
     let style = Constants.componentLabelStyle
     let comp = makeComponent pos comptype id label
     let transform = {Rotation= Degree0; flipped= false}

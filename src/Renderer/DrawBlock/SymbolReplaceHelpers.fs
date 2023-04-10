@@ -43,6 +43,18 @@ let changeNumberOfBitsf (symModel:Model) (compId:ComponentId) (newBits : int) =
         | BusCompare (_,b) -> BusCompare (newBits,b)
         | BusCompare1 (_,v,t) -> BusCompare1 (newBits,v,t) 
         | Constant1 (_,b,txt) -> Constant1 (newBits,b,txt)
+        | Plugin p ->
+            let updateWidth w =
+                match w with
+                | None -> None
+                | Some _ -> Some newBits
+            let updatedInputs = 
+                p.Inputs
+                |> Map.map (fun _ v -> {v with FixedWidth = updateWidth v.FixedWidth})
+            let updatedState = {
+                p with Inputs = updatedInputs
+            }
+            Plugin updatedState
         | c -> c
         
     set (component_ >-> type_) newcompotype symbol

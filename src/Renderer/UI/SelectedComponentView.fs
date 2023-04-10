@@ -6,6 +6,8 @@
 
 module SelectedComponentView
 open EEExtensions
+open Microsoft.FSharp.Reflection
+open VerificationTypes
 open VerilogTypes
 open Fulma
 open Fable.React
@@ -57,7 +59,7 @@ let private textFormField isRequired name defaultValue isBad onChange onDeleteAt
                 SpellCheck false; 
                 Name name; 
                 AutoFocus true; 
-                Style [ Width "200px"]; 
+                Style [ Width "100%" ]; 
                 OnKeyDown onDelete]
             Input.DefaultValue defaultValue
             Input.CustomClass "www"
@@ -72,13 +74,23 @@ let private textFormFieldSimple name defaultValue onChange =
     Field.div [] [
         Label.label [] [ str name ]
         Input.text [
-            Input.Props [ OnPaste preventDefault; SpellCheck false; Name name; AutoFocus true; Style [ Width "200px"]]
+            Input.Props [ Wrap "wrap"; OnPaste preventDefault; SpellCheck false; Name name; AutoFocus true; Style [ Width "100%" ]]
             Input.DefaultValue defaultValue
             Input.Type Input.Text
             Input.OnChange (getTextEventValue >> onChange)
         ] 
     ]
 
+let private textAreaFormFieldSimple name defaultValue rows onChange =
+    Field.div [] [
+        Label.label [] [ str name ]
+        Textarea.textarea [
+            Textarea.Props [ Rows rows; Wrap "wrap"; SpellCheck false; Name name; AutoFocus true; Style [ Width "100%" ]]
+            Textarea.DefaultValue defaultValue
+            Textarea.Placeholder "Enter a description of what your assertion does here. This will be displayed when an assertion is raised."
+            Textarea.OnChange (getTextEventValue >> onChange)
+        ] [] 
+    ]
 
 let private intFormField name (width:string) defaultValue minValue onChange =
     Field.div [] [
@@ -246,7 +258,7 @@ let makeVerilogEditButton model (custom:CustomComponentType) dispatch : ReactEle
             |Some proj -> {proj with WorkingFileName = Some (custom.Name)}
             |None -> failwithf "Can't happen!"
         let model'= {model with CurrentProj = Some project'} 
-        createVerilogPopup model false (Some code) (Some name) (UpdateVerilogFile name)
+        createVerilogPopup (ExistingCodeFile {Name = name; Code = code}) model' dispatch
     
     match model.CurrentProj with
     | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
@@ -268,7 +280,7 @@ let makeVerilogEditButton model (custom:CustomComponentType) dispatch : ReactEle
                             dispatch (StartUICmd SaveSheet)
                             saveOpenFileActionWithModelUpdate model dispatch |> ignore
                             dispatch <| Sheet(SheetT.DoNothing)
-                            openCodeEditor code name dispatch)
+                            openCodeEditor code name)
                     ] [str "View/Edit Verilog code"]
                     br []
                 ]
@@ -488,8 +500,10 @@ let private makeNumberOfBitsField model (comp:Component) text dispatch =
         | BusCompare( w, _) -> "Bus width", w
         | BusCompare1( w,_, _) -> "Bus width", w
         | Constant1(w, _,_) -> "Number of bits in the wire", w
-        | c -> failwithf "makeNumberOfBitsField called with invalid component: %A" c
-    intFormField title "60px" width 1 (
+        | Plugin p when (VerificationComponents.implementsVariableWidth p).IsSome ->
+            "Number of bits", (VerificationComponents.implementsVariableWidth p).Value
+        | c -> failwithf $"makeNumberOfBitsField called with invalid component: {c}"
+    intFormField title "100%" width 1 (
         fun newWidth ->
             if newWidth < 1
             then
@@ -525,7 +539,7 @@ let makeDefaultValueField (model: Model) (comp: Component) dispatch: ReactElemen
             | None -> w, 0
         | _ -> failwithf "Other component types should not call this function."
     
-    intFormField title "60px" defValue 0 (
+    intFormField title "100%" defValue 0 (
         fun newValue ->
             // Check if value is within bit range
             match NumberHelpers.checkWidth width (int64 newValue) with
@@ -582,7 +596,7 @@ let makeConstantDialog (model:Model) (comp: Component) (text:string) (dispatch: 
                 br []
                 textFormFieldSimple 
                     "Enter constant value in decimal, hex, or binary:" 
-                    cText 
+                    cText
                     (fun txt -> 
                         printfn $"Setting {txt}"
                         dispatch <| SetPopupDialogText (Some txt))
@@ -614,7 +628,7 @@ let makeBusCompareDialog (model:Model) (comp: Component) (text:string) (dispatch
                 br []
                 textFormFieldSimple 
                     "Enter bus compare value in decimal, hex, or binary:" 
-                    cText 
+                    cText
                     (fun txt -> 
                         printfn $"Setting {txt}"
                         dispatch <| SetPopupDialogText (Some txt))
@@ -632,7 +646,7 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
     match comp.Type with
     | BusCompare(width, _) -> 
-        intFormField infoText "120px"  (int lsbPos) 1  (
+        intFormField infoText "100%"  (int lsbPos) 1  (
             fun cVal ->
                 if cVal < 0 || uint32 cVal > uint32 ((1 <<< width) - 1)
                 then
@@ -644,7 +658,7 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
                     dispatch ClosePropertiesNotification
         )
     | BusSelection(width, _) -> 
-        intFormField infoText "60px" (int lsbPos) 1 (
+        intFormField infoText "100%" (int lsbPos) 1 (
             fun newLsb ->
                 if newLsb < 0
                 then
@@ -661,6 +675,32 @@ let private makeLsbBitNumberField model (comp:Component) dispatch =
 
 let private makeDescription (comp:Component) model dispatch =
     match comp.Type with
+    | Plugin p ->
+        let openEditor code name=
+            createAssertionPopup comp.Id (ExistingCodeFile {Name = name; Code = code}) model dispatch
+        
+        // TODO(jpnock): Move this logic into the component by changing
+        // the interface to return ReactElements.
+        let assertionEditButton = 
+            match p.AssertionText with
+            | Some text -> [
+                 br []
+                 Button.button [
+                     Button.Color IsPrimary
+                     Button.OnClick (fun _ -> 
+                         dispatch (StartUICmd SaveSheet)
+                         saveOpenFileActionWithModelUpdate model dispatch |> ignore
+                         dispatch <| Sheet(SheetT.DoNothing)
+                         openEditor text ":)")
+                 ] [str "View/Edit Assertion"]
+                 br []
+                ]
+            | _ -> []
+
+        div [] ([
+            str (VerificationLibrary.library.Components[p.LibraryID].GetDescription p)
+        ]  @ assertionEditButton)
+        
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ -> failwithf "Legacy Input component types should never occur"
@@ -822,8 +862,103 @@ let private makeDescription (comp:Component) model dispatch =
         makeMemoryInfo descr mem (ComponentId comp.Id) comp.Type model dispatch
     | Shift _ -> 
         div [] [str "Issie Internal Error: This is an internal component and should never appear selected to view properties"]
-        
 
+let private makeDropdown sectionName selectedOption menuItems =
+    let ioSelect =
+        Dropdown.dropdown [
+                Dropdown.IsHoverable
+                Dropdown.Option.Props [
+                    Style [
+                        BorderRadius "4px"
+                        BoxShadow "inset 0 0.0625em 0.125em rgba(10, 10, 10, 0.05)"
+                        BackgroundColor "white"
+                        Color "#363636"
+                        Border "1px solid"
+                        BorderColor "#dbdbdb"
+                        Width "100%"
+                    ]
+                ]
+            ] [
+
+            Navbar.Link.a [
+                Navbar.Link.Option.Props [
+                    Style [Width "100%"]
+                ]
+            ] [ str selectedOption ]
+            Dropdown.menu [Props [Style [Width "100%"]]] [
+                Dropdown.content [Props [Style [ZIndex 1000]]] [
+                    Dropdown.Item.div [] [
+                        Menu.menu [Props [Style [OverflowY OverflowOptions.Scroll]]] [
+                            Menu.list [] menuItems
+                        ]]]]]
+    readOnlyFormField sectionName ioSelect  
+
+let inline private makeMultiComponentDropdown<'T> model dispatch (comp: Component) cfg sectionName typeWrapper typeNamer currentTyp =
+    let menuItem typ =
+        Menu.Item.li [
+            Menu.Item.IsActive (cfg.MultiComponentType.IsSome && cfg.MultiComponentType.Value = typeWrapper typ)
+            Menu.Item.OnClick (fun _ ->
+                 model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (fun oldCfg -> {
+                     oldCfg with MultiComponentType = Some (typeWrapper typ)
+                 })
+                 )
+            ] [typeNamer typ |> str]
+        
+    FSharpType.GetUnionCases typeof<'T>
+    |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> 'T)
+    |> Seq.map menuItem
+    |> List.ofSeq
+    |> makeDropdown sectionName (typeNamer currentTyp)
+
+let private makeDataTypeDropdown model dispatch (comp: Component) (inpPort : AssertionTypes.InputPortNumber) (inp: ComponentInput) =
+    match inp.DataType with
+    | DataTypeAssertionInput -> None
+    | dt ->
+        let menuItem typ =
+            Menu.Item.li [
+                Menu.Item.IsActive (dt = typ)
+                Menu.Item.OnClick (fun clicked ->
+                     model.Sheet.ChangeInputDataType (Sheet >> dispatch) (ComponentId comp.Id) inpPort typ
+                     )
+                ] [dataTypeName typ |> str]
+        
+        FSharpType.GetUnionCases typeof<DataType>
+        |> Seq.map (fun uc -> FSharpValue.MakeUnion( uc, [||] ) :?> DataType)
+        |> Seq.filter ((<>)DataTypeAssertionInput)
+        |> Seq.map menuItem
+        |> List.ofSeq
+        |> makeDropdown $"Input {inp.Name}" (dataTypeName dt)
+        |> Some
+
+let assertionValidInput (from: bool) model dispatch (comp: Component)  = 
+    let assertionValidTitle =
+        match from with
+        | true -> "Assertion valid from (inclusive cycle)"
+        | false -> "Assertion valid to (exclusive cycle)"
+    
+    let defaultValue =
+        match comp.Type with
+        | Plugin cfg ->
+            match from with
+            | true ->
+                if cfg.AssertionValidFrom.IsSome then cfg.AssertionValidFrom.Value
+                else 0
+            | false ->
+                if cfg.AssertionValidTo.IsSome then cfg.AssertionValidTo.Value
+                else 0
+        | _ -> failwith "what? this component was not an assertion comp"
+        
+    intFormField assertionValidTitle "100%" defaultValue 0 (
+        fun newValue ->
+            match from with
+            | true ->
+                model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (
+                    fun oldCfg -> {oldCfg with AssertionValidFrom = Some newValue})
+            | false ->
+                model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (
+                    fun oldCfg -> {oldCfg with AssertionValidTo = Some newValue})
+    )
+    
 let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
     match comp.Type with
     | Input1 _ ->
@@ -864,7 +999,69 @@ let private makeExtraInfo model (comp:Component) text dispatch : ReactElement =
     |BusCompare1 _ ->
         makeBusCompareDialog model comp text dispatch
     | Constant1 _ ->         
-             makeConstantDialog model comp text dispatch
+        makeConstantDialog model comp text dispatch
+    | Plugin p ->
+        let varWidth = 
+            match VerificationComponents.implementsVariableWidth p with
+            | Some _ -> Some (makeNumberOfBitsField model comp text dispatch)
+            | _ -> None
+
+        let multiComponentSelect =
+            match p.MultiComponentType with
+            | Some (LogicalOpType selected) ->
+                let sectionTitle = "Logical operation"
+                let typWrapper typ = LogicalOpType typ
+                Some (makeMultiComponentDropdown model dispatch comp p sectionTitle typWrapper logicalOpTypeName selected)
+            | Some (BitwiseOpType selected) ->
+                let sectionTitle = "Bitwise operation"
+                let typWrapper typ = BitwiseOpType typ
+                Some (makeMultiComponentDropdown model dispatch comp p sectionTitle typWrapper bitwiseOpTypeName selected)
+            | Some (ComparatorType selected) ->
+                let sectionTitle = "Comparator operation"
+                let typWrapper typ = ComparatorType typ
+                Some (makeMultiComponentDropdown model dispatch comp p sectionTitle typWrapper comparatorTypeName selected)
+            | _ -> None
+        
+        let assertionDescription =
+            match p.AssertionDescription with
+            | Some desc ->
+                textAreaFormFieldSimple "Assertion Description" desc 4 (
+                    fun newText ->
+                        model.Sheet.ChangeComponentConfig (Sheet >> dispatch) (ComponentId comp.Id) (
+                            fun oldCfg -> {oldCfg with AssertionDescription = Some newText})
+                )
+                |> Some
+            | _ -> None
+        
+        let assertionValidFrom =
+            match p.AssertionDescription with
+            | Some _ -> Some (assertionValidInput true model dispatch comp)
+            | _ -> None
+        
+        let assertionValidTo =
+            match p.AssertionDescription with
+            | Some _ -> Some (assertionValidInput false model dispatch comp)
+            | _ -> None
+        
+        let emptyIfAssertionComp m =
+            match p.AssertionDescription with
+            | Some _ -> Map []
+            | None -> m
+        
+        let dataTypeDropdown =
+            p.Inputs
+            |> emptyIfAssertionComp
+            |> Map.map (makeDataTypeDropdown model dispatch comp)
+            |> Map.values
+            |> List.ofSeq
+        
+            
+        let all = dataTypeDropdown @ [varWidth; multiComponentSelect; assertionDescription;assertionValidFrom;assertionValidTo]
+        div [] (
+           Seq.choose id all
+           |> Seq.map (fun el -> div [Style [PaddingTop "1.3rem"]] [el])
+        )
+        
     | _ -> div [] []
 
 
@@ -952,6 +1149,7 @@ let viewSelectedComponent (model: ModelType.Model) dispatch =
                 else    None
 
             //printfn $"{comp.Label}:{label'} - {isBad} - {label'}"
+            div [Style [PaddingTop "1.3rem"]] [
             textFormField 
                 required 
                 "Component Name" 
@@ -971,6 +1169,7 @@ let viewSelectedComponent (model: ModelType.Model) dispatch =
                     let sheetDispatch sMsg = dispatch (Sheet sMsg)
                     let dispatchKey = SheetT.KeyPress >> sheetDispatch
                     dispatchKey SheetT.KeyboardMsg.DEL)
+            ]
         ]    
     | _ -> 
         match model.CurrentProj with

@@ -5,6 +5,9 @@
 *)
 
 module CatalogueView
+
+open AssertionTypes
+open AssertionASTMap
 open EEExtensions
 open VerilogTypes
 open Fulma
@@ -16,17 +19,18 @@ open ModelType
 open ModelHelpers
 open CommonTypes
 open PopupView
-open Sheet.SheetInterface
 open DrawModelType
 open FilesIO
 open NearleyBindings
-open ErrorCheck
+open AssertionParser
 open CodeEditorHelpers
 open Fable.SimpleJson
 open Fable.Core.JsInterop
+open JSHelpers
 open System
 open FileMenuView
-open SheetCreator
+open Optics
+open Sheet.SheetInterface
 
 NearleyBindings.importGrammar
 NearleyBindings.importFix
@@ -493,10 +497,6 @@ let private createRegisterPopup regType (model:Model) dispatch =
         fun (dialogData : PopupDialogData) -> getInt dialogData < 1
     dialogPopup title body buttonText buttonAction isDisabled [] dispatch
 
-
- 
-    
-
 let private createMemoryPopup memType model (dispatch: Msg -> Unit) =
     let title = "Create memory"
     let intDefault = model.LastUsedDialogWidth
@@ -552,25 +552,180 @@ let private createMemoryPopup memType model (dispatch: Msg -> Unit) =
     dialogPopup title body buttonText buttonAction isDisabled [] dispatch
 
 
+/// Authored by jls20
+/// Originally, this was a recursive function which would call itself to update 
+/// the view (!) rather than dispatching message to update the model state.
+/// This has now been fixed and the function has been abstracted to allow 
+/// editing other languages beyond just Verilog.
+let createCodeEditorPopup title preamble saveAction updateAction compileAction addAction (origin:CodeEditorOpen) model (dispatch: Msg -> Unit) =
+    
+    let moreInfoButton = 
+        fun (dialogData : PopupDialogData) ->
+            match model.CurrentProj with
+            | None -> failwithf "What? current project cannot be None at this point in compiling Verilog Component"
+            | Some _project ->
+                let dialogData' = Optic.set code_showErrors_ (not (Option.defaultValue false <| Optic.get code_showErrors_ dialogData)) dialogData
+                dispatch <| SetPopupDialogCode dialogData'.Code
 
-let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origin:CodeEditorOpen) dispatch =
+    let body = dialogCodeEditorCompBody preamble compileAction addAction dispatch
+
+    // TODO: Fix this hardcoding
+    let extra = if true then [Width "80%";Height "75%";OverflowX OverflowOptions.Hidden;Position PositionOptions.Fixed;] else [Width "50%";Height "75%";OverflowX OverflowOptions.Hidden;Position PositionOptions.Fixed;]
+    //let extra = if showExtraErrors then [Width "80%";Height "75%";OverflowX OverflowOptions.Hidden;Position PositionOptions.Fixed;] else [Width "50%";Height "75%";OverflowX OverflowOptions.Hidden;Position PositionOptions.Fixed;]
+    
+    let saveUpdateText = match origin with |NewCodeFile -> "Save" |ExistingCodeFile _ -> "Update"
+    let saveUpdateButton = match origin with |NewCodeFile -> saveAction | ExistingCodeFile _ -> updateAction
+    dialogCodeEditorPopup title body saveUpdateText saveUpdateButton moreInfoButton extra dispatch
+
+let createAssertionPopup (compId:string) (origin: CodeEditorOpen) model dispatch =
+    let title = "Create assertions to verify your sheet" 
+    
+    let initContents = 
+        match origin with 
+        | NewCodeFile -> Some "// Get started by writing your assertions below! Here's a few examples: \n\n signed(5'b) >= (a - 25) * 2 \n\n" 
+        | ExistingCodeFile data -> Some data.Code
+
+    let assertionCode = {
+        Type = AssertionCode
+        Contents = initContents 
+        Errors = []
+        ShowErrors = false
+    }
+    Some assertionCode |> SetPopupDialogCode |> dispatch
+
+    // Content to be shown before the code editor itself
+    let preamble =
+        fun (dialogData : PopupDialogData) ->
+            div [] []
+
+    let saveAction =
+        fun (dialogData : PopupDialogData) ->
+            dispatch ClosePopup
+
+    let updateAction = 
+        fun (dialogData : PopupDialogData) ->
+            dispatch (StartUICmd SaveSheet)        
+
+            let code = getCodeContents dialogData
+            model.Sheet.ChangeAssertionText (Sheet >> dispatch) (ComponentId compId) code
+            
+            // Get the inputs for the assertion code. Check if they have been updated and if so,
+            // change the component to reflect these changes.
+            let newInputNames = 
+                match parseAssertion code None with
+                | Ok assertion ->
+                    assertion.InputNames
+                | _ -> failwithf "What? Impossible to press update on assertion text component that can't compile"
+            
+            let assertComponent = model.Sheet.GetComponentById (ComponentId compId) 
+            let assertState = 
+                match assertComponent.Type with
+                | Plugin p -> p
+                | _ -> failwithf "What? Not possible for a text assertion component not to be a verification component."
+
+            let oldInputNames = 
+                assertState.Inputs 
+                |> Map.toList
+                |> List.map (fun (_, i) -> i.Name)
+                |> Set.ofList
+
+            if newInputNames <> oldInputNames then
+                model.Sheet.SetAssertionInputs (Sheet >> dispatch) (ComponentId compId) newInputNames
+
+            printfn "catalogue conns: %A" (snd <| model.Sheet.GetCanvasState ())
+
+            SetHasUnsavedChanges false
+            |> JSDiagramMsg
+            |> dispatch
+            dispatch FinishUICmd     
+            dispatch <| Sheet(SheetT.DoNothing)
+
+    let compileAction =
+        fun (dialogData : PopupDialogData) ->
+            match model.CurrentProj with
+            | None -> failwithf "What? current project cannot be None at this point in compiling an Assertion Component"
+            | Some _ ->
+                let code = getCodeContents dialogData
+                let components = fst model.LastDetailedSavedState
+                
+                let errorList = 
+                    match parseAssertion code None with
+                    | Error e -> [e]
+                    | Ok assertion ->
+                        // TODO(jpnock): pass correct comps here
+                        let checkRes = AssertionCheck.checkAST assertion.AssertExpr (Map [])
+                        match checkRes with
+                        | AssertionTypes.ErrLst eLst -> eLst
+                        | AssertionTypes.TypeInfo _ -> []
+
+                let dialogData' = Optic.set code_errors_ errorList dialogData
+                dispatch <| SetPopupDialogCode dialogData'.Code
+                //model.Sheet
+
+    let addAction =
+        fun (dialogData : PopupDialogData) ->
+            fun (suggestion,replaceType,line) -> 
+                ()
+
+    createCodeEditorPopup title preamble saveAction updateAction compileAction addAction (origin:CodeEditorOpen) model dispatch
+
+/// "Authored" by jls20
+/// Function to a create a code editor for Verilog code
+/// A lot of this code is unchanged, but has been slightly
+/// alterated to use the new generalized createCodeEditorPopup.
+let createVerilogPopup (origin:CodeEditorOpen) model dispatch =
     let title = sprintf "Create Combinational Logic Components using Verilog" 
-    let beforeText =
-        fun _ -> str <| sprintf "ISSIE Component Name"
-    let noErrors = List.isEmpty model.PopupDialogData.VerilogErrors
-    let errorDiv = if noErrors then null else getErrorDiv model.PopupDialogData.VerilogErrors
-    let errorList = if showExtraErrors then model.PopupDialogData.VerilogErrors else [] 
+    
+    let initContents = 
+        match origin with 
+        | NewCodeFile -> Some "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" 
+        | ExistingCodeFile data -> Some data.Code
+    let verilogCode = {
+        Type = VerilogCode {ModuleName = "NAME"}
+        Contents = initContents
+        Errors = []
+        ShowErrors = false
+    }
+    Some verilogCode |> SetPopupDialogCode |> dispatch
 
-    let saveButtonAction =
+    // Content to be shown before the code editor itself
+    let preamble =
+        fun (dialogData : PopupDialogData) ->
+            let goodLabel =
+                (getModuleName dialogData)
+                |> (fun s -> String.startsWithLetter s || s = "")
+
+            div [] [
+                str <| sprintf "ISSIE Component Name"
+                Input.text [
+                    Input.Props [AutoFocus true; SpellCheck false]
+                    Input.Placeholder "Component name (equal to module name)"
+                    Input.Value (getModuleName dialogData)
+                    Input.Disabled true
+                    Input.OnChange (
+                        getTextEventValue >> Some >> SetPopupDialogText >> dispatch
+                        )
+                ]
+                span [Style [FontStyle "Italic"; Color "Red"]; Hidden goodLabel] [str "Name must start with a letter"]
+                br []
+                br []
+                br []
+                div [ Style [Position PositionOptions.Relative;]] [
+                    p [] [b [] [str "Verilog Code:"]]
+                    infoHoverableElement
+                ]
+                br []]
+
+    let saveAction =
         fun (dialogData : PopupDialogData) ->
             match model.CurrentProj with
             | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
             | Some project ->
-                let name = (Option.get moduleName)
+                let name = getModuleName dialogData
                 let folderPath = project.ProjectPath
                 let path = pathJoin [| folderPath; name + ".v" |]
                 let path2 = pathJoin [| folderPath; name + ".dgm" |]
-                let code = getCode dialogData
+                let code = getCodeContents dialogData
                 
                 match writeFile path code with
                 | Ok _ -> ()
@@ -598,15 +753,15 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                 | Error _ -> failwithf "Writing .dgm file FAILED"
             dispatch ClosePopup
 
-    let updateButton = 
+    let updateAction = 
         fun (dialogData : PopupDialogData) ->
             match model.CurrentProj with
             | None -> failwithf "What? current project cannot be None at this point in writing Verilog Component"
             | Some project ->
-                let name = (Option.get moduleName)
+                let name = getModuleName dialogData
                 let folderPath = project.ProjectPath
                 let path = pathJoin [| folderPath; name + ".v" |]
-                let code = getCode dialogData
+                let code = getCodeContents dialogData
                 match writeFile path code with
                 | Ok _ -> ()
                 | Error _ -> failwithf "Writing verilog file FAILED"
@@ -622,13 +777,12 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                 updateVerilogFileActionWithModelUpdate newCS name model dispatch |> ignore
                 dispatch <| Sheet(SheetT.DoNothing)
 
-
-    let compile =
+    let compileAction =
         fun (dialogData : PopupDialogData) ->
             match model.CurrentProj with
             | None -> failwithf "What? current project cannot be None at this point in compiling Verilog Component"
             | Some project ->
-                let code = getCode dialogData
+                let code = getCodeContents dialogData
                 let parsedCodeNearley = parseFromFile(code)
                 let output = Json.parseAs<ParserOutput> parsedCodeNearley
                 if isNullOrUndefined output.Error then
@@ -641,26 +795,30 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                         let parsedAST = fixedAST |> Json.parseAs<VerilogInput>                        
                         let moduleName = parsedAST.Module.ModuleName.Name
                         let errorList = ErrorCheck.getSemanticErrors parsedAST linesIndex origin project
-                        let dataUpdated = {dialogData with VerilogErrors = errorList; VerilogCode=Some code}
+
+                        printfn "Errors: %A" errorList
+
                         let showErrors' = 
                             match List.isEmpty errorList with
                             | true -> false
-                            | false -> showExtraErrors 
-                        createVerilogPopup {model with PopupDialogData = dataUpdated } showErrors' None (Some moduleName) origin dispatch
+                            | false -> Option.defaultValue false <| Optic.get code_showErrors_ dialogData 
+
+                        let codeData = { Errors = errorList; ShowErrors = showErrors'; Contents = Some code; Type = VerilogCode {ModuleName = moduleName} }
+
+                        dispatch <| SetPopupDialogCode (Some codeData)
                 else
                     let error = Option.get output.Error
                     let error'= CodeEditorHelpers.getSyntaxErrorInfo error
-                    let dataUpdated = {dialogData with VerilogErrors = [error'] }
-                    createVerilogPopup {model with PopupDialogData = dataUpdated } showExtraErrors None moduleName origin dispatch
- 
 
-    let addButton =
+                    let dialogData' = Optic.set code_errors_ [error'] dialogData
+                    dispatch <| SetPopupDialogCode dialogData'.Code
+
+    let addAction =
         fun (dialogData : PopupDialogData) ->
             fun (suggestion,replaceType,line) -> 
                 
                 let findLastIOAndAssignment (oldCode:string) =
                     let isSmallerThan x y = y <= x
-
                     let parsedCodeNearley = parseFromFile(oldCode)
                     let output = Json.parseAs<ParserOutput> parsedCodeNearley
                     let result = Option.get output.Result
@@ -685,7 +843,6 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                     
                     (prevIndexIO,prevIndexA)
                 
-                
                 let putToCorrectPlace (oldCode:string) suggestion replaceType line =
                     let sepCode = oldCode.Split([|"\n"|],StringSplitOptions.RemoveEmptyEntries)
                     let linesList = Seq.toList sepCode
@@ -709,32 +866,22 @@ let rec createVerilogPopup model showExtraErrors correctedCode moduleName (origi
                     |NoReplace ->
                         oldCode
 
+                let contents = getCodeContents dialogData
+
                 let lineToPut =
                     match replaceType with
-                    |IODeclaration -> fst <| findLastIOAndAssignment (Option.defaultValue "" dialogData.VerilogCode)
-                    |Assignment -> snd <| findLastIOAndAssignment (Option.defaultValue "" dialogData.VerilogCode)
+                    |IODeclaration -> fst <| findLastIOAndAssignment (contents)
+                    |Assignment -> snd <| findLastIOAndAssignment (contents)
                     |_ -> line
-                let replacedCode = putToCorrectPlace (Option.defaultValue "" dialogData.VerilogCode) suggestion replaceType lineToPut
-                createVerilogPopup model showExtraErrors (Some replacedCode) moduleName origin dispatch
-    
-    let moreInfoButton = 
-        fun (dialogData : PopupDialogData) ->
-            match model.CurrentProj with
-            | None -> failwithf "What? current project cannot be None at this point in compiling Verilog Component"
-            | Some project ->
-                let errors = dialogData.VerilogErrors
-                createVerilogPopup model (not showExtraErrors) None moduleName origin dispatch
-    
-    let body= dialogVerilogCompBody beforeText moduleName errorDiv errorList showExtraErrors correctedCode compile addButton dispatch
+                let replacedCode = putToCorrectPlace contents suggestion replaceType lineToPut
+                
+                // TODO: Currently, suggestions will not be pushed into the code.
+                // This is most likely caused by the React text editor not updating itself
+                // whenever the dialog code gets dispatched. 
+                let dialogData' = Optic.set code_contents_ replacedCode dialogData
+                dispatch <| SetPopupDialogCode dialogData'.Code
 
-    let isDisabled =
-        fun (dialogData : PopupDialogData) ->   //OverflowX OverflowOptions.Hidden;OverflowY OverflowOptions.Hidden
-            not noErrors
-    
-    let extra = if showExtraErrors then [Width "80%";Height "75%";OverflowX OverflowOptions.Hidden;Position PositionOptions.Fixed;] else [Width "50%";Height "75%";OverflowX OverflowOptions.Hidden;Position PositionOptions.Fixed;]
-    let saveUpdateText = match origin with |NewVerilogFile -> "Save" |UpdateVerilogFile _ -> "Update"
-    let saveUpdateButton = match origin with |NewVerilogFile -> saveButtonAction |UpdateVerilogFile _ -> updateButton
-    dialogVerilogPopup title body saveUpdateText noErrors showExtraErrors saveUpdateButton moreInfoButton isDisabled extra dispatch
+    createCodeEditorPopup title preamble saveAction updateAction compileAction addAction (origin:CodeEditorOpen) model dispatch
 
 
 let private makeMenuGroup title menuList =
@@ -792,6 +939,15 @@ let viewCatalogue model dispatch =
                       Style styles
                     ]
                     [ react ]
+            
+            let verificationComponents =
+                VerificationLibrary.library.Components.Values
+                |> Seq.sortBy (fun el -> el.GetName)
+                |> Seq.map (fun el ->
+                    let factory = (fun _ -> createComponent (Plugin el.GetDefaultConfig) "" model dispatch)
+                    catTip1 el.GetName factory el.GetTooltipText)
+                |> List.ofSeq                
+
             Menu.menu [Props [Class "py-1"; Style styles]]  [
                 // TODO
                     makeMenuGroup
@@ -865,6 +1021,8 @@ let viewCatalogue model dispatch =
                                                    data in the clock cycle after the address is presented" 
                           catTip1 "RAM (async read)" (fun _ -> createMemoryPopup AsyncRAM1 model dispatch)  "A RAM whose output contains the addressed \
                                                    data in the same clock cycle as address is presented" ]
+                    makeMenuGroup
+                        "Verification" verificationComponents
 
                     makeMenuGroupWithTip styles
                         "This project"
@@ -878,7 +1036,7 @@ let viewCatalogue model dispatch =
                         "Write combinational logic in Verilog and use it as a Custom Component. 
                          To edit/delete a verilog component add it in a sheet and click on 'properties'"
                         (List.append 
-                            [menuItem styles "New Verilog Component" (fun _ -> createVerilogPopup model false None None NewVerilogFile dispatch) ]
+                            [menuItem styles "New Verilog Component" (fun _ -> createVerilogPopup NewCodeFile model dispatch) ]
                             (makeVerilogList styles model dispatch))
                           
                 ]

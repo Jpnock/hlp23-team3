@@ -51,7 +51,9 @@ let quantifyChanges (ldc1:LoadedComponent) (ldc2:LoadedComponent) =
         let rL1, rL2 = mapToSet lst1, mapToSet lst2
         Set.union (Set.difference rL1 rL2) (Set.difference rL2 rL1)
         |> Set.count
+    // TODO(jpnock): Replace the logic that was originally here
     unmatched reduceComp comps1 comps2, unmatched reduceConn conns1 conns2
+    //0, unmatched reduceConn conns1 conns2
 
 ////------------------------------------------Backup facility-------------------------------------------//
 

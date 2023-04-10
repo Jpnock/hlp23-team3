@@ -13,6 +13,40 @@ open SimulatorTypes
 module Constants =
     let maxBinaryDisplayWidth = 32
 
+
+/// Converts a uint64 representing an IEEE-754 single precision
+/// float to a float32.
+let convertIEEE754ToFloat32 (n: uint64) : float32 =
+    let exponent = (n >>> 23) &&& uint64 0xFF |> int
+    match exponent with
+    | 0 ->
+        // De-normals are zero (DAZ) for this implementation
+        0.0f
+    | _ ->
+        let mantissa = n &&& uint64 0x7FFFFF |> int
+        let sign = n >>> 31 |> int
+        
+        let trueSign = if sign = 0 then 1.0f else -1.0f
+        let trueExp = float32(exponent - 127)
+        let trueMantissa = (1.0f + float32(mantissa) / float32(0x800000))
+        trueSign * (2.0f ** trueExp) * trueMantissa
+ 
+let convertFloat32ToIEEE754UInt (f:float32) =
+    let reverseIf cond li =
+        if cond then Array.rev li else li
+    
+    let fBytes =
+        System.BitConverter.GetBytes(f)
+        |> reverseIf (not System.BitConverter.IsLittleEndian)
+    
+    let castAndShift value shiftAmount =
+       (uint64 value) <<< shiftAmount
+       
+    [0..8..24]
+    |> List.mapi (fun i -> castAndShift fBytes[i])
+    |> List.reduce (|||)
+    |> uint64
+
 /// Convert an hex string into a binary string.
 let private hexToBin (hStr : string) : string =
     let rec convert h =
@@ -88,6 +122,7 @@ let fillHex64 width = addZeros64 width hex64
 let bin64 (num : int64) = "0b" + (hexToBin <| num.ToString("X"))
 let sDec64 (num : int64) = num.ToString()
 let dec64 (num: int64) = (uint64 num).ToString()
+let sFloat32 (num: int64) = (uint64 num) |> convertIEEE754ToFloat32 |> string
 
 let hex (num : int) = hex64 <| int64 num
 let fillHex width = addZeros width hex
@@ -121,6 +156,7 @@ let rec bigValToPaddedString (width: int) (radix: NumberBase)  (x: System.Numeri
             bigValToPaddedString width radix (x % (1I <<< width))
     else
         match radix with
+        | Float32 -> sFloat32 (int64 x)
         | SDec -> 
             if x >= (1I <<< width - 1)
             then
@@ -147,6 +183,7 @@ let rec bigValToString (radix: NumberBase) (x: System.Numerics.BigInteger) =
         $"Bignum {x} is negative"
     else
         match radix with
+        | Float32 -> sFloat32 (int64 x)
         | Dec 
         | SDec -> /// can't know if sign is negative in this case
             x.ToString()
@@ -171,6 +208,7 @@ let valToString (radix: NumberBase) (value: int64) : string =
     | Bin -> bin64 value |> addCommasAndZeros 0
     | Hex -> hex64 value |> addCommasAndZeros 0
     | SDec -> sDec64 value
+    | Float32 -> sFloat32 value
 
 /// Convert int64 to string according to radix.
 /// binary and hex numbers are zero padded to width
@@ -181,6 +219,7 @@ let valToPaddedString (width: int) (radix: NumberBase) (value: int64) : string =
     | Bin -> fillBin64 width value
     | Hex | Bin -> fillHex64 width value
     | SDec -> sDec64 value
+    | Float32 -> sFloat32 value
 
 /// Pad wireData with Zeros as the Most Significant Bits (e.g. at position N).
 let private padToWidth width (bits : WireData) : WireData =
@@ -359,9 +398,13 @@ let emptyFastData = {Width=0; Dat=Word 0u}
 /// not possible.
 let strToInt (str : string) : Result<int64, string> =
     try
-        Ok <| int64 str
+        str
+        |> String.filter (fun c -> c <> ',')
+        |> int64
+        |> Ok
     with
         | _ -> Error <| "Invalid number."
+
 
         (*
 
@@ -402,6 +445,7 @@ let rec checkWidth (width : int) (num : int64) : string option =
         | true -> None
         | false -> Some <| sprintf "Expected %d or less bits." width
 
+
 /// Convert a string to a number making sure that it has no more bits than
 /// specified in width.
 let strToIntCheckWidth (width : int) (str : string)  : Result<int64, string> =
@@ -414,3 +458,15 @@ let strToIntCheckWidth (width : int) (str : string)  : Result<int64, string> =
             | None -> Ok num
             | Some err -> Error err
         )
+
+let strToFloat32CheckWidth (width : int) (str : string)  : Result<float32, string> =
+    match width with
+    | 32 -> 
+        match str.Trim() with
+        | "" -> Ok 0.0f // special case
+        | str ->
+            try
+                Ok (float32 str)
+            with
+            | _ -> Error "Invalid float32 input"
+    | _ -> Error "This field is not 32-bits width, so cannot support floating point numbers"

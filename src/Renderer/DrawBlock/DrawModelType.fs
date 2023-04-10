@@ -221,7 +221,12 @@ module SymbolT =
         | PasteSymbols of sIds: ComponentId list
         | ColorSymbols of compList : ComponentId list * colour : HighLightColor
         | ErrorSymbols of errorIds: ComponentId list * selectIds: ComponentId list * isDragAndDrop: bool
-        | ChangeNumberOfBits of compId:ComponentId * NewBits:int 
+        | ChangeNumberOfBits of compId:ComponentId * NewBits:int
+        | ChangeAssertionText of compId:ComponentId * string
+        | SetAssertionInputs of compId:ComponentId * Inputs: string Set
+        | ChangeInputDataType of compId:ComponentId * AssertionTypes.InputPortNumber * VerificationTypes.DataType
+        | ChangeComponentConfig of compId:ComponentId * (VerificationTypes.ComponentConfig -> VerificationTypes.ComponentConfig)
+        | ChangeMultiComponentType of compId:ComponentId * VerificationTypes.MultiComponentType
         | ChangeLsb of compId: ComponentId * NewBits:int64 
         | ChangeInputValue of compId: ComponentId * newVal: int
         | ChangeScale of compId:ComponentId * newScale:float * whichScale:ScaleAdjustment
@@ -496,6 +501,9 @@ module SheetT =
         | ResetModel
         | UpdateSelectedWires of ConnectionId list * bool
         | ColourSelection of compIds : ComponentId list * connIds : ConnectionId list * colour : HighLightColor
+        | HighlightFailedAssertions of compIds : ComponentId list
+        | RemoveFailedAssertionHighlights
+        | SetDisplayedAssertionIndex of int
         | PortMovementStart
         | PortMovementEnd
         | ResetSelection
@@ -529,6 +537,7 @@ module SheetT =
         | TestPortReorder
         | TestSmartChannel
         | TestPortPosition
+        | TestCheckAst 
 
 
     type ReadLog = | ReadLog of int
@@ -549,6 +558,8 @@ module SheetT =
         SelectedLabel: CommonTypes.ComponentId option
         SelectedComponents: CommonTypes.ComponentId List
         SelectedWires: CommonTypes.ConnectionId list
+        FailedAssertionsHighlighted : ComponentId list
+        DisplayedAssertionIndex : int
         NearbyComponents: CommonTypes.ComponentId list
         ErrorComponents: CommonTypes.ComponentId list
         DragToSelectBox: BoundingBox

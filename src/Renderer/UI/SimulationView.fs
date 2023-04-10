@@ -29,6 +29,7 @@ open DrawModelType
 
 open Optics
 open Optics.Operators
+open AssertionEvaluation
 
 module Constants =
     let maxArraySize = 550
@@ -202,6 +203,7 @@ let prepareSimulationMemoized
             diagramName = simCache.Name &&
             cacheIsEqual simCache ldcs
     if  isSame then
+        printfn "memoised"
         simCache.StoredResult, canvasState
     else
         printfn "New simulation"
@@ -267,6 +269,21 @@ let private viewSimulationInputs
         dispatch =
 
     let simulationGraph = simulationData.Graph
+    
+    let updateValue matcher inputId numToBits =
+        match matcher with
+        | Error err ->
+            let note = errorPropsNotification err
+            dispatch  <| SetSimulationNotification note
+        | Ok num ->
+            let bits = numToBits num
+            // Close simulation notifications.
+            CloseSimulationNotification |> dispatch
+            // Feed input.
+            let graph = simulationGraph
+            FastRun.changeInput (ComponentId inputId) (IData bits) simulationData.ClockTickNumber simulationData.FastSim
+            dispatch <| SetSimulationGraph(graph, simulationData.FastSim)
+    
     let makeInputLine ((ComponentId inputId, ComponentLabel inputLabel, width), inputVals) =
         let valueHandle =
             match inputVals with
@@ -292,18 +309,13 @@ let private viewSimulationInputs
                     Input.Props [
                         simulationNumberStyle
                         OnChange (getTextEventValue >> (fun text ->
-                            match strToIntCheckWidth width text with
-                            | Error err ->
-                                let note = errorPropsNotification err
-                                dispatch  <| SetSimulationNotification note
-                            | Ok num ->
-                                let bits = convertInt64ToFastData width num
-                                // Close simulation notifications.
-                                CloseSimulationNotification |> dispatch
-                                // Feed input.
-                                let graph = simulationGraph
-                                FastRun.changeInput (ComponentId inputId) (IData bits) simulationData.ClockTickNumber simulationData.FastSim
-                                dispatch <| SetSimulationGraph(graph, simulationData.FastSim)
+                            match simulationData.NumberBase with
+                            | Float32 ->
+                                NumberHelpers.convertFloat32ToIEEE754UInt >> int64 >> convertInt64ToFastData 32
+                                |> updateValue (strToFloat32CheckWidth width text) inputId 
+                            | _ ->
+                                convertInt64ToFastData width
+                                |> updateValue (strToIntCheckWidth width text) inputId
                         ))
                     ]
                 ]
@@ -404,6 +416,111 @@ let viewSimulationError (simError : SimulationError) =
         Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Errors" ]
         error
     ]
+
+/// Turns a failed assertion into displayable react with button to go to the sheet it occures 
+/// Authored by djj120
+/// failure message formatting by jpn119
+let viewFailedAssertion (fa : FailedAssertion) (project : Project) dispatch =
+    let buttonString = 
+        if fa.Sheet = project.OpenFileName then 
+            "Failure in current sheet" 
+        else
+            "Goto sheet with failure"
+
+    let onClickFunc (_ : Browser.Types.MouseEvent) =
+        printf($"{fa.Sheet}")
+        dispatch CloseSimulationNotification // Close error notifications.
+        dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
+        dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
+        dispatch EndSimulation // End simulation.
+        dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
+        dispatch (StartUICmd ChangeSheet)
+        printfn "Starting UI Cmd"
+        dispatch <| ExecFuncInMessage(
+            (fun model dispatch -> 
+                let p = Option.get model.CurrentProj
+                FileMenuView.openFileInProject fa.Sheet p model dispatch), dispatch)
+        
+    let buttonProps = [
+        Button.Color IsInfo
+        Button.Disabled(fa.Sheet = project.OpenFileName)
+        Button.OnClick onClickFunc 
+    ]
+
+    let failureLines = fa.FailureMessage.Split "\n"
+    let failureMessageElements =
+        failureLines
+        |> Seq.collect (fun line -> [br [] ; str line ; br []])
+        |> List.ofSeq
+    div [] (failureMessageElements @
+    [
+        br []
+        Button.button buttonProps [ str buttonString ]
+        br []
+    ])
+/// Turns failed assertion list into a react element
+/// Authored by djj120
+let viewFailedAssertions (failedAssertions : FailedAssertion list) (model : Model) dispatch =
+    let project =
+        match model.CurrentProj with
+        | Some p -> p
+        | None -> failwith "What - Project shouldn't be empty here"
+    
+    let protectedDisplayedIndex = 
+        match model.Sheet.DisplayedAssertionIndex < failedAssertions.Length && model.Sheet.DisplayedAssertionIndex >= 0 with
+        | true -> model.Sheet.DisplayedAssertionIndex
+        | false -> 0
+    
+    let menuItem idx fa =
+        Menu.Item.li [
+            Menu.Item.IsActive (failedAssertions[protectedDisplayedIndex] = fa)
+            Menu.Item.OnClick (fun _ ->
+                    dispatch <| Sheet (SheetT.SetDisplayedAssertionIndex idx)
+                )
+            ] [fa.Name |> str]
+
+    let creatDropdown (faList : FailedAssertion List)  =
+        Dropdown.dropdown [
+                Dropdown.IsHoverable
+                Dropdown.Option.Props [
+                    Style [
+                        BorderRadius "4px"
+                        BoxShadow "inset 0 0.0625em 0.125em rgba(10, 10, 10, 0.05)"
+                        BackgroundColor "white"
+                        Color "#363636"
+                        Border "1px solid"
+                        BorderColor "#dbdbdb"
+                        Width "100%"
+                    ]
+                ]
+            ] [
+            
+            let selectedDisplay = faList[protectedDisplayedIndex].Sheet + " - " + faList[protectedDisplayedIndex].Name
+            Navbar.Link.a [
+                Navbar.Link.Option.Props [
+                    Style [Width "100%"]
+                ]
+            ] [ selectedDisplay |> str ]
+            Dropdown.menu [Props [Style [Width "100%"]]] [
+                Dropdown.content [Props [Style [ZIndex 1000]]] [
+                    Dropdown.Item.div [] [
+                        Menu.menu [Props [Style [OverflowY OverflowOptions.Scroll]]] [
+                            Menu.list [] (
+                                faList
+                                |> Seq.mapi menuItem
+                                |> List.ofSeq)
+                        ]]]]]
+
+
+    match failedAssertions with
+    | [] -> div [] []
+    | _ -> div [] [
+            Heading.h5 [ Heading.Props [ Style [ MarginTop "15px" ] ] ] [ str "Assertion Failure" ]
+            creatDropdown failedAssertions
+            viewFailedAssertion failedAssertions[protectedDisplayedIndex] project dispatch
+        ]
+
+    
 
 let private simulationClockChangePopup (simData: SimulationData) (dispatch: Msg -> Unit) (dialog:PopupDialogData) =
     let step = simData.ClockTickNumber
@@ -523,25 +640,39 @@ let simulationClockChangeAction dispatch simData (dialog:PopupDialogData) =
         |> dispatch
 
 
-
+/// Added button colour change on failed assertion djj120
 let private viewSimulationData (step: int) (simData : SimulationData) model dispatch =
     let viewerWidthList =
         FastRun.extractViewers simData
         |> List.map (fun (_, width, _) -> width)
     let outputWidthList =
         simData.Outputs 
-        |> List.map (fun (_,_,w) -> w)       
+        |> List.map (fun (_,_,w) -> w)
+    let inputWidthList =
+        simData.Inputs 
+        |> List.map (fun (_,_,w) -> w)
+  
+    let hasMultiBitIO =
+        List.map ((>) 1) >> List.isEmpty >> not
+    let hasMultiBitInputs =
+        hasMultiBitIO inputWidthList
     let hasMultiBitOutputs =
-        (List.append outputWidthList viewerWidthList)|> List.map ((>) 1) |> List.isEmpty |> not
+        (List.append outputWidthList viewerWidthList)|> hasMultiBitIO
+    
     let maybeBaseSelector =
-        match hasMultiBitOutputs with
+        match hasMultiBitInputs || hasMultiBitOutputs with
         | false -> div [] []
         | true -> baseSelector simData.NumberBase (changeBase dispatch)
+        
     let maybeClockTickBtn =
         let step = simData.ClockTickNumber
         match simData.IsSynchronous with
         | false -> div [] []
         | true ->
+            let clkTickColour = 
+                match getCurrAssertionFailuresStepSim(simData) with
+                | [] -> IsSuccess
+                | _ -> IsDanger
             div [] [
                 Button.button [
                     Button.Color IsSuccess
@@ -562,7 +693,7 @@ let private viewSimulationData (step: int) (simData : SimulationData) model disp
                 str " "
                 str " "
                 Button.button [
-                    Button.Color IsSuccess
+                    Button.Color clkTickColour
                     Button.OnClick (fun _ ->
                         if SimulationRunner.simTrace <> None then
                             printfn "*********************Incrementing clock from simulator button******************************"
@@ -643,6 +774,7 @@ let setSimErrorFeedback (simError:SimulatorTypes.SimulationError) (model:Model) 
             // make whole diagram visible if any of the errors are not visible
             keyDispatch <| SheetT.KeyboardMsg.CtrlW
 
+/// added failed assertion element and re formated djj120
 let viewSimulation canvasState model dispatch =
     printf "Viewing Simulation"
     // let JSState = model.Diagram.GetCanvasState ()
@@ -703,16 +835,34 @@ let viewSimulation canvasState model dispatch =
         let endSimulation _ =
             dispatch CloseSimulationNotification // Close error notifications.
             dispatch <| Sheet (SheetT.ResetSelection) // Remove highlights.
+            dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
             dispatch EndSimulation // End simulation.
             dispatch <| (JSDiagramMsg << InferWidths) () // Repaint connections.
+            
+        let assertionFaliersElement = 
+            match sim with
+            | Error _ -> div [] []
+            | Ok simData ->
+                match getCurrAssertionFailuresStepSim(simData) with
+                | [] -> 
+                    dispatch <| Sheet (SheetT.RemoveFailedAssertionHighlights) //Remove Assertion Highlights
+                    div [] []
+                | assertionList -> 
+                    ModelHelpers.highlightFailedAssertionComps model assertionList dispatch
+                    viewFailedAssertions assertionList model dispatch
+
         div [Style [Height "100%"]] [
-            Button.button
-                [ Button.Color IsDanger; Button.OnClick endSimulation ; Button.Props [Style [Display DisplayOptions.Inline; Float FloatOptions.Left ]]]
-                [ str "End simulation" ]
-            setDefaultButton
-            br []; br []
-            str "The simulation uses the diagram as it was at the moment of
-                 pressing the \"Start simulation\" button."
-            hr []
-            body
-        ]
+                Button.button
+                    [ Button.Color IsDanger; Button.OnClick endSimulation ; Button.Props [Style [Display DisplayOptions.Inline; Float FloatOptions.Left ]]]
+                    [ str "End simulation" ]
+                setDefaultButton
+                br []; br []
+                str "The simulation uses the diagram as it was at the moment of
+                    pressing the \"Start simulation\" button."
+                hr []
+                assertionFaliersElement
+                hr []
+                body
+                hr []
+                
+            ]

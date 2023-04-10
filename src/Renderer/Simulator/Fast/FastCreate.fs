@@ -48,6 +48,7 @@ let emptyFastSimulation diagramName =
       ComponentsById = Map.empty
       SimulatedCanvasState = []
       SimulatedTopSheet= diagramName
+      Assertions = []
       }
 
 let simulationPlaceholder = emptyFastSimulation ""
@@ -126,6 +127,9 @@ let getPortNumbers (sc: SimulationComponent) =
         | Custom ct -> ct.InputLabels.Length, ct.OutputLabels.Length
         | AsyncROM _ | RAM _ | ROM _ -> failwithf "legacy component type is not supported"
         | Input _ -> failwithf "Legacy Input component types should never occur"
+        | Plugin _ ->
+            // TODO(jpnock): maybe add support later for these
+            0,0
 
     ins, outs
 
@@ -137,6 +141,7 @@ let getOutputWidths (sc: SimulationComponent) (wa: int option array) =
     let putW3 w = wa[3] <- Some w
 
     match sc.Type with
+    | Plugin _ -> ()
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->
@@ -266,7 +271,7 @@ let createFastComponent (maxArraySize: int) (sComp: SimulationComponent) (access
       VerilogComponentName = ""
       Active =
           match sComp.Type with
-          | IOLabel _ -> false
+          | IOLabel _ | Plugin _ -> false
           | _ -> true }
 
 /// extends the simulation data arrays of the component to allow more steps
@@ -328,7 +333,7 @@ let extendFastSimulation (numSteps: int) (fs: FastSimulation) =
 /// Custom components are scanned and links added, one for each input and output
 let rec private createFlattenedSimulation (ap: ComponentId list) (graph: SimulationGraph) =
     let graphL = Map.toList graph
-    let allComps = 
+    let allComps =
         graphL
         |> List.map (fun (cid,comp) ->  (cid, ap),(comp, ap))
     let labels = List.map (fun (cid,comp) -> cid, ((fun (ComponentLabel s) -> s) comp.Label)) graphL
@@ -458,9 +463,10 @@ let addComponentWaveDrivers (f:FastSimulation) (fc: FastComponent) (pType: PortT
     
     let ioLabelIsActive fc = f.FIOActive[ComponentLabel fc.FLabel, snd fc.fId].fId <> fc.fId
 
-    match pType with
-    | PortType.Output -> fc.Outputs
-    | PortType.Input -> fc.InputLinks
+    match pType, fc.FType with
+    | _, Plugin _ -> [||]
+    | PortType.Output, _ -> fc.Outputs
+    | PortType.Input, _ -> fc.InputLinks
     |> Array.mapi (fun pn stepA ->
         let index = stepA.Index
         let addDriver, addWave =

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
@@ -10,8 +10,18 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Verification\EEExtensions.fs" />
+    <Compile Include="Verification\AssertionTypes.fs" />
+    <Compile Include="Verification\AssertionParser.fs" />
+    <Compile Include="Verification\AssertionASTMap.fs" />
+    <Compile Include="Verification\VerificationTypes.fs" />
+    <Compile Include="Verification\IOConstants.fs" />
+    <Compile Include="Verification\SymbolConstants.fs" />
+    <Compile Include="Verification\VerificationComponents.fs" />
+    <Compile Include="Verification\VerificationLibrary.fs" />
+    <Compile Include="Verification\VerificationASTGen.fs" />
+    
     <!-- Common definitions -->
-    <Compile Include="Common\EEExtensions.fs" />
     <Compile Include="Common\Optics.fs" />
     <Compile Include="Common\ElectronAPI.fs" />
     <Compile Include="Common\HashMap.fs" />
@@ -20,11 +30,9 @@
     <Compile Include="Common\Helpers.fs" />
     <Compile Include="Common\TimeHelpers.fs" />
     <Compile Include="Common\WidthInferer.fs" />
-
-	  <!-- UART -->
+    <!-- UART -->
     <Compile Include="UartFiles\BuildUartHelpers.fs" />
-
-	  <!-- simulator -->
+    <!-- simulator -->
     <Compile Include="Simulator\SimulatorTypes.fs" />
     <Compile Include="Simulator\TruthTableTypes.fs" />
     <Compile Include="Simulator\NumberHelpers.fs" />
@@ -39,15 +47,17 @@
     <Compile Include="Simulator\Verilog.fs" />
     <Compile Include="Simulator\Runner.fs" />
     <Compile Include="Simulator\DependencyMerger.fs" />
+    <Compile Include="Simulator\AssertionCheck.fs" />
+    <Compile Include="Simulator\AssertionEvaluation.fs" />
+    <Compile Include="Simulator\AssertionTests.fs" />
     <Compile Include="Simulator\Simulator.fs" />
 
     <!-- Verilog Component -->
     <Compile Include="VerilogComponent\VerilogTypes.fs" />
-    <Compile Include="VerilogComponent\SheetCreator.fs" />    
+    <Compile Include="VerilogComponent\SheetCreator.fs" />
     <Compile Include="VerilogComponent\NearleyBindings.fs" />
     <Compile Include="VerilogComponent\ErrorCheck.fs" />
-    <Compile Include="VerilogComponent\CodeEditorHelpers.fs" />   
-
+    <Compile Include="VerilogComponent\CodeEditorHelpers.fs" />
     <!-- JS and File interface -->
     <Compile Include="Interface\Version.fs" />
     <Compile Include="Interface\JSHelpers.fs" />
@@ -62,18 +72,18 @@
 	<Compile Include="DrawBlock\SymbolReplaceHelpers.fs" />
     <Compile Include="DrawBlock\SymbolUpdate.fs" />
     <Compile Include="DrawBlock\BusWire.fs" />
-	<Compile Include="DrawBlock\BusWireUpdateHelpers.fs" />
-	<Compile Include="DrawBlock\SmartHelpers.fs" />
-	<Compile Include="DrawBlock\SmartWire.fs" />
-	<Compile Include="DrawBlock\SmartChannel.fs" />
-	<Compile Include="DrawBlock\SmartPortOrder.fs" />
-	<Compile Include="DrawBlock\SmartSizeSymbol.fs" />
-	<Compile Include="DrawBlock\SmartRotate.fs" />
+    <Compile Include="DrawBlock\BusWireUpdateHelpers.fs" />
+    <Compile Include="DrawBlock\SmartHelpers.fs" />
+    <Compile Include="DrawBlock\SmartWire.fs" />
+    <Compile Include="DrawBlock\SmartChannel.fs" />
+    <Compile Include="DrawBlock\SmartPortOrder.fs" />
+    <Compile Include="DrawBlock\SmartSizeSymbol.fs" />
+    <Compile Include="DrawBlock\SmartRotate.fs" />
     <Compile Include="DrawBlock\BusWireUpdate.fs" />
     <Compile Include="DrawBlock\Sheet.fs" />
     <Compile Include="DrawBlock\SheetSnap.fs" />
     <Compile Include="DrawBlock\SheetDisplay.fs" />
-	<Compile Include="DrawBlock\SheetUpdateHelpers.fs" />
+    <Compile Include="DrawBlock\SheetUpdateHelpers.fs" />
     <Compile Include="DrawBlock\SheetUpdate.fs" />
     <!-- UI -->
     <Compile Include="UI/ModelType.fs" />
@@ -102,7 +112,6 @@
     <Compile Include="UI\Update.fs" />
     <Compile Include="Renderer.fs" />
   </ItemGroup>
-  
   <!-- Dependencies -->
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

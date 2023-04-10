@@ -8,7 +8,6 @@ module rec SimulatorTypes
 open Fable.Core
 open CommonTypes
 
-
 /// document current status of a simulation as used by waveform simulator
 type SimulationRunStatus =
     | SimEmpty // simulation has been created but not yet setup from a circuit
@@ -951,6 +950,7 @@ type Driver = {
     DriverData: StepArray<FData>
 }
 
+
 type SheetPort = {
     Sheet: string
     PortOnComp: Port // muts include port number (which ports on connections do not)
@@ -1023,6 +1023,8 @@ type FastSimulation = {
     SimulatedCanvasState: LoadedComponent list
     /// The root sheet being simulated
     SimulatedTopSheet: string
+    // Assertion logic that should be evaluated per cycle
+    Assertions: AssertionTypes.Assertion list
     } with
         member this.getSimulationData (step: int) ((cid,ap): FComponentId) (opn: OutputPortNumber) =
             let (OutputPortNumber n) = opn
@@ -1032,6 +1034,8 @@ type FastSimulation = {
                 match Map.tryFind ((cid,ap), opn) this.FCustomOutputCompLookup with
                 | Some fid -> this.FComps[fid].Outputs[0].Step[step]
                 | None -> failwithf "What? can't find %A in the fast simulation data" (cid,ap)
+        
+            
 
 /// GatherTemp is the output type used to accumulate lists of data links when recursively exploring SimulationGraph
 /// as first step in flattening it.

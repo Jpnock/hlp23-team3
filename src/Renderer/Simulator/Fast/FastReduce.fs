@@ -110,7 +110,8 @@ let inline private algXnor exp1 exp2 = algXor exp1 exp2 |> algNot
 let fastReduce (maxArraySize: int) (numStep: int) (isClockedReduction: bool) (comp: FastComponent) : Unit =
     let componentType = comp.FType
 
-    //printfn "Reducing %A...%A %A (step %d) clocked=%A"  comp.FType comp.ShortId comp.FullName numStep isClockedReduction
+    //printfn "Reducing type: %A short id: %A  full name: %A (step %d) clocked=%A"  comp.FType comp.ShortId comp.FullName numStep isClockedReduction
+    //printfn "FComp id; %A" comp.fId
     let n = comp.InputLinks.Length
 
     let simStep = numStep % maxArraySize 
@@ -160,7 +161,7 @@ let fastReduce (maxArraySize: int) (numStep: int) (isClockedReduction: bool) (co
         comp.PutOutput(simStep) (OutputPortNumber 0) fd
 
     /// Write current step output data for output port 1
-    let inline put1 fd =
+    let inline put1 fd=
         comp.PutOutput(simStep) (OutputPortNumber 1) fd
 
     /// Write current step output data for output port 2
@@ -233,6 +234,7 @@ let fastReduce (maxArraySize: int) (numStep: int) (isClockedReduction: bool) (co
 
     // reduce the component in this match
     match componentType with
+    | Plugin _ -> ()
     | ROM _ | RAM _ | AsyncROM _ -> 
         failwithf "What? Legacy RAM component types should never occur"
     | Input _ ->

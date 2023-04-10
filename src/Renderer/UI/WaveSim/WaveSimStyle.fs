@@ -53,6 +53,8 @@ module Constants =
     let labelPadding = 3
     /// Color for cursor and values column
     let cursorColor = "Lavender"
+    /// Color for falied assertions djj120
+    let failedAssertionColor = "red"
 
 
 
@@ -445,6 +447,7 @@ let valuesColumnSize wsModel =
                             | CommonTypes.Hex | CommonTypes.Bin -> 0I, 2.
                             | CommonTypes.Dec -> SimulatorTypes.bigIntMask (num+1), 2.
                             | CommonTypes.SDec -> SimulatorTypes.bigIntMask (num-1), 10.
+                            | CommonTypes.Float32 -> 0I, 2. // TODO(jpnock): unsure about this
                         let (fd: SimulatorTypes.FastData) = {Dat=SimulatorTypes.BigWord worstCaseVal; Width=num}
                         NumberHelpers.fastDataToPaddedString 10000 wsModel.Radix fd
                         |> (fun s -> s[0..min (s.Length-1) Constants.valueColumnMaxChars])
@@ -573,9 +576,19 @@ let backgroundSVG (wsModel: WaveSimModel) count : ReactElement list =
     [ wsModel.StartCycle + 1 .. endCycle wsModel + 1 ] 
     |> List.map (fun x -> clkLine (float x * singleWaveWidth wsModel))
 
-/// Controls the background highlighting of which clock cycle is selected
-let clkCycleHighlightSVG m dispatch =
+/// Create a SVG that highlights a column in the wave simulator abstraction of original 
+/// clkCycleHighlightSVG to avoid duplicate code with the addition of failedAssertionsHighlight 
+/// djj120
+let highlightColSVG (m: WaveSimModel) (color: string) (id: string) (specificCol: int option) (onClick:(Browser.Types.MouseEvent -> unit) option) : ReactElement =
+    let onClickFun = Option.defaultValue (fun _ -> ()) onClick
+    let highlightedCol = Option.defaultValue m.CurrClkCycle specificCol
     let count = List.length m.SelectedWaves
+    let reactElement = 
+                rect [
+                    SVGAttr.Width (singleWaveWidth m)
+                    SVGAttr.Height "100%"
+                    X (float highlightedCol * (singleWaveWidth m))
+                ] []
     svg [
         Style [
             GridColumnStart 1
@@ -583,13 +596,21 @@ let clkCycleHighlightSVG m dispatch =
         ]
         SVGAttr.Height (string ((count + 1) * Constants.rowHeight) + "px")
         SVGAttr.Width (viewBoxWidth m)
-        SVGAttr.Fill Constants.cursorColor
+        SVGAttr.Fill color
         SVGAttr.Opacity 0.4
         ViewBox (viewBoxMinX m + " 0 " + viewBoxWidth m  + " " + string (Constants.viewBoxHeight * float (count + 1)))
-        Id "ClkCycleHighlight"
-        OnClick (fun ev ->
+        Id id
+        OnClick onClickFun
+        ]
+        
+        (reactElement :: backgroundSVG m count)
+
+/// Controls the background highlighting of which clock cycle is selected
+/// reformated to call highlightColSVG djj120
+let clkCycleHighlightSVG m dispatch =
+    let updateCurrCycleToClickedCycle  (ev: Browser.Types.MouseEvent)  =
             let svgEl = Browser.Dom.document.getElementById "ClkCycleHighlight"
-            let bcr = svgEl.getBoundingClientRect ()
+            let bcr = svgEl.getBoundingClientRect()
             /// Should be the same as singleWaveWidth
             let cycleWidth = bcr.width / float m.ShownCycles
             /// ev.clientX is X-coord of mouse click. bcr.left is x-coord of start of SVG.
@@ -597,18 +618,12 @@ let clkCycleHighlightSVG m dispatch =
             /// add m.StartCycle to account for when viewBoxMinX is not 0
             let cycle = (int <| (ev.clientX - bcr.left) / singleWaveWidth m) + m.StartCycle
             dispatch <| UpdateWSModel (fun m -> {m with CurrClkCycle = cycle})
-        )
-        ]
-        (List.append 
-            [
-                rect [
-                    SVGAttr.Width (singleWaveWidth m)
-                    SVGAttr.Height "100%"
-                    X (float m.CurrClkCycle * (singleWaveWidth m))
-                ] []
-            ]
-            (backgroundSVG m count)
-        )
+    highlightColSVG m Constants.cursorColor "ClkCycleHighlight" None (Some updateCurrCycleToClickedCycle) 
+
+/// Controls the background highlighting of which clock cycle is selected
+/// djj120
+let failedAssertionsHighlight m cycle=
+    highlightColSVG m Constants.failedAssertionColor "AssertionHighlight" (Some cycle) None 
 
 /// Props for radix tabs
 let radixTabProps : IHTMLProp list = [

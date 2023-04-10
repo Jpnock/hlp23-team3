@@ -3,6 +3,8 @@ open CommonTypes
 open Sheet.SheetInterface
 open ModelType
 open Elmish
+open SimulatorTypes
+open AssertionEvaluation
 
 
 let initWSModel  : WaveSimModel = {
@@ -297,3 +299,34 @@ let execOneAsyncJobIfPossible (model: Model,cmd: Cmd<Msg>)=
             job.JobWork model
             |> (fun (model', cmd') -> model', Cmd.batch [cmd; cmd'])
 
+/// return the integers of the cycles with failed assertions given a list of failed assertions
+/// TODO:(djj120/DomJustice) decide if this stays here
+let getFailedAssertionCycles (failedAssertions: FailedAssertion list)= 
+    failedAssertions
+    |> List.map (fun assertion -> assertion.Cycle)
+    |> List.distinct
+
+/// returns a list oc the failed assertions occurring at the current clk cycle specified in a 
+/// SimulationData's FastSim
+/// TODO:(djj120/DomJustice) decide if this stays here       
+let getCurrAssertionFailuresStepSim (simData : SimulationData) =
+    let failedAssertions = evaluateAssertionsInWindow simData.ClockTickNumber simData.ClockTickNumber simData.FastSim
+    List.filter (fun assertion -> assertion.Cycle = simData.ClockTickNumber) failedAssertions
+
+// Highlights the failed assertions given in a list that exist on the current sheet
+let highlightFailedAssertionComps (model: Model) failedAssertions dispatch = 
+    let symbols = model.Sheet.Wire.Symbol.Symbols
+    let filter compId= 
+        match Map.tryFind compId symbols with
+        | Some _ -> true
+        | _ -> false
+
+    let filteredCompIds = 
+        failedAssertions
+        |> List.map (fun fa -> fa.CompId)
+        |> List.filter filter 
+    
+    match filteredCompIds with
+    | [] -> ()
+    | _ ->
+        dispatch <| Sheet (DrawModelType.SheetT.HighlightFailedAssertions filteredCompIds)

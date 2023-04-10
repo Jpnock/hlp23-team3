@@ -108,6 +108,7 @@ let getInputPortName (compType: ComponentType) (port: InputPortNumber) : string 
     | MergeWires -> failwithf "MergeWires should not occur in getInputPortName"
     | SplitWire _ -> failwithf "SplitWire should not occur in getInputPortName"
     | BusSelection _ -> failwithf "BusSelection should not occur in getInputPortName"
+    | Plugin _ -> failwithf "Verification components are not displayed"
 
 /// Get names for waves that are from Input ports
 let getInputName (withComp: bool) (comp: FastComponent) (port: InputPortNumber) : string =
@@ -138,6 +139,7 @@ let getInputName (withComp: bool) (comp: FastComponent) (port: InputPortNumber) 
         | MergeWires -> failwithf "MergeWires should not occur in getInputName"
         | SplitWire _ -> failwithf "SplitWire should not occur in getInputName"
         | BusSelection _ -> failwithf "BusSeleciton should not occur in getInputName"
+        | Plugin _ -> failwithf "Verification components are not displayed"
 
     if withComp then 
         comp.FLabel + portName + bitLims
@@ -175,6 +177,7 @@ let getOutputPortName (compType: ComponentType) (port: OutputPortNumber) : strin
     | MergeWires -> failwithf "MergeWires should not occur in getOutputName"
     | SplitWire _ -> failwithf "SplitWire should not occur in getOutputName"
     | BusSelection _ -> failwithf "BusSeleciton should not occur in getOutputName"
+    | Plugin _ -> failwithf "Verification components are not displayed"
 
 /// Get names for waves that are from Output ports
 let getOutputName (withComp: bool) (comp: FastComponent) (port: OutputPortNumber) (fastSim: FastSimulation): string =
@@ -215,6 +218,7 @@ let getOutputName (withComp: bool) (comp: FastComponent) (port: OutputPortNumber
         | MergeWires -> failwithf "MergeWires should not occur in getOutputName"
         | SplitWire _ -> failwithf "SplitWire should not occur in getOutputName"
         | BusSelection _ -> failwithf "BusSelection should not occur in getOutputName"
+        | Plugin _ -> failwithf "Verification components are not displayed"
 
     if withComp then 
         comp.FLabel + portName + bitLims
@@ -597,10 +601,10 @@ let  selectWaves (ws: WaveSimModel) (subSheet: string list) (dispatch: Msg -> un
 
 
 /// Button to activate wave selection modal
-let selectWavesButton (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
+let selectWavesButton (simRunning  : bool) (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
     let waveCount = Map.count wsModel.AllWaves
     let props, buttonFunc =
-        if waveCount > 0 && wsModel.State=Success then
+        if waveCount > 0 && wsModel.State=Success && simRunning then
             selectWavesButtonProps, (fun _ -> dispatch <| UpdateWSModel (fun ws -> {wsModel with WaveModalActive = true}))
         else selectWavesButtonPropsLight, (fun _ -> ())
     button 
@@ -674,10 +678,10 @@ let selectWavesModal (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElem
 //--------------------------------------------------------------------------------------------------------//
 
 /// Button to activate RAM selection modal.
-let selectRamButton (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
+let selectRamButton (simRunning) (wsModel: WaveSimModel) (dispatch: Msg -> unit) : ReactElement =
     let ramCount = List.length wsModel.RamComps
     let props, buttonFunc =
-        if ramCount > 0 && wsModel.State=Success then
+        if ramCount > 0 && wsModel.State=Success && simRunning then
             selectRamButtonProps, (fun _ -> dispatch <| UpdateWSModel (fun ws -> {wsModel with RamModalActive = true}))
         else selectRamButtonPropsLight, (fun _ -> ())
     button 

@@ -239,6 +239,7 @@ let editMenu dispatch' =
                makeItem "TestPortReorder" None (fun ev -> sheetDispatch SheetT.Msg.TestPortReorder)
                makeItem "TestChannel" None (fun ev -> sheetDispatch SheetT.Msg.TestSmartChannel)
                makeItem "TestResize" None (fun ev -> sheetDispatch SheetT.Msg.TestPortPosition)
+               makeItem "TestCheckAst" None (fun ev -> sheetDispatch SheetT.Msg.TestCheckAst)
 
                
             |]

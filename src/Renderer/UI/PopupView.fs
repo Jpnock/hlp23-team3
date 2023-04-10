@@ -55,6 +55,7 @@ open ElectronAPI
 
 open JSHelpers
 open Helpers
+open Optics
 open ModelType
 open CommonTypes
 open EEExtensions
@@ -91,17 +92,15 @@ type CERSCState = { code: string; }
 type CodeEditorReactStatefulComponent (props) =
     inherit Component<CERSCProps, CERSCState> (props)
     
-    do base.setInitState({ code = "module NAME(\n  // Write your IO Port Declarations here\n  \n);  \n  // Write your Assignments here\n  \n  \n  \nendmodule" })
-
+    do base.setInitState(
+        { code = Option.get <| Optic.get code_contents_ props.DialogData}
+    )
 
     // override this.shouldComponentUpdate (nextProps,nextState) =
-
     override this.componentDidUpdate (prevProps,prevState) =
         match (props.ReplaceCode <> None && prevProps.ReplaceCode = None) with
         |true -> 
-            this.setState(fun s _-> {s with code = Option.get props.ReplaceCode} )
-            props.Dispatch <| SetPopupDialogCode (props.ReplaceCode)
-            props.Compile {props.DialogData with VerilogCode=props.ReplaceCode}
+            this.updateCode <| Option.get props.ReplaceCode
         |false -> ()
 
     override this.componentDidMount () =
@@ -113,17 +112,21 @@ type CodeEditorReactStatefulComponent (props) =
             div [Style [Position PositionOptions.Relative; CSSProp.Left "35px";Height "100%";]]
                 [
                     codeEditor [
-                        CodeEditorProps.Placeholder ("Start Writing your Verilog Code here..."); 
+                        CodeEditorProps.Placeholder "Start writing your code here...";
                         CodeEditorProps.Value ((sprintf "%s" this.state.code)); 
                         CodeEditorProps.Padding 5
-                        OnValueChange (fun txt -> 
-                            (this.setState (fun s p -> {s with code=txt}))
-                            props.Dispatch <| SetPopupDialogCode (Some txt)
-                            props.Compile {props.DialogData with VerilogCode=Some txt}
+                        OnValueChange (fun txt ->
+                            this.updateCode txt
                         )             
                         Highlight (fun code -> Prism.highlight(code,language));]
                         []
                 ]
+
+    member this.updateCode replaceCode =
+        (this.setState (fun s _ -> {s with code=replaceCode}))
+        let dialogData' = Optic.set code_contents_ replaceCode props.DialogData
+        props.Dispatch <| SetPopupDialogCode dialogData'.Code
+        props.Compile dialogData' |> ignore
 //////////////////////////////////////////////////////////////////////
 
 
@@ -181,12 +184,14 @@ let preventDefault (e: Browser.Types.ClipboardEvent) = e.preventDefault()
 let getText (dialogData : PopupDialogData) =
     Option.defaultValue "" dialogData.Text
 
-let getCode (dialogData : PopupDialogData) =
-    Option.defaultValue "" dialogData.VerilogCode
-
+let getCodeContents (dialogData : PopupDialogData) =
+    Option.defaultValue "" <| Optic.get code_contents_ dialogData
 
 let getErrorList (dialogData : PopupDialogData) =
-    dialogData.VerilogErrors
+    Option.defaultValue [] <| Optic.get code_errors_ dialogData
+
+let getModuleName (dialogData : PopupDialogData) =
+    Option.defaultValue "" <| Optic.get code_verilogCode_moduleName_ dialogData 
 
 let getInt (dialogData : PopupDialogData) =
     Option.defaultValue 1 dialogData.Int
@@ -339,16 +344,17 @@ let dialogPopupBodyOnlyTextWithDefaultValue before placeholder currDescr dispatc
 
 
 /// Create the body of a Verilog Editor Popup.
-let dialogVerilogCompBody before moduleName errorDiv errorList showExtraErrors codeToAdd compileButton addButton dispatch =
+let dialogCodeEditorCompBody preamble compileButton addButton dispatch =
     fun (dialogData : PopupDialogData) ->
-        let code = getCode dialogData
+        let code = getCodeContents dialogData
         let linesNo = code |> String.filter (fun ch->ch='\n') |> String.length
-        let goodLabel =
-                (Option.defaultValue "" moduleName)
-                |> (fun s -> String.startsWithLetter s || s = "")
-        
+
+        let errorList = getErrorList dialogData
+        let showExtraErrors = Option.defaultValue false <| Optic.get code_showErrors_ dialogData
+
         let renderCERSC =
-            ofType<CodeEditorReactStatefulComponent,_,_> {CurrentCode=code; ReplaceCode=codeToAdd; Dispatch=dispatch; DialogData=dialogData;Compile=compileButton} 
+            ofType<CodeEditorReactStatefulComponent,_,_> 
+                {CurrentCode=code; ReplaceCode=None; Dispatch=dispatch; DialogData=dialogData;Compile=compileButton} 
         
         let codeEditorWidth, errorWidth, hide = if showExtraErrors then "56%","38%",false else "96%","0%",true 
 
@@ -358,30 +364,12 @@ let dialogVerilogCompBody before moduleName errorDiv errorList showExtraErrors c
         div [Style [Width "100%"; Height "100%";Display DisplayOptions.Flex; FlexDirection FlexDirection.Row; JustifyContent "flex-start"]] [
             div [Style [Flex "2%"; Height "100%";]] []
             div [Style [Flex codeEditorWidth; Height "100%";]] [
-                before dialogData
-                Input.text [
-                    Input.Props [AutoFocus true; SpellCheck false]
-                    Input.Placeholder "Component name (equal to module name)"
-                    Input.Value (Option.defaultValue "" moduleName)
-                    Input.Disabled true
-                    Input.OnChange (
-                        getTextEventValue >> Some >> SetPopupDialogText >> dispatch
-                        )
-                ]
-                span [Style [FontStyle "Italic"; Color "Red"]; Hidden goodLabel] [str "Name must start with a letter"]
-                br []
-                br []
-                br []
-                div [ Style [Position PositionOptions.Relative;]] [
-                    p [] [b [] [str "Verilog Code:"]]
-                    infoHoverableElement
-                ]
-                br []
+                preamble dialogData
                 //BrowserWindowConstructorOptions
                 div [ Style [Position PositionOptions.Relative; MinHeight "0px"; MaxHeight editorheigth; FontFamily ("ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace"); FontSize 16; BackgroundColor "#f5f5f5"; OutlineStyle "solid"; OutlineColor "Blue";OverflowY OverflowOptions.Auto;OverflowX OverflowOptions.Hidden]] 
                         [
                         getLineCounterDiv linesNo
-                        errorDiv
+                        getErrorDiv errorList
                         renderCERSC Seq.empty
                         ]
                 ]
@@ -621,12 +609,20 @@ let dialogPopup title body buttonText buttonAction isDisabled extraStyle dispatc
 
 /// Popup with an input textbox and two buttons.
 /// The text is reflected in Model.PopupDialogText.
-let dialogVerilogPopup title body saveUpdateText noErrors showingExtraInfo saveButtonAction moreInfoButton isDisabled extraStyle dispatch =
+let dialogCodeEditorPopup title body saveUpdateText saveButtonAction moreInfoButton extraStyle dispatch =
     let foot =
         fun (dialogData : PopupDialogData) ->
+
+            let noErrors = List.isEmpty <| getErrorList dialogData
+            let showExtraErrors = Option.defaultValue false <| Optic.get code_showErrors_ dialogData
+
+            let isDisabled = 
+                fun (_ : PopupDialogData) ->   //OverflowX OverflowOptions.Hidden;OverflowY OverflowOptions.Hidden
+                    not noErrors
+
             let compileButtonText = 
                 if noErrors then "Compiled" 
-                elif showingExtraInfo then "Hide Info"
+                elif showExtraErrors then "Hide Info"
                 else "More Info" 
             let compileButtonColor = if noErrors then IsInfo else IsDanger
             Level.level [ Level.Level.Props [ Style [ Width "100%" ] ] ] [

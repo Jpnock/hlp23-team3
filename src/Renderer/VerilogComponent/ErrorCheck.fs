@@ -1,5 +1,6 @@
 module ErrorCheck
 
+open AssertionTypes
 open VerilogTypes
 open Fable.Core.JsInterop
 open CommonTypes 
@@ -18,9 +19,9 @@ let createErrorMessage
     (newLinesLocations: int list)
     (currLocation: int)
     (message: string)
-    (extraMessages: ExtraErrorInfo array)
+    (extraMessages: CodeExtraErrorInfo array)
     (name: string)
-        : ErrorInfo list = 
+        : CodeError list = 
       
     let isSmallerThan x y = y <= x
     
@@ -28,8 +29,10 @@ let createErrorMessage
     let line = prevIndex+1
     let prevLineLocation = newLinesLocations[prevIndex]
     let length = String.length name
+
+    let pos = {Line = line; Col = currLocation-prevLineLocation+1; Length = length; CompId = ""}
     
-    [{Line = line; Col=currLocation-prevLineLocation+1;Length=length;Message = message;ExtraErrors=Some extraMessages}]
+    [{Pos = pos; Msg = message; ExtraErrors=Some extraMessages}]
 
 
 /// Recursive function to get all the primaries used in the RHS of an assignment
@@ -147,8 +150,8 @@ let checkIODeclarations
     (nonUniquePortDeclarations: string list)
     (portMap: Map<string,string>)
     (items: ItemT list)
-    (errorList: ErrorInfo list)
-        : ErrorInfo list = 
+    (errorList: CodeError list)
+        : CodeError list = 
     
     let portList = ast.Module.PortList |> Array.toList
     let assignments = List.filter (fun item -> (Option.isSome item.Statement)) items
@@ -232,19 +235,19 @@ let nameCheck ast linesLocations (origin:CodeEditorOpen) (project:Project)  erro
     // printfn "working %s" (Option.defaultValue "" project.WorkingFileName) 
     let exists = 
         match origin with
-        |NewVerilogFile -> isFileInProject moduleName project 
-        |UpdateVerilogFile initialName -> moduleName <> initialName
+        | NewCodeFile -> isFileInProject moduleName project 
+        | ExistingCodeFile initialData -> moduleName <> initialData.Name
 
     let localError = 
         match (exists,origin) with
-        |true,NewVerilogFile -> 
+        | true,NewCodeFile -> 
             let message = "A sheet/component with that name already exists"
             let extraMessages = 
                 [|
                     {Text="Module Name must be different from existing Sheets/Components";Copy=false;Replace=NoReplace}
                 |]
             createErrorMessage linesLocations ast.Module.ModuleName.Location message extraMessages moduleName
-        |true,UpdateVerilogFile _ ->
+        | true,ExistingCodeFile _ ->
             let message = "Verilog component's name cannot be changed "
             let extraMessages = 
                 [|
@@ -264,8 +267,8 @@ let checkAllOutputsAssigned
     (portMap: Map<string,string>)
     (portSizeMap: Map<string,int>)  
     (linesLocations: int list)
-    (errorList: ErrorInfo list)
-        : ErrorInfo list =
+    (errorList: CodeError list)
+        : CodeError list =
     
 
     // List of declared ports, bit by bit
@@ -528,8 +531,8 @@ let checkWiresAndAssignments
     (wireNameList: string list) 
     (wireSizeMap: Map<string,int>) 
     (wireLocationMap: Map<string,int>) 
-    (errorList: ErrorInfo list) 
-        : ErrorInfo list =
+    (errorList: CodeError list) 
+        : CodeError list =
 
     let portAndWireNames =
         portMap
@@ -556,7 +559,7 @@ let checkWiresAndAssignments
     /// Checks the name and width of a wire assignment
     /// Name : if the variable is free
     /// Width : correct definition of width (i.e. Little-endian)
-    let checkWireNameAndWidth wire notUniqueNames (localErrors:ErrorInfo list) =     
+    let checkWireNameAndWidth wire notUniqueNames (localErrors:CodeError list) =     
         let lhs = wire.LHS
         match Map.tryFind lhs.Primary.Name portMap with
         | Some portType  ->  //CASE 1: Invalid Name (already used variable by port)
@@ -887,8 +890,8 @@ let checkWiresAndAssignments
 let checkNonCombKeywords 
     (ast:VerilogInput) 
     (linesLocations: int list) 
-    (errorList: ErrorInfo list) 
-        : ErrorInfo list =
+    (errorList: CodeError list) 
+        : CodeError list =
 
     let localErrors =
         ast.Module.ModuleItems.ItemList

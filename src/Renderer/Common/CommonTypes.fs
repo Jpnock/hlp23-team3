@@ -184,7 +184,7 @@ module CommonTypes
         |LSL
         |LSR
         |ASR
-    
+
     // Types instantiating objects in the Digital extension.
     type ComponentType =
         // Legacy component: to be deleted
@@ -213,7 +213,7 @@ module CommonTypes
         // legacy components - to be deleted
         | AsyncROM of Memory | ROM of Memory | RAM of Memory
         | Shift of BusWidth: int * ShifterWidth: int * ShiftType: ShiftComponentType
-
+        | Plugin of VerificationTypes.ComponentConfig
 
     /// Active pattern which matches 2-input gate component types.
     /// NB - NOT gates are not included here.
@@ -417,7 +417,7 @@ module CommonTypes
     ///unconfigured replaces Some -1, Error replaces None, Configured of int replaces Some (positive int)
     type WireWidth = | Configured of int | Unconfigured | ErrorWidth
 
-    type NumberBase = | Hex | Dec | Bin | SDec
+    type NumberBase = | Hex | Dec | Bin | SDec | Float32
 
     /// Colors to highlight components
     /// Case name is used as HTML color name.

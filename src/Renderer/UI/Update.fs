@@ -769,17 +769,14 @@ let update (msg : Msg) oldModel =
                         Int2 = None;
                         MemorySetup = None;
                         MemoryEditorData = None;
-                        VerilogCode = None;
-                        VerilogErrors = [];
+                        Code = None
                     }}, Cmd.none
     | SetPopupDialogText text ->
         set (popupDialogData_ >-> text_) text model, Cmd.none
     | SetPopupDialogBadLabel isBad ->
         set (popupDialogData_ >-> badLabel_) isBad model, Cmd.none
     | SetPopupDialogCode code ->
-        set (popupDialogData_ >-> verilogCode_) code model, Cmd.none
-    | SetPopupDialogVerilogErrors errorList ->
-        set (popupDialogData_ >-> verilogErrors_) errorList model, Cmd.none
+        set (popupDialogData_ >-> code_) code model, Cmd.none
     | SetPopupDialogInt int ->
         set (popupDialogData_ >-> int_) int model, Cmd.none
     | SetPopupDialogInt2 int ->

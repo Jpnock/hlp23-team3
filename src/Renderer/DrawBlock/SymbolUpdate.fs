@@ -11,6 +11,7 @@ open DrawModelType.SymbolT
 open Symbol
 open SymbolUpdatePortHelpers
 open SymbolReplaceHelpers
+open VerificationTypes
 open Optics
 open Optic
 open Operators
@@ -104,6 +105,11 @@ let generateCopiedLabel (model: Model) (oldSymbol:Symbol) (compType: ComponentTy
     |Input _ | Input1 (_,_) |Output _ |Viewer _ -> generateIOLabel model compType oldSymbol.Component.Label
     | _ -> prefix + (generateLabelNumber listSymbols compType)
 
+/// Generate an empty port order
+let emptyPortOrder = 
+    (Map.empty, [Edge.Top; Edge.Bottom; Edge.Left; Edge.Right])
+    ||> List.fold (fun currMap edge -> Map.add edge [] currMap)
+
 
 /// Initialises and returns the PortMaps of a pasted symbol
 let initCopiedPorts (oldSymbol:Symbol) (newComp: Component): PortMaps =
@@ -121,9 +127,6 @@ let initCopiedPorts (oldSymbol:Symbol) (newComp: Component): PortMaps =
         ||> Map.fold 
             (fun currMap oldPortId edge -> Map.add equivPortIds[oldPortId] edge currMap)
 
-    let emptyPortOrder = 
-        (Map.empty, [Edge.Top; Edge.Bottom; Edge.Left; Edge.Right])
-        ||> List.fold (fun currMap edge -> Map.add edge [] currMap)
     let portOrder =
         (emptyPortOrder, oldSymbol.PortMaps.Order)
         ||> Map.fold 
@@ -284,7 +287,10 @@ let getEquivalentCopiedPorts (model: Model) (copiedIds) (pastedIds) (InputPortId
 
 /// Creates and adds a symbol into model, returns the updated model and the component id
 let addSymbol (ldcs: LoadedComponent list) (model: Model) pos compType lbl =
+    // TODO(jpnock): make sure this is called on paste
+    printf "addSymbol called {compType}"
     let newSym = createNewSymbol ldcs pos compType lbl model.Theme
+    printf $"got newSym {newSym}"
     let newPorts = addToPortModel model newSym
     let newSymModel = Map.add newSym.Id newSym model.Symbols
     { model with Symbols = newSymModel; Ports = newPorts }, newSym.Id
@@ -759,6 +765,14 @@ let storeLayoutInfoInComponent _ symbol =
 let checkSymbolIntegrity (sym: Symbol) =
     failwithf ""
 
+let rec private updatePluginConfig (mapper : VerificationTypes.ComponentConfig -> VerificationTypes.ComponentConfig) (model : Model) compId =
+    let oldSymbol = Map.find compId model.Symbols
+    let newCompType = 
+        match oldSymbol.Component.Type with
+        | Plugin state -> Plugin (mapper state)
+        | _ -> failwithf "Tried to update plugin config of non plugin component"
+    let newSymbol = set (component_ >-> type_) newCompType oldSymbol
+    (replaceSymbol model newSymbol compId), Cmd.none
 
 /// Update function which displays symbols
 let update (msg : Msg) (model : Model): Model*Cmd<'a>  =     
@@ -823,6 +837,69 @@ let update (msg : Msg) (model : Model): Model*Cmd<'a>  =
     | ChangeNumberOfBits (compId, newBits) ->
         let newsymbol = changeNumberOfBitsf model compId newBits
         (replaceSymbol model newsymbol compId), Cmd.none
+    
+    | ChangeAssertionText (compId, newText) ->
+        updatePluginConfig (fun state -> {state with AssertionText = Some newText}) model compId
+
+    | SetAssertionInputs (compId, newInputNames) ->
+        // Basic idea: If the inputs to the text assertion block have changed,
+        // update all the relevant state to reflect these new inputs.
+        // TODO(jlsand): For simplicity a full-replacement approach is used, however
+        // in-place replacement could most likely be implemented using CustomCompPorts.fs
+        let symbol = Map.find compId model.Symbols
+        let comp = symbol.Component
+
+        // Update the component assertion state
+        let assertState = 
+            match comp.Type with
+            | Plugin p -> p
+            | _ -> failwithf "What? Can not change the inputs of a non-assertion component"
+
+        let newInputNames' = List.ofSeq newInputNames
+        let newInputs = 
+            List.mapi (fun i name-> i, { Name = name; FixedWidth = None; DataType = DataTypeUInt }) newInputNames' 
+            |> Map.ofList
+        let newAssertState = {assertState with Inputs = newInputs}
+
+        // Generate new ports and port maps
+        let addPort index _ =
+            {
+                Id = JSHelpers.uuid ()
+                PortNumber = index |> Some
+                HostId = comp.Id
+                PortType = PortType.Input
+            }
+        let newPorts = List.mapi addPort newInputNames'
+
+        let emptyPortMaps = {Order = emptyPortOrder; Orientation = Map.empty}
+        let newPortMaps = 
+            List.fold (fun maps (newPort:Port) -> addPortToMaps Edge.Left maps newPort.Id) emptyPortMaps newPorts
+
+        // Update the symbolinfo, component, symbol and model with the new ports, port maps and assertion state.
+        let newSymbolInfo = 
+            match comp.SymbolInfo with
+            | Some si -> {si with PortOrder = newPortMaps.Order; PortOrientation = newPortMaps.Orientation}
+            | None -> failwithf "What? Symbol info can not be none here."
+        let newComp = {comp with InputPorts = newPorts; Type = Plugin newAssertState; SymbolInfo = Some newSymbolInfo}
+        printfn "newcomp: %A" newComp
+
+        let newSymbol = autoScaleHAndW {symbol with Component = newComp; PortMaps = newPortMaps}
+        let newModel = {model with Ports = addToPortModel model newSymbol}
+
+        (replaceSymbol newModel newSymbol compId), Cmd.none
+    
+    | ChangeInputDataType (compId, portNum, dataType) ->
+        updatePluginConfig (fun state ->
+            let updateSign (target: VerificationTypes.ComponentInput) = {target with DataType = dataType}
+            let newInputs = state.Inputs.Change (portNum, Option.map updateSign)
+            {state with Inputs = newInputs}) model compId
+    
+    | ChangeComponentConfig (compId, cfgMapper) ->
+        updatePluginConfig cfgMapper model compId
+    
+    | ChangeMultiComponentType (compId, typ) ->
+        // TODO(jpnock): consider what happens when number of inputs changes
+        updatePluginConfig (fun state -> {state with MultiComponentType = Some typ}) model compId
     
     | ChangeScale (compId,newScale,whichScale) ->
         let symbol = Map.find compId model.Symbols
